@@ -1,3 +1,4 @@
+import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 export const useScreenRecorder = () => {
@@ -5,6 +6,7 @@ export const useScreenRecorder = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const [recording, setRecording] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const router = useRouter();
 
   const startRecording = async () => {
     const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -27,6 +29,7 @@ export const useScreenRecorder = () => {
       const finalBlob = new Blob(chunks, { type: "video/webm" });
       const url = URL.createObjectURL(finalBlob);
       setVideoUrl(url);
+      router.push(`/editor?video=${encodeURIComponent(url)}`);
     };
 
     recorder.start();
@@ -37,6 +40,7 @@ export const useScreenRecorder = () => {
     mediaRecorder.current?.stop();
     streamRef.current?.getTracks().forEach((track) => track.stop()); // ✅ closes screen share
     setRecording(false);
+    console.log("video url", videoUrl);
   };
 
   return { startRecording, stopRecording, recording, videoUrl };

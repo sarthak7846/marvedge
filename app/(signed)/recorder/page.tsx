@@ -1,5 +1,5 @@
 "use client";
-
+//Todo: Add immediate redirect to /editor without showing the preview here. Add fallback for the same.
 import { useScreenRecorder } from "@/app/hooks/useScreenRecorder";
 
 const RecorderPage = () => {
