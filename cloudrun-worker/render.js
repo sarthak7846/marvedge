@@ -719,7 +719,8 @@ async function renderChunkFromRecipe({
       Math.abs(keepSegments[0].end - timelineDuration) <= EPS
     );
   if (keepSegments.length === 0) {
-    throw new Error("All video content was trimmed out.");
+    console.log(`[${chunkId}] All video content was trimmed out. Skipping.`);
+    return { skipped: true };
   }
 
   console.log(

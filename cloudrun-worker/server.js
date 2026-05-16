@@ -358,7 +358,7 @@ async function processChunkJob({
     }
 
     const renderStartMs = Date.now();
-    await renderChunkFromRecipe({
+    const renderResult = await renderChunkFromRecipe({
       inputPath,
       outputPath,
       chunkId,
@@ -368,6 +368,21 @@ async function processChunkJob({
       duration,
     });
     const renderMs = Date.now() - renderStartMs;
+
+    if (renderResult && renderResult.skipped) {
+      console.log(`[${chunkId}] Chunk was skipped. Not uploading.`);
+      await updateChunkStatus(chunkId, {
+        recipeId,
+        status: "SKIPPED",
+        error: FieldValue.delete(),
+      });
+      return {
+        chunkId,
+        recipeId,
+        status: "SKIPPED",
+        skipped: true,
+      };
+    }
 
     let outputBytes = 0;
     try {

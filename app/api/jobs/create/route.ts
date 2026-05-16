@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, unstable_after } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { invokeGcpWorker } from "@/app/lib/gcpWorker";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
@@ -147,95 +148,100 @@ export async function POST(req: NextRequest) {
     };
 
     // 2. Dispatch to GCP Cloud Run workers (Scatter-Gather)
-    try {
-      await prisma.videoJob.update({
-        where: { id: jobRecord.id },
-        data: {
-          status: "PROCESSING",
-          progress: 25,
-        },
-      });
+    unstable_after(async () => {
+      try {
+        await prisma.videoJob.update({
+          where: { id: jobRecord.id },
+          data: {
+            status: "PROCESSING",
+            progress: 25,
+          },
+        });
 
-      const chunkDuration = 10;
-      const chunksCount = Math.ceil(duration / chunkDuration);
-      const chunkFilenames: string[] = [];
-      const fetchTasks = [];
+        const chunkDuration = 10;
+        const chunksCount = Math.ceil(duration / chunkDuration);
+        const chunkFilenames: string[] = [];
+        const fetchTasks = [];
 
-      for (let i = 0; i < chunksCount; i++) {
-        const startTime = i * chunkDuration;
-        const currentChunkDuration = Math.min(chunkDuration, duration - startTime);
-        const chunkId = `${jobRecord.id}_chunk_${String(i).padStart(3, "0")}`;
-        const outputObject = `${chunkId}.mp4`;
+        for (let i = 0; i < chunksCount; i++) {
+          const startTime = i * chunkDuration;
+          const currentChunkDuration = Math.min(chunkDuration, duration - startTime);
+          const chunkId = `${jobRecord.id}_chunk_${String(i).padStart(3, "0")}`;
+          const outputObject = `${chunkId}.mp4`;
 
-        chunkFilenames.push(outputObject);
+          chunkFilenames.push(outputObject);
 
-        // Store a function that RETURNS the promise, but don't call it yet!
-        fetchTasks.push(() =>
-          invokeGcpWorker(
-            {
-              chunkId,
-              recipeId: jobRecord.id,
-              outputObject,
-              videoUrl,
-              recipe: normalizedPayload as unknown as Record<string, unknown>,
-              startTime,
-              duration: currentChunkDuration,
-            },
-            "/process"
-          )
-        );
-      }
-
-      // True Concurrency Queue Logic (Actual Deferred Execution)
-      const MAX_CONCURRENT_CHUNKS = 5;
-      const executing = new Set<Promise<unknown>>();
-      const results = [];
-
-      for (const task of fetchTasks) {
-        const promise = task().finally(() => executing.delete(promise));
-        executing.add(promise);
-        results.push(promise);
-        if (executing.size >= MAX_CONCURRENT_CHUNKS) {
-          await Promise.race(executing);
+          // Store a function that RETURNS the promise, but don't call it yet!
+          fetchTasks.push(() =>
+            invokeGcpWorker(
+              {
+                chunkId,
+                recipeId: jobRecord.id,
+                outputObject,
+                videoUrl,
+                recipe: normalizedPayload as unknown as Record<string, unknown>,
+                startTime,
+                duration: currentChunkDuration,
+              },
+              "/process"
+            )
+          );
         }
+
+        // True Concurrency Queue Logic (Actual Deferred Execution)
+        const MAX_CONCURRENT_CHUNKS = 5;
+        const executing = new Set<Promise<unknown>>();
+        const results = [];
+
+        for (const task of fetchTasks) {
+          const promise = task().finally(() => executing.delete(promise));
+          executing.add(promise);
+          results.push(promise);
+          if (executing.size >= MAX_CONCURRENT_CHUNKS) {
+            await Promise.race(executing);
+          }
+        }
+
+        const completedTasks = await Promise.all(results);
+
+        const validChunkFilenames = (completedTasks as any[])
+          .filter(res => res && res.result && !res.result.skipped)
+          .map(res => res.result.processedObject);
+
+        await prisma.videoJob.update({
+          where: { id: jobRecord.id },
+          data: { progress: 80 },
+        });
+
+        const mergeResp = await invokeGcpWorker(
+          {
+            recipeId: jobRecord.id,
+            chunkFilenames: validChunkFilenames,
+          },
+          "/merge"
+        );
+
+        const exportedUrl = mergeResp.result?.exportedUrl || null;
+
+        await prisma.videoJob.update({
+          where: { id: jobRecord.id },
+          data: {
+            status: "COMPLETED",
+            progress: 100,
+            exportedUrl,
+          },
+        });
+      } catch (dispatchError) {
+        console.error("Job dispatch failed:", dispatchError);
+        await prisma.videoJob.update({
+          where: { id: jobRecord.id },
+          data: {
+            status: "FAILED",
+            error: dispatchError instanceof Error ? dispatchError.message : "Dispatch failed",
+          },
+        });
       }
-
-      await Promise.all(results);
-
-      await prisma.videoJob.update({
-        where: { id: jobRecord.id },
-        data: { progress: 80 },
-      });
-
-      const mergeResp = await invokeGcpWorker(
-        {
-          recipeId: jobRecord.id,
-          chunkFilenames,
-        },
-        "/merge"
-      );
-
-      const exportedUrl = mergeResp.result?.exportedUrl || null;
-
-      await prisma.videoJob.update({
-        where: { id: jobRecord.id },
-        data: {
-          status: "COMPLETED",
-          progress: 100,
-          exportedUrl,
-        },
-      });
-    } catch (dispatchError) {
-      console.error("Job dispatch failed:", dispatchError);
-      await prisma.videoJob.update({
-        where: { id: jobRecord.id },
-        data: {
-          status: "FAILED",
-          error: dispatchError instanceof Error ? dispatchError.message : "Dispatch failed",
-        },
-      });
-      return NextResponse.json({ error: "Failed to dispatch job" }, { status: 500 });
-    }
+    });
 
     // 3. Return the job ID to the client instantly
     return NextResponse.json({
