@@ -204,9 +204,11 @@ export async function POST(req: NextRequest) {
 
         const completedTasks = await Promise.all(results);
 
-        const validChunkFilenames = (completedTasks as any[])
-          .filter(res => res && res.result && !res.result.skipped)
-          .map(res => res.result.processedObject);
+        const validChunkFilenames = (
+          completedTasks as { result?: { skipped?: boolean; processedObject?: string } }[]
+        )
+          .filter((res) => res && res.result && !res.result.skipped)
+          .map((res) => res.result!.processedObject!);
 
         await prisma.videoJob.update({
           where: { id: jobRecord.id },

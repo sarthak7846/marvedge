@@ -27,9 +27,7 @@ export default function LandingReviews() {
         if (res.ok) {
           const data = (await res.json()) as Review[];
           // Filter 4-5 stars and take top 6 reviews
-          const topReviews = data
-            .filter((review) => review.rating >= 4)
-            .slice(0, 6);
+          const topReviews = data.filter((review) => review.rating >= 4).slice(0, 6);
           setReviews(topReviews);
         }
       } catch (error) {
@@ -104,9 +102,7 @@ export default function LandingReviews() {
               </div>
 
               <div className="text-gray-700 mt-2 flex-grow">
-                <p className="whitespace-pre-line text-[15px] leading-relaxed">
-                  {review.content}
-                </p>
+                <p className="whitespace-pre-line text-[15px] leading-relaxed">{review.content}</p>
               </div>
             </div>
           ))}

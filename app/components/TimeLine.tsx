@@ -76,6 +76,7 @@ export default function TimelineRuler({
   onResetVideo,
   //onZoomEffectCreate,
   // initialSegments,
+  playing,
   setPlaying,
   playbackSpeed,
   setPlaybackSpeed,
@@ -368,11 +369,15 @@ export default function TimelineRuler({
     };
   }, [draggingScissor, scissorPreview, minValue, maxValue, segments.length, setSegments]);
 
+  const lastSeekTimeRef = useRef<number>(0);
+
   const updateCurrentTimeFromMouse = useCallback(
     (e: MouseEvent | React.MouseEvent) => {
       if (!rulerRef.current) {
         return;
       }
+      lastSeekTimeRef.current = Date.now();
+
       const rect = rulerRef.current.getBoundingClientRect();
       const x = (e instanceof MouseEvent ? e.clientX : e.nativeEvent.clientX) - rect.left;
       const width = rect.width;
@@ -393,7 +398,7 @@ export default function TimelineRuler({
       updateCurrentTimeFromMouse(e);
     };
     const onUp = () => {
-      setPlaying(true);
+      // Keep paused after dragging to allow user to inspect blocks
       setDraggingCurrentTime(false);
     };
     window.addEventListener("mousemove", onMove);
@@ -661,7 +666,11 @@ export default function TimelineRuler({
   };
 
   // Play trim segment
-  const playTrimSegment = (segment: { start: number; end: number }, idx: number) => {
+  const playTrimSegment = (
+    segment: { start: number; end: number },
+    idx: number,
+    e?: React.MouseEvent
+  ) => {
     const video = playerRef.current;
     if (!video) {
       return;
@@ -670,14 +679,24 @@ export default function TimelineRuler({
     setMode("trim");
     setActiveSegment(idx);
     setActiveZoomIdx(-1);
-    video.seekTo(segment.start, "seconds");
-    setPlaying(true);
+    if (e) {
+      updateCurrentTimeFromMouse(e);
+      setPlaying(false);
+    } else {
+      video.seekTo(segment.start, "seconds");
+    }
   };
 
   const handleProgress = useCallback(
     ({ playedSeconds }: { playedSeconds: number }) => {
       const player = playerRef.current;
       if (!player) {
+        return;
+      }
+
+      // If the user is actively dragging the timeline, or the video is paused,
+      // or we just clicked/seeked within the last 500ms, do NOT skip the trimmed sections.
+      if (draggingCurrentTime || !playing || Date.now() - lastSeekTimeRef.current < 500) {
         return;
       }
 
@@ -696,7 +715,7 @@ export default function TimelineRuler({
         }
       }
     },
-    [playerRef, mode, segments, activeSegment]
+    [playerRef, mode, segments, activeSegment, draggingCurrentTime, playing]
   );
 
   useEffect(() => {
@@ -905,7 +924,7 @@ export default function TimelineRuler({
         endValue: number;
       };
 
-  const playZoomSegment = (segment: ZoomEffect, idx: number) => {
+  const playZoomSegment = (segment: ZoomEffect, idx: number, e?: React.MouseEvent) => {
     const video = playerRef.current;
     if (!video) {
       return;
@@ -919,9 +938,13 @@ export default function TimelineRuler({
     setMode("zoom");
     setActiveSegment(-1);
     //setOpen(true);
-    // Jump video to zoom start
-    video.seekTo(segment.startTime, "seconds");
-    setPlaying(true);
+    // Jump video to clicked position
+    if (e) {
+      updateCurrentTimeFromMouse(e);
+      setPlaying(false);
+    } else {
+      video.seekTo(segment.startTime, "seconds");
+    }
   };
 
   const [dragZoomState, setDragZoomState] = useState<DragZoomState | null>(null);
@@ -1559,7 +1582,7 @@ export default function TimelineRuler({
                       onClick={(e) => {
                         e.stopPropagation();
                         switchToTrimMode(idx);
-                        playTrimSegment(segment, idx);
+                        playTrimSegment(segment, idx, e);
                         //setActiveSegment(idx);
                       }}
                       onMouseDown={(e) => {
@@ -1649,7 +1672,7 @@ export default function TimelineRuler({
                         e.stopPropagation();
                         //setZoomActive(idx);
                         //switchToTrimMode(idx);
-                        playZoomSegment(segment, idx);
+                        playZoomSegment(segment, idx, e);
                         //setActiveSegment(idx);
                       }}
                       onMouseDown={(e) => {
@@ -1743,8 +1766,8 @@ export default function TimelineRuler({
                         setMode("text");
                         setSelectedTextOverlayId(overlay.id);
                         setTextOverlayInspectorValues(overlay);
-                        playerRef.current?.seekTo(overlay.startTime, "seconds");
-                        setPlaying(true);
+                        updateCurrentTimeFromMouse(e);
+                        setPlaying(false);
                       }}
                       onMouseDown={(e) => {
                         setDragTextState({
