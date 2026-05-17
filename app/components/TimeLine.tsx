@@ -77,7 +77,7 @@ export default function TimelineRuler({
   onResetVideo,
   //onZoomEffectCreate,
   // initialSegments,
-  playing,
+  // playing,
   setPlaying,
   playbackSpeed,
   setPlaybackSpeed,
@@ -110,7 +110,9 @@ export default function TimelineRuler({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [localValue, setLocalValue] = useState(currentValue || 0);
   const localValueRef = useRef(localValue);
-  useEffect(() => { localValueRef.current = localValue; }, [localValue]);
+  useEffect(() => {
+    localValueRef.current = localValue;
+  }, [localValue]);
 
   // Initialize with full duration by default
   const [localStartTime, setLocalStartTime] = useState(startTime ?? minValue);
@@ -413,7 +415,13 @@ export default function TimelineRuler({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [draggingCurrentTime, updateCurrentTimeFromMouse, setPlaying, isDraggingTimelineRef]);
+  }, [
+    draggingCurrentTime,
+    updateCurrentTimeFromMouse,
+    setPlaying,
+    isDraggingTimelineRef,
+    playerRef,
+  ]);
 
   const updateValueFromMouse = useCallback(
     (e: React.MouseEvent | MouseEvent) => {
@@ -749,12 +757,9 @@ export default function TimelineRuler({
     handleProgressRef.current = handleProgress;
   }, [handleProgress]);
 
-  const handleProgressWrapper = useCallback(
-    (data: { playedSeconds: number }) => {
-      handleProgressRef.current?.(data);
-    },
-    []
-  );
+  const handleProgressWrapper = useCallback((data: { playedSeconds: number }) => {
+    handleProgressRef.current?.(data);
+  }, []);
 
   useEffect(() => {
     setChildHandleProgress(() => handleProgressWrapper);

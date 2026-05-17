@@ -111,7 +111,9 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
           const data = await res.json();
           if (data.ok && data.playableUrl) {
             playableUrl = data.playableUrl;
-          } else continue;
+          } else {
+            continue;
+          }
         }
         const dur = await probeVideoDuration(playableUrl);
         if (dur > 0) {

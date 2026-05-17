@@ -1680,7 +1680,14 @@ export default function EditorPage() {
                             ) {
                               return;
                             }
-                            console.error("Video failed to load", e, "url:", videoUrl, "data:", data);
+                            console.error(
+                              "Video failed to load",
+                              e,
+                              "url:",
+                              videoUrl,
+                              "data:",
+                              data
+                            );
                           }}
                           onProgress={(data) => {
                             // Completely skip onProgress during timeline drag
@@ -1813,12 +1820,11 @@ export default function EditorPage() {
                   <div
                     className="absolute inset-0 z-50"
                     style={{
-                      pointerEvents:
-                        !videoUrl
-                          ? "none"
-                          : (tool === "none" || tool === "text") && !shouldShowZoomFocusBox
-                            ? "auto"
-                            : "none",
+                      pointerEvents: !videoUrl
+                        ? "none"
+                        : (tool === "none" || tool === "text") && !shouldShowZoomFocusBox
+                          ? "auto"
+                          : "none",
                     }}
                   >
                     {textOverlays
