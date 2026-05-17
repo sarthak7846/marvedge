@@ -90,6 +90,7 @@ model Demo {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   editing       Json?
+  duration      Float?
   userId        String
   isPublic      Boolean        @default(false)
   publicLink    String?        @unique
