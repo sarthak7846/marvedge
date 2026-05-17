@@ -1814,9 +1814,11 @@ export default function EditorPage() {
                     className="absolute inset-0 z-50"
                     style={{
                       pointerEvents:
-                        (tool === "none" || tool === "text") && !shouldShowZoomFocusBox
-                          ? "auto"
-                          : "none",
+                        !videoUrl
+                          ? "none"
+                          : (tool === "none" || tool === "text") && !shouldShowZoomFocusBox
+                            ? "auto"
+                            : "none",
                     }}
                   >
                     {textOverlays

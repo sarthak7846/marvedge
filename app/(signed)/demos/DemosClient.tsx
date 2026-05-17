@@ -306,53 +306,47 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
               {filteredAndSortedDemos.map((demo: Demo) => (
                 <div
                   key={demo.id}
-                  className="bg-white rounded-2xl p-8 flex flex-col h-full shadow-sm cursor-pointer hover:shadow-md transition"
+                  className="bg-white rounded-2xl p-4 flex flex-col h-full shadow-sm cursor-pointer hover:shadow-md transition"
                   onClick={() => handleEditDemo(demo)}
                 >
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between mb-3">
                     <div className="text-2xl text-[#8B8B8B] font-normal">{demo.title}</div>
-                    <div className="flex w-full items-center justify-center">
-                      <button
-                        className="text-red-400 hover:text-red-600 text-xl"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteDemo(demo.id);
-                        }}
-                      >
-                        <Image
-                          src="/icons/delete-demo.svg"
-                          alt="Delete"
-                          width={24}
-                          height={24}
-                          className="w-6 h-6"
-                        />
-                      </button>
-                    </div>
+                    <button
+                      className="text-red-400 hover:text-red-600 text-xl flex-shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteDemo(demo.id);
+                      }}
+                    >
+                      <Image
+                        src="/icons/delete-demo.svg"
+                        alt="Delete"
+                        width={24}
+                        height={24}
+                        className="w-6 h-6"
+                      />
+                    </button>
                   </div>
-                  <div className="flex-1 flex items-center justify-center bg-[#F8F6FF] rounded-xl mb-6 min-h-[180px]">
+                  <div className="flex-1 flex items-center justify-center rounded-xl mb-4 min-h-[220px] overflow-hidden">
                     <Image
-                      src="/icons/play-demo.svg"
-                      alt="Notifications"
-                      width={24}
-                      height={24}
-                      className="w-6 h-6"
+                      src="/LargeMarvedge.png"
+                      alt="Demo thumbnail"
+                      width={800}
+                      height={450}
+                      className="w-full h-full object-cover rounded-xl"
                     />
                   </div>
-                  <div className="flex items-center justify-between text-[#8B8B8B] text-base mb-4">
+                  <div className="flex items-center justify-between text-[#8B8B8B] text-base mb-2">
                     <div className="flex items-center gap-2">
-                      <FaEye className="text-lg" /> 0
+                      <FaRegClock className="text-lg" /> {formatTime_2(demo.startTime || "")} – {formatTime_2(demo.endTime || "")}
                     </div>
                     <div className="flex items-center gap-2">
                       <FaRegCalendarAlt className="text-lg" /> {formatDate(demo.updatedAt)}
                     </div>
                     <div>Draft</div>
                   </div>
-                  <div className="text-sm text-[#8B8B8B] mb-4">
-                    <div>
-                      Duration: {formatTime_2(demo.startTime || "")} -{" "}
-                      {formatTime_2(demo.endTime || "")}
-                    </div>
-                    <div className="truncate">{demo.description || "No description"}</div>
+                  <div className="text-sm text-[#8B8B8B] truncate">
+                    {demo.description || "No description"}
                   </div>
                 </div>
               ))}
@@ -377,13 +371,13 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
                       onClick={() => handleEditDemo(demo)}
                     >
                       <td className="py-4 px-6 flex items-center gap-4">
-                        <span className="inline-flex items-center justify-center w-14 h-14 bg-[#E5DEFF] rounded-xl">
+                        <span className="inline-flex items-center justify-center w-14 h-14 rounded-xl overflow-hidden">
                           <Image
-                            src="/icons/play-demo.svg"
-                            alt="Notifications"
-                            width={24}
-                            height={24}
-                            className="w-6 h-6"
+                            src="/SmallMarvedgeLogo.png"
+                            alt="Demo thumbnail"
+                            width={56}
+                            height={56}
+                            className="w-full h-full object-cover"
                           />
                         </span>
                         <div>
