@@ -248,49 +248,44 @@ export default function ExportedVideosClient() {
               {filteredAndSortedVideos.map((video) => (
                 <div
                   key={video.id}
-                  className="bg-white rounded-2xl p-8 flex flex-col h-full shadow-sm cursor-pointer hover:shadow-md transition"
+                  className="bg-white rounded-2xl p-4 flex flex-col h-full shadow-sm cursor-pointer hover:shadow-md transition"
                   onClick={() => openVideo(video.exportedUrl)}
                 >
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between mb-3">
                     <div className="text-2xl text-[#8B8B8B] font-normal">{video.title}</div>
-                    <div className="flex items-center gap-4">
-                      <button
-                        className="text-red-400 hover:text-red-600 text-xl"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteVideo(video.id);
-                        }}
-                      >
-                        <Image
-                          src="/icons/delete-demo.svg"
-                          alt="Delete"
-                          width={24}
-                          height={24}
-                          className="w-6 h-6"
-                        />
-                      </button>
-                    </div>
+                    <button
+                      className="text-red-400 hover:text-red-600 text-xl flex-shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteVideo(video.id);
+                      }}
+                    >
+                      <Image
+                        src="/icons/delete-demo.svg"
+                        alt="Delete"
+                        width={24}
+                        height={24}
+                        className="w-6 h-6"
+                      />
+                    </button>
                   </div>
-                  <div className="flex-1 flex items-center justify-center bg-[#F8F6FF] rounded-xl mb-6 min-h-[180px]">
+                  <div className="flex-1 flex items-center justify-center rounded-xl mb-4 min-h-[220px] overflow-hidden">
                     <Image
-                      src="/icons/play-demo.svg"
-                      alt="Preview"
-                      width={24}
-                      height={24}
-                      className="w-6 h-6"
+                      src="/LargeMarvedge.png"
+                      alt="Video thumbnail"
+                      width={800}
+                      height={450}
+                      className="w-full h-full object-cover rounded-xl"
                     />
                   </div>
-                  <div className="flex items-center justify-between text-[#8B8B8B] text-base mb-4">
-                    <div className="flex items-center gap-2">
-                      <FaEye className="text-lg" /> 0
+                  <div className="flex items-center justify-between text-[#8B8B8B] text-base mb-2">
+                    <div className="flex-1 truncate text-sm">
+                      {video.description || "No description"}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-4">
                       <FaRegCalendarAlt className="text-lg" /> {formatDate(video.updatedAt)}
                     </div>
-                    <div>Published</div>
-                  </div>
-                  <div className="text-sm text-[#8B8B8B] mb-4">
-                    <div className="truncate">{video.description || "No description"}</div>
+                    <div className="ml-4 flex-shrink-0">Published</div>
                   </div>
                   <button
                     onClick={(e) => {
@@ -323,13 +318,13 @@ export default function ExportedVideosClient() {
                       onClick={() => openVideo(video.exportedUrl)}
                     >
                       <td className="py-4 px-6 flex items-center gap-4">
-                        <span className="inline-flex items-center justify-center w-14 h-14 bg-[#E5DEFF] rounded-xl">
+                        <span className="inline-flex items-center justify-center w-14 h-14 rounded-xl overflow-hidden">
                           <Image
-                            src="/icons/play-demo.svg"
-                            alt="Preview"
-                            width={24}
-                            height={24}
-                            className="w-6 h-6"
+                            src="/SmallMarvedgeLogo.png"
+                            alt="Video thumbnail"
+                            width={56}
+                            height={56}
+                            className="w-full h-full object-cover"
                           />
                         </span>
                         <div>

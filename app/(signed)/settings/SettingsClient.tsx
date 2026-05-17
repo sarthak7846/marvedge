@@ -479,6 +479,7 @@ const SettingsPage = () => {
                   <p className="text-gray-500 text-xs text-center">
                     Supported files: JPEG, PNG, GIF
                   </p>
+                  <p className="text-red-500 text-xs text-center">Max file size: 3MB</p>
                 </div>
               </div>
             )}

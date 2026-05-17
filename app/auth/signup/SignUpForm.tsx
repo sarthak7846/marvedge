@@ -124,12 +124,15 @@ const SignUp = () => {
             className="max-w-full h-auto"
           />
         </div>
-        <div className="absolute top-4 sm:top-6 left-6 sm:left-10 flex items-center gap-2 sm:gap-3 z-10">
+        <button
+          onClick={() => router.push("/")}
+          className="absolute top-4 sm:top-6 left-6 sm:left-10 flex items-center gap-2 sm:gap-3 z-10 cursor-pointer"
+        >
           <Image src="/icons/logo.png" alt="Logo" width={28} height={28} />
           <span className="text-base sm:text-lg font-extrabold tracking-wider text-[#B09EE4]">
             MARVEDGE
           </span>
-        </div>
+        </button>
 
         <div className="absolute top-1/4 right-1/4 w-3 h-3 bg-white/20 rounded-full animate-pulse hover:scale-150 transition-transform duration-300"></div>
         <div className="absolute bottom-1/3 left-1/4 w-4 h-4 bg-white/15 rounded-full animate-pulse delay-1000 hover:scale-150 transition-transform duration-300"></div>

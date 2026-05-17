@@ -5,6 +5,7 @@ import Navbar from "../app/components/Navbar";
 import HeroSection from "./components/HeroSection";
 import Footer from "./components/Footer";
 import Pricing from "./components/Pricing";
+import LandingReviews from "./components/LandingReviews";
 
 export default async function LandingPage() {
   const session = await getServerSession(authOptions);
@@ -17,6 +18,7 @@ export default async function LandingPage() {
       <Navbar />
       <HeroSection />
       <Pricing />
+      <LandingReviews />
       <Footer />
     </>
   );

@@ -96,7 +96,17 @@ const Navbar: React.FC = () => {
             >
               Pricing
             </NavButton>
-            <NavButton onClick={() => router.push("/reviews")}>Reviews</NavButton>
+            <NavButton
+              onClick={() => {
+                if (window.location.pathname === "/") {
+                  document.getElementById("reviews")?.scrollIntoView({ behavior: "smooth" });
+                } else {
+                  router.push("/#reviews");
+                }
+              }}
+            >
+              Reviews
+            </NavButton>
           </div>
         )}
         {/* Mobile menu */}
@@ -128,7 +138,11 @@ const Navbar: React.FC = () => {
             </NavButton>
             <NavButton
               onClick={() => {
-                router.push("/reviews");
+                if (window.location.pathname === "/") {
+                  document.getElementById("reviews")?.scrollIntoView({ behavior: "smooth" });
+                } else {
+                  router.push("/#reviews");
+                }
                 toggleMenu();
               }}
             >

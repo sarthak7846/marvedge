@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   FaTh,
   FaThList,
@@ -13,7 +13,7 @@ import {
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import axios from "axios";
-import { formatDate, formatTime_2 } from "@/app/lib/dateTimeUtils";
+import { formatDate, formatTime } from "@/app/lib/dateTimeUtils";
 import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
 
 export const metadata = {
@@ -29,6 +29,7 @@ interface Demo {
   exportedUrl?: string;
   startTime?: string;
   endTime?: string;
+  duration?: number | null;
   segments?: unknown;
   createdAt: string;
   updatedAt: string;
@@ -46,6 +47,28 @@ interface Demo {
 
 interface DemosPageProps {
   initialDemos: Demo[];
+}
+
+function probeVideoDuration(url: string): Promise<number> {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.muted = true;
+    const cleanup = () => {
+      video.removeAttribute("src");
+      video.load();
+    };
+    video.addEventListener("loadedmetadata", () => {
+      const dur = video.duration;
+      cleanup();
+      resolve(Number.isFinite(dur) ? dur : 0);
+    });
+    video.addEventListener("error", () => {
+      cleanup();
+      resolve(0);
+    });
+    video.src = url;
+  });
 }
 
 export default function DemosPage({ initialDemos }: DemosPageProps) {
@@ -66,6 +89,53 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
   const [sortOption, setSortOption] = useState<"title" | "updatedAt" | "createdAt" | "views">(
     "updatedAt"
   );
+  // Seed durationMap from SSR data (demos that already have duration in DB)
+  const [durationMap, setDurationMap] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const demo of initialDemos) {
+      if (demo.duration && demo.duration > 0) {
+        map[demo.id] = formatTime(demo.duration);
+      }
+    }
+    return map;
+  });
+
+  const fetchDurations = useCallback(async (demoList: Demo[]) => {
+    // Only probe demos that don't have a cached duration yet
+    const uncached = demoList.filter((d) => !d.duration && d.videoUrl);
+    for (const demo of uncached) {
+      try {
+        let playableUrl = demo.videoUrl;
+        if (demo.videoUrl.startsWith("gs://")) {
+          const res = await fetch(`/api/gcs/resolve?url=${encodeURIComponent(demo.videoUrl)}`);
+          const data = await res.json();
+          if (data.ok && data.playableUrl) {
+            playableUrl = data.playableUrl;
+          } else {
+            continue;
+          }
+        }
+        const dur = await probeVideoDuration(playableUrl);
+        if (dur > 0) {
+          setDurationMap((prev) => ({ ...prev, [demo.id]: formatTime(dur) }));
+          // Persist to DB so next load is instant
+          fetch("/api/demo/duration", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: demo.id, duration: dur }),
+          }).catch(() => {});
+        }
+      } catch {
+        // skip this demo
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (demos.length > 0) {
+      fetchDurations(demos);
+    }
+  }, [demos, fetchDurations]);
 
   const fetchDemos = async () => {
     setLoading(true);
@@ -306,53 +376,47 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
               {filteredAndSortedDemos.map((demo: Demo) => (
                 <div
                   key={demo.id}
-                  className="bg-white rounded-2xl p-8 flex flex-col h-full shadow-sm cursor-pointer hover:shadow-md transition"
+                  className="bg-white rounded-2xl p-4 flex flex-col h-full shadow-sm cursor-pointer hover:shadow-md transition"
                   onClick={() => handleEditDemo(demo)}
                 >
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between mb-3">
                     <div className="text-2xl text-[#8B8B8B] font-normal">{demo.title}</div>
-                    <div className="flex w-full items-center justify-center">
-                      <button
-                        className="text-red-400 hover:text-red-600 text-xl"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteDemo(demo.id);
-                        }}
-                      >
-                        <Image
-                          src="/icons/delete-demo.svg"
-                          alt="Delete"
-                          width={24}
-                          height={24}
-                          className="w-6 h-6"
-                        />
-                      </button>
-                    </div>
+                    <button
+                      className="text-red-400 hover:text-red-600 text-xl flex-shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteDemo(demo.id);
+                      }}
+                    >
+                      <Image
+                        src="/icons/delete-demo.svg"
+                        alt="Delete"
+                        width={24}
+                        height={24}
+                        className="w-6 h-6"
+                      />
+                    </button>
                   </div>
-                  <div className="flex-1 flex items-center justify-center bg-[#F8F6FF] rounded-xl mb-6 min-h-[180px]">
+                  <div className="flex-1 flex items-center justify-center rounded-xl mb-4 min-h-[220px] overflow-hidden">
                     <Image
-                      src="/icons/play-demo.svg"
-                      alt="Notifications"
-                      width={24}
-                      height={24}
-                      className="w-6 h-6"
+                      src="/LargeMarvedge.png"
+                      alt="Demo thumbnail"
+                      width={800}
+                      height={450}
+                      className="w-full h-full object-cover rounded-xl"
                     />
                   </div>
-                  <div className="flex items-center justify-between text-[#8B8B8B] text-base mb-4">
+                  <div className="flex items-center justify-between text-[#8B8B8B] text-base mb-2">
                     <div className="flex items-center gap-2">
-                      <FaEye className="text-lg" /> 0
+                      <FaRegClock className="text-lg" /> {durationMap[demo.id] || "..."}
                     </div>
                     <div className="flex items-center gap-2">
                       <FaRegCalendarAlt className="text-lg" /> {formatDate(demo.updatedAt)}
                     </div>
                     <div>Draft</div>
                   </div>
-                  <div className="text-sm text-[#8B8B8B] mb-4">
-                    <div>
-                      Duration: {formatTime_2(demo.startTime || "")} -{" "}
-                      {formatTime_2(demo.endTime || "")}
-                    </div>
-                    <div className="truncate">{demo.description || "No description"}</div>
+                  <div className="text-sm text-[#8B8B8B] truncate">
+                    {demo.description || "No description"}
                   </div>
                 </div>
               ))}
@@ -377,13 +441,13 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
                       onClick={() => handleEditDemo(demo)}
                     >
                       <td className="py-4 px-6 flex items-center gap-4">
-                        <span className="inline-flex items-center justify-center w-14 h-14 bg-[#E5DEFF] rounded-xl">
+                        <span className="inline-flex items-center justify-center w-14 h-14 rounded-xl overflow-hidden">
                           <Image
-                            src="/icons/play-demo.svg"
-                            alt="Notifications"
-                            width={24}
-                            height={24}
-                            className="w-6 h-6"
+                            src="/SmallMarvedgeLogo.png"
+                            alt="Demo thumbnail"
+                            width={56}
+                            height={56}
+                            className="w-full h-full object-cover"
                           />
                         </span>
                         <div>
