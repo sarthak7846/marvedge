@@ -60,6 +60,7 @@ interface TimelineRulerProps {
   selectedTextOverlayId: string | null;
   setSelectedTextOverlayId: React.Dispatch<React.SetStateAction<string | null>>;
   setTextOverlayInspectorValues: (overlay: TextOverlayItem) => void;
+  isDraggingTimelineRef: React.MutableRefObject<boolean>;
 }
 
 export default function TimelineRuler({
@@ -101,12 +102,15 @@ export default function TimelineRuler({
   selectedTextOverlayId,
   setSelectedTextOverlayId,
   setTextOverlayInspectorValues,
+  isDraggingTimelineRef,
 }: TimelineRulerProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [draggingHandle] = useState<"current" | "start" | "end" | null>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [localValue, setLocalValue] = useState(currentValue || 0);
+  const localValueRef = useRef(localValue);
+  useEffect(() => { localValueRef.current = localValue; }, [localValue]);
 
   // Initialize with full duration by default
   const [localStartTime, setLocalStartTime] = useState(startTime ?? minValue);
@@ -184,26 +188,9 @@ export default function TimelineRuler({
     selectedTrimIdxRef.current = null;
     setPlayheadMode("non-trim");
     setSelectedTrimIdx(null);
-
-    // Snap playhead to the gap it's in (or nearest gap)
-    setLocalValue((currentPos) => {
-      const sortedSegments = [...segments].sort((a, b) => a.start - b.start);
-
-      // Check if currentPos is inside a trimmed section
-      for (let i = 0; i < sortedSegments.length; i++) {
-        if (currentPos >= sortedSegments[i].start && currentPos < sortedSegments[i].end) {
-          // Jump to the next gap after this segment
-          if (i + 1 < sortedSegments.length) {
-            return sortedSegments[i].end;
-          } else {
-            return sortedSegments[i].end;
-          }
-        }
-      }
-
-      // If we're already in a gap, keep current position
-      return currentPos;
-    });
+    // Don't snap the playhead position — let the user place it wherever they want.
+    // The auto-skip logic in handleProgress will handle jumping over trim blocks
+    // only when the video is actually playing forward naturally.
   };
 
   // Update refs whenever they change
@@ -306,9 +293,13 @@ export default function TimelineRuler({
   // };
 
   useEffect(() => {
+    // Skip prop sync while user is dragging — their mouse position is the source of truth
+    if (isDraggingTimelineRef.current) {
+      return;
+    }
     isUpdatingFromPropRef.current = true;
     setLocalValue(currentValue);
-  }, [currentValue]);
+  }, [currentValue, isDraggingTimelineRef]);
 
   useEffect(() => {
     if (startTime !== undefined) {
@@ -385,6 +376,7 @@ export default function TimelineRuler({
       const value = minValue + (maxValue - minValue) * percentage;
 
       // Allow clicking anywhere - no skipping logic
+      localValueRef.current = value;
       setLocalValue(value);
     },
     [minValue, maxValue]
@@ -398,8 +390,22 @@ export default function TimelineRuler({
       updateCurrentTimeFromMouse(e);
     };
     const onUp = () => {
+      // Do a final seek to sync the player with the playhead position.
+      // We didn't seekTo during drag to avoid triggering onProgress race conditions.
+      const player = playerRef.current;
+      if (player) {
+        // Use the ref to get the LATEST localValue (avoid stale closure)
+        const finalValue = localValueRef.current;
+        setTimeout(() => {
+          player.seekTo(finalValue, "seconds");
+        }, 0);
+      }
       // Keep paused after dragging to allow user to inspect blocks
       setDraggingCurrentTime(false);
+      isDraggingTimelineRef.current = false;
+      // Set a grace period timestamp so handleProgress won't jump
+      // for 500ms after the drag ends
+      lastSeekTimeRef.current = Date.now();
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -407,7 +413,7 @@ export default function TimelineRuler({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [draggingCurrentTime, updateCurrentTimeFromMouse, setPlaying]);
+  }, [draggingCurrentTime, updateCurrentTimeFromMouse, setPlaying, isDraggingTimelineRef]);
 
   const updateValueFromMouse = useCallback(
     (e: React.MouseEvent | MouseEvent) => {
@@ -687,16 +693,36 @@ export default function TimelineRuler({
     }
   };
 
+  const lastPlayedSecondsRef = useRef(0);
+
   const handleProgress = useCallback(
     ({ playedSeconds }: { playedSeconds: number }) => {
       const player = playerRef.current;
       if (!player) {
+        lastPlayedSecondsRef.current = playedSeconds;
         return;
       }
 
-      // If the user is actively dragging the timeline, or the video is paused,
-      // or we just clicked/seeked within the last 500ms, do NOT skip the trimmed sections.
-      if (draggingCurrentTime || !playing || Date.now() - lastSeekTimeRef.current < 500) {
+      // GUARD 1: If actively dragging, never jump (uses ref for instant check, no stale closure)
+      if (isDraggingTimelineRef.current) {
+        lastPlayedSecondsRef.current = playedSeconds;
+        return;
+      }
+
+      // GUARD 2: If we just finished dragging or seeking within last 500ms, never jump
+      if (Date.now() - lastSeekTimeRef.current < 500) {
+        lastPlayedSecondsRef.current = playedSeconds;
+        return;
+      }
+
+      // GUARD 3: Calculate delta — only jump if video is naturally playing forward
+      const delta = playedSeconds - lastPlayedSecondsRef.current;
+      const isNaturallyPlaying = delta > 0 && delta < 1;
+
+      // Always update the ref to the current position
+      lastPlayedSecondsRef.current = playedSeconds;
+
+      if (!isNaturallyPlaying) {
         return;
       }
 
@@ -715,12 +741,24 @@ export default function TimelineRuler({
         }
       }
     },
-    [playerRef, mode, segments, activeSegment, draggingCurrentTime, playing]
+    [playerRef, mode, segments, activeSegment, isDraggingTimelineRef]
+  );
+
+  const handleProgressRef = useRef(handleProgress);
+  useEffect(() => {
+    handleProgressRef.current = handleProgress;
+  }, [handleProgress]);
+
+  const handleProgressWrapper = useCallback(
+    (data: { playedSeconds: number }) => {
+      handleProgressRef.current?.(data);
+    },
+    []
   );
 
   useEffect(() => {
-    setChildHandleProgress(() => handleProgress);
-  }, [handleProgress, setChildHandleProgress]);
+    setChildHandleProgress(() => handleProgressWrapper);
+  }, [setChildHandleProgress, handleProgressWrapper]);
 
   type DragState =
     | {
@@ -1488,6 +1526,7 @@ export default function TimelineRuler({
                 }}
                 onMouseDown={(e) => {
                   if (!draggingScissor) {
+                    isDraggingTimelineRef.current = true;
                     setPlaying(false);
                     setDraggingCurrentTime(true);
                     updateCurrentTimeFromMouse(e);
@@ -1586,6 +1625,7 @@ export default function TimelineRuler({
                         //setActiveSegment(idx);
                       }}
                       onMouseDown={(e) => {
+                        e.stopPropagation();
                         setDragState({
                           mode: "segment",
                           index: idx,
@@ -1676,6 +1716,7 @@ export default function TimelineRuler({
                         //setActiveSegment(idx);
                       }}
                       onMouseDown={(e) => {
+                        e.stopPropagation();
                         setDragZoomState({
                           mode: "segment",
                           index: idx,
@@ -1770,6 +1811,7 @@ export default function TimelineRuler({
                         setPlaying(false);
                       }}
                       onMouseDown={(e) => {
+                        e.stopPropagation();
                         setDragTextState({
                           mode: "segment",
                           id: overlay.id,

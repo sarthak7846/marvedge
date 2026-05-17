@@ -864,6 +864,8 @@ export default function EditorPage() {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isDraggingZoomTarget, setIsDraggingZoomTarget] = useState(false);
   const [showZoomModal, setShowZoomModal] = useState(false);
+  const lastInteractionRef = useRef<number>(0);
+  const isDraggingTimelineRef = useRef<boolean>(false);
 
   // Autosave editing state for already-saved demos.
   // This keeps edits persisted when the user navigates away without clicking "Save Demo".
@@ -1156,6 +1158,9 @@ export default function EditorPage() {
       setZoomLevel(1); // normal zoom
     }
     if (mode === "zoom" && activeZoomIdx != -1) {
+      if (Date.now() - lastInteractionRef.current < 500) {
+        return;
+      }
       const zoomInfo = zoomSegments[activeZoomIdx];
       if (zoomInfo && currentTime >= zoomInfo.endTime) {
         playerRef.current.seekTo(zoomInfo.startTime, "seconds");
@@ -1655,8 +1660,8 @@ export default function EditorPage() {
                           playbackRate={playbackSpeed}
                           config={{
                             file: {
+                              forceVideo: true,
                               attributes: {
-                                crossOrigin: "anonymous",
                                 style: {
                                   objectFit: previewObjectFit,
                                   objectPosition: "center center",
@@ -1667,7 +1672,7 @@ export default function EditorPage() {
                               },
                             },
                           }}
-                          onError={(e) => {
+                          onError={(e, data) => {
                             const errStr = String(e);
                             if (
                               errStr.includes("play() request was interrupted") ||
@@ -1675,9 +1680,17 @@ export default function EditorPage() {
                             ) {
                               return;
                             }
-                            console.error("Video failed to load", e);
+                            console.error("Video failed to load", e, "url:", videoUrl, "data:", data);
                           }}
                           onProgress={(data) => {
+                            // Completely skip onProgress during timeline drag
+                            if (isDraggingTimelineRef.current) {
+                              return;
+                            }
+                            // Also skip for 500ms after drag ends to prevent stale events
+                            if (Date.now() - lastInteractionRef.current < 500) {
+                              return;
+                            }
                             setCurrentTime(data.playedSeconds);
                             childHandleProgress?.(data);
                           }}
@@ -1964,6 +1977,7 @@ export default function EditorPage() {
                     duration={resolvedDuration}
                     currentTime={currentTime}
                     setCurrentTime={(t) => {
+                      lastInteractionRef.current = Date.now();
                       setCurrentTime(t);
                       playerRef.current?.seekTo(t, "seconds");
                     }}
@@ -2013,13 +2027,18 @@ export default function EditorPage() {
                   playbackSpeed={playbackSpeed}
                   setPlaybackSpeed={setPlaybackSpeed}
                   onValueChange={(value) => {
+                    lastInteractionRef.current = Date.now();
                     const safeDuration = Number.isFinite(resolvedDuration)
                       ? Math.max(0, resolvedDuration)
                       : 0;
                     const safeValue = Number.isFinite(value) ? value : 0;
                     const clampedValue = Math.max(0, Math.min(safeDuration, safeValue));
                     setCurrentTime(clampedValue);
-                    if (Number.isFinite(clampedValue)) {
+                    // Only seek the player when NOT actively dragging the timeline.
+                    // During drag, we only update the currentTime state for visual feedback.
+                    // Seeking during drag causes the player to fire onProgress events that
+                    // create race conditions with the skip-over-trim-block logic.
+                    if (!isDraggingTimelineRef.current && Number.isFinite(clampedValue)) {
                       playerRef.current?.seekTo(clampedValue, "seconds");
                     }
                   }}
@@ -2062,6 +2081,7 @@ export default function EditorPage() {
                     setTextOverlayFontSize(overlay.fontSize);
                     setTextOverlayColor(overlay.color);
                   }}
+                  isDraggingTimelineRef={isDraggingTimelineRef}
                 />
               ) : (
                 <div className="w-full max-w-6xl mx-auto">
