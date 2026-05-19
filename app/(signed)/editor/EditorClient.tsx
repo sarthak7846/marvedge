@@ -53,6 +53,8 @@ type TextOverlayItem = {
   fontFamily: string;
   fontSize: number;
   color: string;
+  parentW?: number;
+  parentH?: number;
 };
 
 type SubtitleCue = { start: number; end: number; text: string };
@@ -1174,6 +1176,11 @@ export default function EditorPage() {
     const defaultDuration = 3;
     const end =
       duration > 0 ? Math.min(duration, start + defaultDuration) : start + defaultDuration;
+
+    const stage = zoomFocusStageRef.current;
+    const stageW = stage ? stage.getBoundingClientRect().width : 800;
+    const stageH = stage ? stage.getBoundingClientRect().height : 450;
+
     const newOverlay: TextOverlayItem = {
       id: `text-${Date.now()}`,
       text,
@@ -1186,6 +1193,8 @@ export default function EditorPage() {
       fontFamily: textOverlayFontFamily,
       fontSize: textOverlayFontSize,
       color: textOverlayColor,
+      parentW: stageW,
+      parentH: stageH,
     };
 
     setTextOverlays((prev) => [...prev, newOverlay]);
@@ -1207,8 +1216,15 @@ export default function EditorPage() {
       if (!selectedTextOverlayId) {
         return;
       }
+      const stage = zoomFocusStageRef.current;
+      const stageW = stage ? stage.getBoundingClientRect().width : 800;
+      const stageH = stage ? stage.getBoundingClientRect().height : 450;
       setTextOverlays((prev) =>
-        prev.map((item) => (item.id === selectedTextOverlayId ? { ...item, text: value } : item))
+        prev.map((item) =>
+          item.id === selectedTextOverlayId
+            ? { ...item, text: value, parentW: stageW, parentH: stageH }
+            : item
+        )
       );
     },
     [selectedTextOverlayId]
@@ -1220,9 +1236,14 @@ export default function EditorPage() {
       if (!selectedTextOverlayId) {
         return;
       }
+      const stage = zoomFocusStageRef.current;
+      const stageW = stage ? stage.getBoundingClientRect().width : 800;
+      const stageH = stage ? stage.getBoundingClientRect().height : 450;
       setTextOverlays((prev) =>
         prev.map((item) =>
-          item.id === selectedTextOverlayId ? { ...item, fontFamily: value } : item
+          item.id === selectedTextOverlayId
+            ? { ...item, fontFamily: value, parentW: stageW, parentH: stageH }
+            : item
         )
       );
     },
@@ -1235,9 +1256,14 @@ export default function EditorPage() {
       if (!selectedTextOverlayId) {
         return;
       }
+      const stage = zoomFocusStageRef.current;
+      const stageW = stage ? stage.getBoundingClientRect().width : 800;
+      const stageH = stage ? stage.getBoundingClientRect().height : 450;
       setTextOverlays((prev) =>
         prev.map((item) =>
-          item.id === selectedTextOverlayId ? { ...item, fontSize: value } : item
+          item.id === selectedTextOverlayId
+            ? { ...item, fontSize: value, parentW: stageW, parentH: stageH }
+            : item
         )
       );
     },
@@ -1250,8 +1276,15 @@ export default function EditorPage() {
       if (!selectedTextOverlayId) {
         return;
       }
+      const stage = zoomFocusStageRef.current;
+      const stageW = stage ? stage.getBoundingClientRect().width : 800;
+      const stageH = stage ? stage.getBoundingClientRect().height : 450;
       setTextOverlays((prev) =>
-        prev.map((item) => (item.id === selectedTextOverlayId ? { ...item, color: value } : item))
+        prev.map((item) =>
+          item.id === selectedTextOverlayId
+            ? { ...item, color: value, parentW: stageW, parentH: stageH }
+            : item
+        )
       );
     },
     [selectedTextOverlayId]
@@ -1336,7 +1369,11 @@ export default function EditorPage() {
       const y = clamp((event.clientY - rect.top - textDragOffsetRef.current.y) / rect.height, 0, 1);
 
       setTextOverlays((prev) =>
-        prev.map((item) => (item.id === draggingTextOverlayId ? { ...item, x, y } : item))
+        prev.map((item) =>
+          item.id === draggingTextOverlayId
+            ? { ...item, x, y, parentW: rect.width, parentH: rect.height }
+            : item
+        )
       );
     };
 
@@ -1362,9 +1399,16 @@ export default function EditorPage() {
       const deltaY = event.clientY - textResizeStartRef.current.startY;
       const nextW = clamp(Math.round(textResizeStartRef.current.startW + deltaX), 120, 900);
       const nextH = clamp(Math.round(textResizeStartRef.current.startH + deltaY), 40, 600);
+
+      const stage = zoomFocusStageRef.current;
+      const stageW = stage ? stage.getBoundingClientRect().width : 800;
+      const stageH = stage ? stage.getBoundingClientRect().height : 450;
+
       setTextOverlays((prev) =>
         prev.map((item) =>
-          item.id === resizingTextOverlayId ? { ...item, w: nextW, h: nextH } : item
+          item.id === resizingTextOverlayId
+            ? { ...item, w: nextW, h: nextH, parentW: stageW, parentH: stageH }
+            : item
         )
       );
     };
@@ -1897,9 +1941,19 @@ export default function EditorPage() {
                                 rows={Math.max(1, overlay.text.split("\n").length)}
                                 onChange={(event) => {
                                   const value = event.target.value;
+                                  const stage = zoomFocusStageRef.current;
+                                  const stageW = stage ? stage.getBoundingClientRect().width : 800;
+                                  const stageH = stage ? stage.getBoundingClientRect().height : 450;
                                   setTextOverlays((prev) =>
                                     prev.map((item) =>
-                                      item.id === overlay.id ? { ...item, text: value } : item
+                                      item.id === overlay.id
+                                        ? {
+                                            ...item,
+                                            text: value,
+                                            parentW: stageW,
+                                            parentH: stageH,
+                                          }
+                                        : item
                                     )
                                   );
                                   setTextOverlayInput(value);

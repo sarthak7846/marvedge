@@ -241,6 +241,9 @@ function remapTextOverlaysToTrimmedTimeline(
       fontSize: Number(t.fontSize),
       color: String(t.color ?? "#ffffff"),
       fontFamily: String(t.fontFamily ?? "Arial"),
+      w: t.w ? Number(t.w) : undefined,
+      parentW: t.parentW ? Number(t.parentW) : undefined,
+      parentH: t.parentH ? Number(t.parentH) : undefined,
     }))
     .filter(
       (t) =>
@@ -259,6 +262,9 @@ function remapTextOverlaysToTrimmedTimeline(
       fontSize: Math.max(10, Math.min(160, Math.round(t.fontSize))),
       color: t.color,
       fontFamily: t.fontFamily,
+      w: t.w,
+      parentW: t.parentW,
+      parentH: t.parentH,
     }))
     .filter((t) => t.text.trim().length > 0 && t.endTime - t.startTime > EPS)
     .sort((a, b) => a.startTime - b.startTime);
@@ -279,6 +285,9 @@ function remapTextOverlaysToTrimmedTimeline(
         fontSize: t.fontSize,
         color: t.color,
         fontFamily: t.fontFamily,
+        w: t.w,
+        parentW: t.parentW,
+        parentH: t.parentH,
       });
     }
   }
@@ -396,10 +405,73 @@ function normalizeHexColor(input, fallback = "white") {
   return fallback;
 }
 
-function writeTextOverlayFiles(tempDir, overlays) {
+function estimateTextWidth(text, fontSize, fontFamily) {
+  let width = 0;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (char === " ") {
+      width += 0.28;
+    } else if (/[A-Z]/.test(char)) {
+      width += 0.65;
+    } else if (/[mw]/i.test(char)) {
+      width += 0.8;
+    } else if (/[ijlt]/i.test(char)) {
+      width += 0.25;
+    } else if (/[0-9]/.test(char)) {
+      width += 0.5;
+    } else if (/[.,;:!']/.test(char)) {
+      width += 0.22;
+    } else {
+      width += 0.52;
+    }
+  }
+  return width * fontSize;
+}
+
+function wrapText(text, fontSize, maxWidth, fontFamily) {
+  const paragraphs = text.split("\n");
+  const wrappedParagraphs = paragraphs.map((paragraph) => {
+    const words = paragraph.split(" ");
+    if (words.length <= 1) {
+      return paragraph;
+    }
+    
+    let currentLine = "";
+    const lines = [];
+    
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const testLine = currentLine ? currentLine + " " + word : word;
+      const testWidth = estimateTextWidth(testLine, fontSize, fontFamily);
+      
+      if (testWidth > maxWidth && currentLine) {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
+    }
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+    return lines.join("\n");
+  });
+  
+  return wrappedParagraphs.join("\n");
+}
+
+function writeTextOverlayFiles(tempDir, overlays, targetWidth) {
   return overlays.map((overlay, idx) => {
     const p = path.join(tempDir, `text-${idx}.txt`);
-    fs.writeFileSync(p, overlay.text, "utf8");
+    
+    const parentW = overlay.parentW || (targetWidth > 1000 ? 800 : 400);
+    const scale = targetWidth / parentW;
+    const scaledFontSize = Math.max(10, Math.min(160, Math.round(overlay.fontSize * scale)));
+    const scaledBoxWidth = overlay.w ? (overlay.w * scale) : (240 * scale);
+    
+    const wrappedText = wrapText(overlay.text, scaledFontSize, scaledBoxWidth, overlay.fontFamily);
+    
+    fs.writeFileSync(p, wrappedText, "utf8");
     return { path: p, overlay };
   });
 }
@@ -980,7 +1052,7 @@ async function renderChunkFromRecipe({
   }
 
   if (remappedTextOverlays.length > 0) {
-    const textFiles = writeTextOverlayFiles(tempDir, remappedTextOverlays);
+    const textFiles = writeTextOverlayFiles(tempDir, remappedTextOverlays, targetWidth);
     let prev = videoOut;
     textFiles.forEach(({ path: filePath, overlay }, idx) => {
       const next = `[txt${idx}]`;
@@ -988,7 +1060,13 @@ async function renderChunkFromRecipe({
       const safeColor = normalizeHexColor(overlay.color, "white");
       const start = Math.max(0, overlay.startTime);
       const end = Math.max(start + EPS, overlay.endTime);
-      const size = Math.max(10, Math.min(160, Math.round(overlay.fontSize)));
+      
+      const parentW = overlay.parentW || (targetWidth > 1000 ? 800 : 400);
+      const scale = targetWidth / parentW;
+      const size = Math.max(
+        10,
+        Math.min(160, Math.round(overlay.fontSize * scale)),
+      );
       const nx = Math.max(0, Math.min(1, overlay.x));
       const ny = Math.max(0, Math.min(1, overlay.y));
       const xExpr = `(w*${nx.toFixed(4)}-text_w/2)`;
