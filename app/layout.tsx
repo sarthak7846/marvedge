@@ -2,7 +2,7 @@ import "./globals.css";
 import { SonnerToaster } from "./components/sonner-toaster";
 import { Providers } from "./providers";
 import { Caveat, Inter, Poppins, Raleway, Roboto } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/next";
 
 const raleway = Raleway({
   subsets: ["latin"],
