@@ -90,13 +90,13 @@ model Demo {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   editing       Json?
-  duration      Float?
   userId        String
   isPublic      Boolean        @default(false)
   publicLink    String?        @unique
   shareCount    Int            @default(0)
   subtitles     Json?
   exportedUrl   String?
+  duration      Float?
   user          User           @relation(fields: [userId], references: [id])
   exportedVideo ExportedVideo?
   videoJobs     VideoJob[]
