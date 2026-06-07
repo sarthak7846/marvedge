@@ -40,9 +40,20 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
-    await prisma.demo.delete({
-      where: { id },
+    const session = await getServerSession(authOptions);
+
+    if (!session || !session.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Scope the delete to the logged-in user so a demo can only be deleted by its owner.
+    const result = await prisma.demo.deleteMany({
+      where: { id, userId: session.user.id },
     });
+
+    if (result.count === 0) {
+      return NextResponse.json({ error: "Demo not found" }, { status: 404 });
+    }
 
     return NextResponse.json({ message: "Demo deleted successfully" });
   } catch (error) {
