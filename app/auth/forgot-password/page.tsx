@@ -24,6 +24,10 @@ const ForgotPassword = () => {
 
   const handleForgot = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (emailSent) {
+      router.push("/auth/signin");
+      return;
+    }
     setIsLoading(true);
     const email = emailRef.current?.value.trim();
     try {
