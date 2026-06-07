@@ -12,6 +12,7 @@ const forgotPasswordSchema = z.object({
 
 const ForgotPassword = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [animatePanel, setAnimatePanel] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -30,8 +31,10 @@ const ForgotPassword = () => {
       const res = await axios.post("/api/auth/request-reset", { email });
       if (res.status === 200) {
         toast.success("Password reset link sent to your email!");
+        setEmailSent(true);
       }
     } catch (err) {
+      setEmailSent(false);
       if (err instanceof z.ZodError) {
         const message = err.errors.map((e) => e.message).join(" | ");
         toast.error(message);
@@ -43,6 +46,8 @@ const ForgotPassword = () => {
         console.error("Unknown error:", err);
         toast.error("Something went wrong.");
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -115,13 +120,23 @@ const ForgotPassword = () => {
             required
             className="w-full p-3 border-2 border-gray-500 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF]"
           />
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full py-3 bg-[#6356D7] text-white rounded-md hover:bg-[#7E5FFF] font-semibold transition-all text-sm shadow-md"
-          >
-            {isLoading ? "Sending..." : "Send Reset Link"}
-          </button>
+          {emailSent ? (
+            <button
+              type="button"
+              onClick={() => router.push("/auth/signin")}
+              className="w-full py-3 bg-[#6356D7] text-white rounded-md hover:bg-[#7E5FFF] font-semibold transition-all text-sm shadow-md"
+            >
+              Sign In
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3 bg-[#6356D7] text-white rounded-md hover:bg-[#7E5FFF] font-semibold transition-all text-sm shadow-md disabled:opacity-70"
+            >
+              {isLoading ? "Sending..." : "Send Reset Link"}
+            </button>
+          )}
         </form>
       </div>
     </div>
