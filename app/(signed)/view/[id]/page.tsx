@@ -1,5 +1,7 @@
 import { prisma } from "@/app/lib/prisma";
 import { Storage } from "@google-cloud/storage";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/lib/auth/options";
 
 const storage = new Storage();
 
@@ -45,20 +47,25 @@ async function toPlayableUrl(url: string) {
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const video = await prisma.demo.findUnique({
-    where: { id },
+
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return <div>Video not found</div>;
+  }
+
+  const video = await prisma.demo.findFirst({
+    where: { id, userId: session.user.id },
   });
+
+  if (!video) {
+    return <div>Video not found</div>;
+  }
 
   await prisma.view.create({
     data: {
       demoId: id,
     },
   });
-  console.log(id);
-
-  if (!video) {
-    return <div>Video not found</div>;
-  }
 
   const source = video.exportedUrl || video.videoUrl;
   const playableSource = source ? await toPlayableUrl(source) : "";
