@@ -49,7 +49,7 @@ const Pricing: React.FC = () => {
       const res = await fetch("/api/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ plan }),
       });
       const data = await res.json();
 
