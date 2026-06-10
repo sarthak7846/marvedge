@@ -27,7 +27,6 @@ export default function RecordingControls({
   setBlob,
   reset,
   onEditVideo,
-  // fileInputRef,
 }: RecordingControlsProps) {
   return (
     <>
@@ -65,16 +64,11 @@ export default function RecordingControls({
           <div className="flex flex-col sm:flex-row gap-3 justify-end mr-57">
             <button
               onClick={onEditVideo}
-              className="px-6 py-2 rounded-lg font-medium bg-[#8A76FC] text-white shadow hover:bg-[#7A66EC] transition text-sm sm:text-base"
+              className="edit-btn px-6 py-2 rounded-lg font-medium bg-[#8A76FC] text-white shadow hover:bg-[#7A66EC] transition text-sm sm:text-base"
             >
               Start Editing
             </button>
-            {/* <button
-              onClick={() => fileInputRef?.current?.click()}
-              className="px-6 py-2 rounded-lg font-normal bg-white border border-[#ede7fa] text-[#8A76FC] shadow hover:bg-[#F3F0FC] transition text-sm sm:text-base"
-            >
-              Upload File
-            </button> */}
+
             <button
               onClick={() => {
                 if (isUploaded) {
@@ -85,7 +79,7 @@ export default function RecordingControls({
                   reset();
                 }
               }}
-              className="px-6 py-2 rounded-lg font-medium bg-white text-[#8A76FC] shadow hover:bg-[#F3F0FC] transition text-sm sm:text-base border border-[#ede7fa]"
+              className="discard-btn px-6 py-2 rounded-lg font-medium bg-white text-[#8A76FC] shadow hover:bg-[#F3F0FC] transition text-sm sm:text-base border border-[#ede7fa]"
             >
               Discard Recording
             </button>

@@ -1,0 +1,225 @@
+.dark {
+  --bg-primary: #030316;
+  --bg-secondary: #040417;
+  --bg-card: #060613;
+
+  --purple-primary: #8557ff;
+  --purple-dark: #5f25f6;
+  --purple-light: #8b5cff;
+  --purple-accent: #8f62ff;
+  --purple-glow: #7d55ff;
+
+  --text-primary: #ffffff;
+  --text-secondary: #f4f1ff;
+  --text-muted: #aaa5c1;
+  --text-soft: #d9d5ef;
+
+  --border-primary: rgba(154, 132, 255, 0.17);
+  --border-secondary: rgba(122, 82, 255, 0.28);
+  --border-active: rgba(129, 80, 255, 0.78);
+
+  --panel-primary: rgba(15, 15, 38, 0.7);
+  --panel-secondary: rgba(18, 18, 45, 0.86);
+  --panel-dark: rgba(13, 13, 34, 0.73);
+
+  --sidebar-glow: rgba(99, 59, 255, 0.22);
+  --sidebar-top: rgba(17, 10, 51, 0.92);
+  --sidebar-bottom: rgba(10, 6, 38, 0.94);
+
+  --btn-primary-start: #7d55ff;
+  --btn-primary-end: #5725f5;
+
+  --active-start: rgba(94, 45, 221, 0.65);
+  --active-end: rgba(74, 38, 160, 0.58);
+
+  --input-bg: rgba(19, 19, 44, 0.78);
+  --input-border: rgba(166, 154, 219, 0.15);
+
+  --thumb-glow: rgba(121, 72, 255, 0.42);
+
+  --danger: #ff4d58;
+  --danger-bg: rgba(112, 25, 43, 0.2);
+
+  --avatar-skin: #ffbd78;
+  --avatar-orange: #ff7b22;
+  --avatar-red: #df4314;
+}
+
+.dark .demos-page {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .demos-body {
+  background-color: transparent !important;
+}
+
+.dark .demos-search {
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+  color: var(--text-secondary) !important;
+}
+
+.dark .demos-search::placeholder {
+  color: var(--text-muted) !important;
+}
+
+.dark .demos-sort-btn {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-primary) !important;
+  color: var(--purple-light) !important;
+}
+
+.dark .demos-sort-btn:hover {
+  background-color: var(--active-start) !important;
+}
+
+.dark .demos-dropdown-menu {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-primary) !important;
+}
+
+.dark .demos-dropdown-menu div > div {
+  color: var(--text-muted) !important;
+}
+
+.dark .demos-dropdown-menu div > div:hover {
+  background-color: var(--active-start) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .demos-dropdown-menu div > div.active-sort {
+  background-color: var(--purple-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .sidebar {
+  --sidebar-bg: #05001f;
+  --sidebar-bg-dark: #030015;
+  --sidebar-bg-light: #14054f;
+
+  --primary: #7b4dff;
+  --primary-light: #8f67ff;
+  --primary-bright: #9d7cff;
+  --primary-dark: #5b25f6;
+
+  --text-primary: #ffffff;
+  --text-secondary: #c6c1d7;
+  --text-muted: #9d97b4;
+
+  --icon-default: #d5d1e6;
+  --icon-active: #e9ddff;
+
+  --border-primary: rgba(123, 77, 255, 0.55);
+  --border-secondary: rgba(255, 255, 255, 0.08);
+
+  --glow-purple: rgba(123, 77, 255, 0.35);
+  --glow-button: rgba(123, 77, 255, 0.45);
+
+  --active-bg-start: rgba(104, 57, 230, 0.85);
+  --active-bg-end: rgba(69, 33, 163, 0.75);
+
+  --button-start: #8a62ff;
+  --button-end: #6127f5;
+
+  --logo-purple-1: #7b4dff;
+  --logo-purple-2: #936dff;
+  --logo-purple-3: #6032ff;
+
+  background:
+    radial-gradient(
+      circle at 50% 35%,
+      rgba(123, 77, 255, 0.08),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 50% 75%,
+      rgba(123, 77, 255, 0.22),
+      transparent 50%
+    ),
+    linear-gradient(
+      180deg,
+      var(--sidebar-bg-dark) 0%,
+      var(--sidebar-bg) 45%,
+      var(--sidebar-bg-light) 100%
+    ) !important;
+
+  border-right: 1px solid var(--border-secondary) !important;
+  position: fixed !important;
+}
+
+.dark .sidebar .logo {
+  color: var(--text-primary) !important;
+}
+
+.dark .sidebar .logo span {
+  color: var(--primary) !important;
+}
+
+.dark .sidebar .create-demo-btn {
+  color: var(--text-primary) !important;
+
+  background: linear-gradient(
+    135deg,
+    var(--button-start),
+    var(--button-end)
+  ) !important;
+
+  border: 1px solid var(--border-primary) !important;
+
+  box-shadow:
+    0 0 30px var(--glow-button),
+    0 10px 30px rgba(98, 39, 245, 0.25) !important;
+}
+
+.dark .sidebar .menu-item {
+  color: var(--text-secondary) !important;
+}
+
+.dark .sidebar .menu-item svg {
+  stroke: var(--icon-default) !important;
+}
+
+.dark .sidebar .menu-item:hover {
+  color: var(--text-primary) !important;
+}
+
+.dark .sidebar .menu-item.active {
+  color: var(--text-primary) !important;
+
+  background: linear-gradient(
+    90deg,
+    var(--active-bg-start),
+    var(--active-bg-end)
+  ) !important;
+
+  border: 1px solid var(--border-primary) !important;
+
+  box-shadow:
+    inset 0 0 25px rgba(255, 255, 255, 0.03),
+    0 0 20px rgba(123, 77, 255, 0.15) !important;
+}
+
+.dark .sidebar .menu-item.active svg {
+  stroke: var(--icon-active) !important;
+}
+
+.dark .sidebar .sidebar-divider {
+  border-color: var(--border-secondary) !important;
+}
+
+.dark .sidebar .review-link {
+  color: var(--text-secondary) !important;
+}
+
+.dark .sidebar .review-link svg {
+  stroke: var(--icon-default) !important;
+}
+
+.dark .sidebar .review-link:hover {
+  color: var(--text-primary) !important;
+}
+
+.dark .sidebar .review-link:hover svg {
+  stroke: var(--text-primary) !important;
+}

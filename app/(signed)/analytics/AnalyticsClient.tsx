@@ -12,7 +12,7 @@ type AnalyticsClientProps = {
 
 const AnalyticsPage = (props: AnalyticsClientProps) => {
   return (
-    <div className="flex flex-col grow h-full bg-[#F4F1FD] text-[#2D2154] relative overflow-y-auto">
+    <div className="analytics-page flex flex-col grow h-full bg-[#F4F1FD] text-[#2D2154] relative overflow-y-auto">
       <AnalyticsMain {...props} />
     </div>
   );

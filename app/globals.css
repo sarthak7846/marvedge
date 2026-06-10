@@ -1,35 +1,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-/* 
----break--- */
+@import "./styles/nprogress.css";
+@import "./styles/base-dark.css";
+@import "./styles/editor-dark.css";
+@import "./styles/analytics-dark.css";
+@import "./styles/sidebar-dark.css";
+@import "./styles/modal-dark.css";
+@import "./styles/landing-dark.css";
+
 @custom-variant dark (&:is(.dark *));
-/* 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-} */
-/* 
----break--- */
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -67,8 +47,7 @@ body {
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 }
-/* 
----break--- */
+
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);
@@ -102,9 +81,27 @@ body {
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+  --progress-fill: #a594f9;
+  --progress-bg: #e6e1fa;
+  --bg-base: #f3f0fc;
+  --bg-sidebar: #ffffff;
+  --panel-border: #ede7fa;
+  --btn-purple: #8a76fc;
+  --btn-purple-hover: #7c5cfc;
+  --text-light: #4c3de3;
+  --text-gray: #6b6b6b;
+  --track-green-bg: #36b37e;
+  --track-green-border: #36b37e;
+  --track-green-text: #ffffff;
+  --track-yellow-bg: #fff4a8;
+  --track-yellow-border: #d4a017;
+  --track-yellow-text: #6b5bb5;
+  --track-red-bg: #ff3939;
+  --track-red-border: #ff3939;
+  --track-red-text: #ffffff;
+  --playback-rail-bg: #e6e1fa;
 }
-/* 
----break--- */
+
 .dark {
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
@@ -137,9 +134,27 @@ body {
   --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.551 0.027 264.364);
+  --progress-fill: #8b73ff;
+  --progress-bg: rgba(255, 255, 255, 0.15);
+  --bg-base: #060512;
+  --bg-sidebar: #0a081a;
+  --panel-border: #161233;
+  --btn-purple: #3e2fd9;
+  --btn-purple-hover: #3124b5;
+  --text-light: #ffffff;
+  --text-gray: #5e5a7d;
+  --track-green-bg: #1c4b37;
+  --track-green-border: #299d63;
+  --track-green-text: #aef0ce;
+  --track-yellow-bg: #5c4e1f;
+  --track-yellow-border: #bfa128;
+  --track-yellow-text: #fef08a;
+  --track-red-bg: #632525;
+  --track-red-border: #b83a3a;
+  --track-red-text: #fca5a5;
+  --playback-rail-bg: #1a1738;
 }
-/* 
----break--- */
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -172,38 +187,9 @@ body {
   }
 }
 
-/* Mobile-first responsive adjustments */
 @media (max-width: 480px) {
   html,
   body {
     font-size: 13px;
   }
-}
-
-/* NProgress styles */
-#nprogress {
-  pointer-events: none;
-}
-
-#nprogress .bar {
-  background: rgb(25, 6, 232) !important;
-  position: fixed;
-  z-index: 9999;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 4px !important;
-}
-
-#nprogress .peg {
-  display: block;
-  position: absolute;
-  right: 0px;
-  width: 300px;
-  height: 100%;
-  box-shadow:
-    0 0 10px red,
-    0 0 5px red;
-  opacity: 1;
-  transform: rotate(3deg) translate(0px, -4px);
 }

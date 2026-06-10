@@ -50,9 +50,9 @@ export default function CustomVideoControls({
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const effectiveValue = Number(e.target.value); // UI seconds (speed-adjusted)
+    const effectiveValue = Number(e.target.value);
     const speed = Math.max(0.0001, playbackSpeed);
-    const sourceValue = effectiveValue * speed; // underlying media seconds
+    const sourceValue = effectiveValue * speed;
     setDragValue(effectiveValue);
     setPlaying(false);
     if (playerRef.current) {
@@ -78,7 +78,7 @@ export default function CustomVideoControls({
         playerRef.current.seekTo(sourceValue, "seconds");
       }
     }
-    // setPlaying(false);
+
     setDragging(false);
   };
 
@@ -90,10 +90,9 @@ export default function CustomVideoControls({
   return (
     <div className="w-full px-6 pb-2 pt-0 flex flex-col gap-2">
       <div className="flex items-center gap-4 w-full">
-        {/* Play / Pause */}
         <button
           onClick={handlePlayPause}
-          className="rounded-full cursor-pointer bg-[#E6E1FA] text-[#7C5CFC] hover:bg-[#7C5CFC] hover:text-white p-2 transition"
+          className="rounded-full cursor-pointer bg-[#E6E1FA] text-[#7C5CFC] hover:bg-[#7C5CFC] hover:text-white p-2 transition playback-utility-icon"
         >
           {playing ? (
             <Image src="/icons/pause.png" alt="Pause" width={24} height={24} />
@@ -102,7 +101,6 @@ export default function CustomVideoControls({
           )}
         </button>
 
-        {/* Timeline + Time */}
         <div className="flex items-center gap-3 flex-1">
           <input
             type="range"
@@ -113,9 +111,9 @@ export default function CustomVideoControls({
             onPointerDown={handleSeekStart}
             onChange={handleSeek}
             onPointerUp={handleSeekEnd}
-            className="flex-1 h-2 rounded-lg appearance-none cursor-pointerflex-1 accent-[#A594F9] cursor-pointer bg-linear-to-r from-[#A594F9] to-[#7C5CFC]"
+            className="flex-1 h-2 rounded-lg appearance-none cursor-pointer flex-1 accent-[#A594F9] playback-progress-bar-rail"
             style={{
-              background: `linear-gradient(90deg, #7C5CFC ${(effectiveCurrentTime / Math.max(0.0001, effectiveDuration)) * 100}%, #E6E1FA ${(effectiveCurrentTime / Math.max(0.0001, effectiveDuration)) * 100}%)`,
+              background: `linear-gradient(90deg, #7C5CFC ${(effectiveCurrentTime / Math.max(0.0001, effectiveDuration)) * 100}%, var(--playback-rail-bg) ${(effectiveCurrentTime / Math.max(0.0001, effectiveDuration)) * 100}%)`,
             }}
           />
           <span className="text-xs text-[#7C5CFC] font-mono min-w-[60px] text-right">
@@ -123,9 +121,7 @@ export default function CustomVideoControls({
           </span>
         </div>
 
-        {/* RIGHT SIDE CONTROLS */}
         <div className="flex items-center gap-3">
-          {/* Skip -5 */}
           <button
             onClick={() => {
               const newEffective = Math.max(0, effectiveCurrentTime - 5);
@@ -133,13 +129,12 @@ export default function CustomVideoControls({
               setCurrentTime(newSource);
               playerRef.current?.seekTo(newSource, "seconds");
             }}
-            className="p-2 rounded-full cursor-pointer bg-[#7C5CFC] hover:bg-[#6A4DE8] text-white transition"
+            className="p-2 rounded-full cursor-pointer bg-[#7C5CFC] hover:bg-[#6A4DE8] text-white transition playback-utility-icon"
             title="Back 5 seconds"
           >
             <Image src="/icons/replay.svg" alt="Replay" width={16} height={16} />
           </button>
 
-          {/* Skip +5 */}
           <button
             onClick={() => {
               const newEffective = Math.min(effectiveDuration, effectiveCurrentTime + 5);
@@ -147,15 +142,17 @@ export default function CustomVideoControls({
               setCurrentTime(newSource);
               playerRef.current?.seekTo(newSource, "seconds");
             }}
-            className="p-2 rounded-full cursor-pointer bg-[#7C5CFC] hover:bg-[#6A4DE8] text-white transition"
+            className="p-2 rounded-full cursor-pointer bg-[#7C5CFC] hover:bg-[#6A4DE8] text-white transition playback-utility-icon"
             title="Forward 5 seconds"
           >
             <Image src="/icons/forward.svg" alt="Forward" width={16} height={16} />
           </button>
 
-          {/* Volume */}
           <div className="flex items-center gap-2 w-36">
-            <button onClick={() => setVolume(volume === 0 ? 1 : 0)}>
+            <button
+              onClick={() => setVolume(volume === 0 ? 1 : 0)}
+              className="playback-utility-icon cursor-pointer"
+            >
               {volume === 0 ? (
                 <FaVolumeMute className="text-[#7C5CFC] text-xl" />
               ) : (
@@ -170,14 +167,13 @@ export default function CustomVideoControls({
               step={0.01}
               value={volume}
               onChange={(e) => setVolume(Number(e.target.value))}
-              className="w-full h-2 rounded-lg accent-[#7C5CFC]"
+              className="w-full h-2 rounded-lg accent-[#7C5CFC] playback-progress-bar-rail"
             />
           </div>
 
-          {/* Fullscreen */}
           <button
             onClick={handleFullscreen}
-            className="p-2 rounded-full cursor-pointer bg-[#7C5CFC] hover:bg-[#6A4DE8] text-white transition"
+            className="p-2 rounded-full cursor-pointer bg-[#7C5CFC] hover:bg-[#6A4DE8] text-white transition playback-utility-icon"
             title="Fullscreen"
             type="button"
           >

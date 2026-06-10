@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { ZoomEffect } from "../types/editor/zoom-effect";
 import Linepage from "./Linepage";
-//import { start } from "nprogress";
+
 import ReactPlayer from "react-player";
 
 type TextOverlayItem = {
@@ -35,15 +35,13 @@ interface TimelineRulerProps {
   onEndTimeChange?: (value: number) => void;
   processing?: boolean;
   onResetVideo?: () => void;
-  //onZoomEffectCreate?: (effect: ZoomEffect) => void;
-  //initialSegments?: { start: string; end: string }[];
+
   onTrim?: (segments: { start: string; end: string }[]) => Promise<void>;
   setPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   playing: boolean;
   playbackSpeed: number;
   setPlaybackSpeed: (v: number) => void;
-  //to handle the trimmed video part
-  //onDeleteSegment removed — delete is now UI-only, handled internally
+
   mode: "main" | "trim" | "zoom" | "text";
   setMode: React.Dispatch<React.SetStateAction<"main" | "trim" | "zoom" | "text">>;
   playerRef: React.RefObject<ReactPlayer>;
@@ -75,25 +73,21 @@ export default function TimelineRuler({
   onEndTimeChange,
   processing = false,
   onResetVideo,
-  //onZoomEffectCreate,
-  // initialSegments,
-  // playing,
+
   setPlaying,
   playbackSpeed,
   setPlaybackSpeed,
-  // videourl,
-  // setVideoUrl,
-  // onTrim,
+
   mode,
   setMode,
   playerRef,
   setChildHandleProgress,
-  //onZoomChange,
+
   zoomSegments,
   setZoomSegments,
   activeZoomIdx,
   setActiveZoomIdx,
-  //setOpen,
+
   zoomLevelDepth,
   segments,
   setSegments,
@@ -114,33 +108,11 @@ export default function TimelineRuler({
     localValueRef.current = localValue;
   }, [localValue]);
 
-  // Initialize with full duration by default
   const [localStartTime, setLocalStartTime] = useState(startTime ?? minValue);
   const [localEndTime, setLocalEndTime] = useState(endTime ?? maxValue);
-  //console.log("Intial segemnt = ", initialSegments, minValue, maxValue);
-  // const [segments, setSegments] = useState<{ start: number; end: number }[]>(
-  //   initialSegments
-  //     ? initialSegments.map((seg) => ({
-  //         start: parseFloat(seg.start),
-  //         end: parseFloat(seg.end),
-  //       }))
-  //     : [{ start: minValue, end: maxValue }] // Initialize with full duration segment
-  // );
-  // const [segments, setSegments] = useState<{ start: number; end: number }[]>([]);
-  // const [zoomSegment, setZoomSegment] = useState<ZoomEffect[]>([
-  //   {
-  //     id: "1",
-  //     startTime: 0,
-  //     endTime: 2,
-  //     zoomLevel: 2,
-  //     x: 0.5,
-  //     y: 0.5,
-  //   },
-  // ]);
-  //console.log("Intital Value", segments);
+
   const [activeSegment, setActiveSegment] = useState<number>(-1);
 
-  // Unified action history for undo/redo (supports both trim and zoom)
   type EditorAction =
     | { type: "add-trim"; segment: { start: number; end: number } }
     | {
@@ -155,15 +127,13 @@ export default function TimelineRuler({
   const [draggingScissor, setDraggingScissor] = useState<"left" | "right" | null>(null);
   const [scissorPreview, setScissorPreview] = useState<number | null>(null);
   const [draggingCurrentTime, setDraggingCurrentTime] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(1); // Start with no zoom
+  const [zoomLevel, setZoomLevel] = useState(1);
   const [scrollLeft, setScrollLeft] = useState(0);
-  //const [isAutoPlaying] = useState(false);
+
   const [playheadMode, setPlayheadMode] = useState<"trim" | "non-trim">("non-trim");
   const [selectedTrimIdx, setSelectedTrimIdx] = useState<number | null>(null);
-  const FIXED_TRIM_DURATION = 4; // Fixed duration in seconds for initial trim
-  //const PLAYHEAD_SPEED = 0.005; // Speed in seconds per frame (increased for visible movement)
+  const FIXED_TRIM_DURATION = 4;
 
-  // Use refs to avoid animation interruption when segments change
   const segmentsRef = useRef(segments);
   const playheadModeRef = useRef(playheadMode);
   const selectedTrimIdxRef = useRef(selectedTrimIdx);
@@ -172,7 +142,6 @@ export default function TimelineRuler({
   const onEndTimeChangeRef = useRef(onEndTimeChange);
   const isUpdatingFromPropRef = useRef(false);
 
-  // Helper function to immediately switch to trim mode
   const switchToTrimMode = (trimIdx: number) => {
     console.log(
       `[MODE] Switching to TRIM mode, trimIdx=${trimIdx}, segment=${JSON.stringify(segments[trimIdx])}`
@@ -184,18 +153,13 @@ export default function TimelineRuler({
     setLocalValue(segments[trimIdx].start);
   };
 
-  // Helper function to immediately switch to non-trim mode
   const switchToNonTrimMode = () => {
     playheadModeRef.current = "non-trim";
     selectedTrimIdxRef.current = null;
     setPlayheadMode("non-trim");
     setSelectedTrimIdx(null);
-    // Don't snap the playhead position — let the user place it wherever they want.
-    // The auto-skip logic in handleProgress will handle jumping over trim blocks
-    // only when the video is actually playing forward naturally.
   };
 
-  // Update refs whenever they change
   useEffect(() => {
     segmentsRef.current = segments;
   }, [segments]);
@@ -220,7 +184,6 @@ export default function TimelineRuler({
     onEndTimeChangeRef.current = onEndTimeChange;
   }, [onEndTimeChange]);
 
-  // Check if video has been trimmed (multiple segments or segment doesn't span full duration)
   const hasBeenTrimmed =
     segments.length > 1 ||
     (segments.length === 1 &&
@@ -228,12 +191,9 @@ export default function TimelineRuler({
         Math.abs(segments[0].end - maxValue) > 0.001));
   const hasTimelineEdits = hasBeenTrimmed || zoomSegments.length > 0;
 
-  const baseTimelineWidth = 956; // Fixed base width for the timeline
+  const baseTimelineWidth = 956;
   const zoomedTimelineWidth = baseTimelineWidth * zoomLevel;
-  //const scissorWidth = 48; // Fixed width for scissors (12 * 4 = 48px)
-  //const totalContainerWidth = baseTimelineWidth + scissorWidth * 2; // Total container width
 
-  // Keep scrollLeft in range when zoom changes
   useEffect(() => {
     if (!scrollContainerRef.current) {
       return;
@@ -261,13 +221,12 @@ export default function TimelineRuler({
 
         const rect = el.getBoundingClientRect();
         const cursorX = e.clientX - rect.left;
-        const cursorRatio = cursorX / baseTimelineWidth; // Use base width for ratio calculation
+        const cursorRatio = cursorX / baseTimelineWidth;
 
         setZoomLevel((prev) => {
           const factor = e.deltaY < 0 ? 1.25 : 0.8;
           const newZoom = Math.max(1, Math.min(prev * factor, 20));
 
-          // Only adjust scroll if zoomed in beyond 1x
           if (newZoom > 1 && scrollContainerRef.current) {
             const newTimelineWidth = baseTimelineWidth * newZoom;
             const maxScroll = Math.max(0, newTimelineWidth - baseTimelineWidth);
@@ -287,15 +246,7 @@ export default function TimelineRuler({
     return () => el.removeEventListener("wheel", handleWheel);
   }, [baseTimelineWidth]);
 
-  // const formatTime = (time: number) => {
-  //   const minutes = Math.floor(time / 60);
-  //   const seconds = Math.floor(time % 60);
-
-  //   return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-  // };
-
   useEffect(() => {
-    // Skip prop sync while user is dragging — their mouse position is the source of truth
     if (isDraggingTimelineRef.current) {
       return;
     }
@@ -377,7 +328,6 @@ export default function TimelineRuler({
       const percentage = Math.max(0, Math.min(1, x / width));
       const value = minValue + (maxValue - minValue) * percentage;
 
-      // Allow clicking anywhere - no skipping logic
       localValueRef.current = value;
       setLocalValue(value);
     },
@@ -392,21 +342,17 @@ export default function TimelineRuler({
       updateCurrentTimeFromMouse(e);
     };
     const onUp = () => {
-      // Do a final seek to sync the player with the playhead position.
-      // We didn't seekTo during drag to avoid triggering onProgress race conditions.
       const player = playerRef.current;
       if (player) {
-        // Use the ref to get the LATEST localValue (avoid stale closure)
         const finalValue = localValueRef.current;
         setTimeout(() => {
           player.seekTo(finalValue, "seconds");
         }, 0);
       }
-      // Keep paused after dragging to allow user to inspect blocks
+
       setDraggingCurrentTime(false);
       isDraggingTimelineRef.current = false;
-      // Set a grace period timestamp so handleProgress won't jump
-      // for 500ms after the drag ends
+
       lastSeekTimeRef.current = Date.now();
     };
     window.addEventListener("mousemove", onMove);
@@ -497,19 +443,11 @@ export default function TimelineRuler({
     };
   }, [isDragging, updateValueFromMouse]);
 
-  // const addSegment = () => {
-  //   const newSegment = { start: minValue, end: maxValue };
-  //   setSegments([...segments, newSegment]);
-  //   setActiveSegment(segments.length);
-  //   setLocalStartTime(newSegment.start);
-  //   setLocalEndTime(newSegment.end);
-  // };
-
   const removeSegment = (idx: number) => {
     const removed = segments[idx];
-    // Push to undo stack (UI-only, no video processing)
+
     setUndoStack((prev) => [...prev, { type: "remove-trim", segment: removed, index: idx }]);
-    setRedoStack([]); // clear redo on new action
+    setRedoStack([]);
 
     const newSegments = segments.filter((_, i) => i !== idx);
     setSegments(newSegments);
@@ -520,7 +458,7 @@ export default function TimelineRuler({
       setLocalStartTime(newSegments[newActiveSegment].start);
       setLocalEndTime(newSegments[newActiveSegment].end);
     }
-    // If all segments are deleted, switch to NON-TRIM mode for continuous playback
+
     if (newSegments.length === 0) {
       switchToNonTrimMode();
     }
@@ -553,14 +491,12 @@ export default function TimelineRuler({
 
     switch (lastAction.type) {
       case "add-trim":
-        // Undo adding a trim → remove it
         setSegments((prev) => prev.filter((s) => s !== lastAction.segment));
         if (segments.length <= 1) {
           switchToNonTrimMode();
         }
         break;
       case "remove-trim":
-        // Undo removing a trim → restore it
         setSegments((prev) => {
           const newSegs = [...prev];
           newSegs.splice(lastAction.index, 0, lastAction.segment);
@@ -569,11 +505,9 @@ export default function TimelineRuler({
 
         break;
       case "add-zoom":
-        // Undo adding zoom → remove it
         setZoomSegments((prev) => prev.filter((s) => s !== lastAction.segment));
         break;
       case "remove-zoom":
-        // Undo removing zoom → restore it
         setZoomSegments((prev) => {
           const newSegs = [...prev];
           newSegs.splice(lastAction.index, 0, lastAction.segment);
@@ -609,12 +543,6 @@ export default function TimelineRuler({
         break;
     }
   };
-  // function formatToHHMMSS(seconds: number) {
-  //   const hrs = String(Math.floor(seconds / 3600)).padStart(2, "0");
-  //   const mins = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
-  //   const secs = String(Math.floor(seconds % 60)).padStart(2, "0");
-  //   return `${hrs}:${mins}:${secs}`;
-  // }
 
   const handleSmartTrim = async () => {
     const currentTime = localValue;
@@ -623,11 +551,9 @@ export default function TimelineRuler({
 
     const newSegment = { start: startTime, end: endTime };
 
-    // Track in undo stack
     setUndoStack((prev) => [...prev, { type: "add-trim", segment: newSegment }]);
     setRedoStack([]);
 
-    // Update segments and active segment together
     console.log("Start time", startTime, " ", endTime);
     setSegments((prev) => {
       const newSegments = [...prev, newSegment];
@@ -635,51 +561,12 @@ export default function TimelineRuler({
     });
     setActiveSegment(segments.length - 1);
 
-    // ⚠️ Compute sendData including the new segment
-    //const allSegments = [...segments, newSegment];
-    // const sendData = allSegments.map((seg) => ({
-    //   start: formatToHHMMSS(seg.start),
-    //   end: formatToHHMMSS(seg.end),
-    // }));
-
     setLocalStartTime(startTime);
     setLocalEndTime(endTime);
 
     console.log(`Created segment from ${startTime.toFixed(2)}s to ${endTime.toFixed(2)}s`);
-
-    //const sTime = formatToHHMMSS(startTime);
-    //const eTime = formatToHHMMSS(endTime);
-    //onTrim?.([{ start: sTime, end: eTime }]);
-    //console.log("onfssf", onTrim?.([{ start: sTime, end: eTime }]));
-    // try {
-    //   const mp4VideoUrl = videourl.endsWith(".webm") ? videourl.replace(".webm", ".mp4") : videourl;
-
-    //   const res = await fetch(mp4VideoUrl);
-    //   const blob = await res.blob();
-
-    //   const formData = new FormData();
-    //   formData.append("video", blob, "video.mp4");
-    //   formData.append("segments", JSON.stringify(sendData));
-
-    //   console.log("Send Data", sendData);
-
-    //   const TRIMURL = `${process.env.NEXT_PUBLIC_VIDEO_PROCESSING_BACKEND_URL}/api/trim`;
-    //   const resp = await axios.post(TRIMURL, formData, {
-    //     headers: { "Content-Type": "multipart/form-data" },
-    //     responseType: "blob",
-    //   });
-
-    //   const videoBlob = new Blob([resp?.data], { type: "video/mp4" });
-    //   const newVideoUrl = URL.createObjectURL(videoBlob);
-    //   setVideoUrl(newVideoUrl);
-
-    //   console.log("Trimmed video URL:", newVideoUrl);
-    // } catch (err) {
-    //   console.error("Error during video trimming:", err);
-    // }
   };
 
-  // Play trim segment
   const playTrimSegment = (
     segment: { start: number; end: number },
     idx: number,
@@ -711,23 +598,19 @@ export default function TimelineRuler({
         return;
       }
 
-      // GUARD 1: If actively dragging, never jump (uses ref for instant check, no stale closure)
       if (isDraggingTimelineRef.current) {
         lastPlayedSecondsRef.current = playedSeconds;
         return;
       }
 
-      // GUARD 2: If we just finished dragging or seeking within last 500ms, never jump
       if (Date.now() - lastSeekTimeRef.current < 500) {
         lastPlayedSecondsRef.current = playedSeconds;
         return;
       }
 
-      // GUARD 3: Calculate delta — only jump if video is naturally playing forward
       const delta = playedSeconds - lastPlayedSecondsRef.current;
       const isNaturallyPlaying = delta > 0 && delta < 1;
 
-      // Always update the ref to the current position
       lastPlayedSecondsRef.current = playedSeconds;
 
       if (!isNaturallyPlaying) {
@@ -767,14 +650,14 @@ export default function TimelineRuler({
 
   type DragState =
     | {
-        mode: "edge"; // trim handle dragging
+        mode: "edge";
         index: number;
         side: "left" | "right";
         startX: number;
         startValue: number;
       }
     | {
-        mode: "segment"; // whole-segment dragging
+        mode: "segment";
         index: number;
         startX: number;
         startValue: number;
@@ -799,9 +682,6 @@ export default function TimelineRuler({
             return seg;
           }
 
-          // ---------------------------
-          // MODE: TRIM HANDLE DRAGGING
-          // ---------------------------
           if (dragState.mode === "edge") {
             let newStart = seg.start;
             let newEnd = seg.end;
@@ -812,13 +692,11 @@ export default function TimelineRuler({
               if (newStart <= seg.end - 0.01) {
                 newStart = Math.max(minValue, newStart);
               } else {
-                // flip
                 const flippedStart = seg.end;
                 const flippedEnd = Math.min(maxValue, newStart);
                 newStart = flippedStart;
                 newEnd = flippedEnd;
 
-                // auto change handle
                 setDragState((d) =>
                   d && d.mode === "edge"
                     ? {
@@ -843,7 +721,6 @@ export default function TimelineRuler({
                 newStart = flippedStart;
                 newEnd = flippedEnd;
 
-                // auto change handle
                 setDragState((d) =>
                   d && d.mode === "edge"
                     ? {
@@ -860,9 +737,6 @@ export default function TimelineRuler({
             return { ...seg, start: newStart, end: newEnd };
           }
 
-          // ---------------------------
-          // MODE: DRAG WHOLE SEGMENT
-          // ---------------------------
           if (dragState.mode === "segment") {
             const width = dragState.endValue - dragState.startValue;
 
@@ -904,63 +778,16 @@ export default function TimelineRuler({
     onValueChangeRef.current?.(localValue);
   }, [localValue]);
 
-  // const generateTicks = () => {
-  //   const ticks: { value: number; type: string; label?: string }[] = [];
-
-  //   const totalRange = maxValue - minValue;
-  //   const targetTickCount = 8 * zoomLevel; // Increase with zoom
-  //   const roughStep = totalRange / targetTickCount;
-
-  //   // Round major step to nearest integer second >= 1
-  //   const majorStep = Math.max(1, Math.round(roughStep));
-
-  //   // Always keep an odd number of subdivisions
-  //   let divisions = 5; // default = 5 ticks (1 major + 4 minors)
-  //   if (zoomLevel > 3) {
-  //     divisions = 7;
-  //   }
-  //   if (zoomLevel > 6) {
-  //     divisions = 9;
-  //   }
-  //   if (zoomLevel > 10) {
-  //     divisions = 11;
-  //   }
-
-  //   const minorStep = majorStep / (divisions - 1);
-  //   const midIndex = Math.floor(divisions / 2); // middle tick index
-
-  //   // Start from nearest major tick
-  //   const startMajorTick = Math.ceil(minValue / majorStep) * majorStep;
-
-  //   for (let v = startMajorTick; v <= maxValue; v += majorStep) {
-  //     ticks.push({ value: v, type: "major", label: formatTime(v) });
-
-  //     // Add subdivisions
-  //     for (let i = 1; i < divisions; i++) {
-  //       const tickVal = v + i * minorStep;
-  //       if (tickVal < v + majorStep && tickVal < maxValue) {
-  //         ticks.push({
-  //           value: tickVal,
-  //           type: i === midIndex ? "middle" : "minor",
-  //         });
-  //       }
-  //     }
-  //   }
-  //   console.log("ticks", ticks);
-  //   return ticks;
-  // };
-
-  // const [zoomActive, setZoomActive] = useState<number>(0);
   type DragZoomState =
     | {
-        mode: "edge"; // trim handle dragging
+        mode: "edge";
         index: number;
         side: "left" | "right";
         startX: number;
         startValue: number;
       }
     | {
-        mode: "segment"; // whole-segment dragging
+        mode: "segment";
         index: number;
         startX: number;
         startValue: number;
@@ -973,15 +800,11 @@ export default function TimelineRuler({
       return;
     }
 
-    // Set active zoom index
     setActiveZoomIdx(idx);
 
-    // Notify parent so VideoPlayer applies zoom
-    //onZoomChange?.(segment);
     setMode("zoom");
     setActiveSegment(-1);
-    //setOpen(true);
-    // Jump video to clicked position
+
     if (e) {
       updateCurrentTimeFromMouse(e);
       setPlaying(false);
@@ -998,7 +821,11 @@ export default function TimelineRuler({
     }
 
     const onMove = (e: MouseEvent) => {
-      let pendingFlip: null | { side: "left" | "right"; startValue: number; startX: number } = null;
+      let pendingFlip: null | {
+        side: "left" | "right";
+        startValue: number;
+        startX: number;
+      } = null;
       const deltaX = e.clientX - dragZoomState.startX;
       const pixelsPerUnit = zoomedTimelineWidth / (maxValue - minValue);
       const deltaValue = deltaX / pixelsPerUnit;
@@ -1009,9 +836,7 @@ export default function TimelineRuler({
           if (i !== dragZoomState.index) {
             return seg;
           }
-          // ---------------------------
-          // MODE: TRIM HANDLE DRAGGING
-          // ---------------------------
+
           if (dragZoomState.mode === "edge") {
             console.log("zoom runn in edge");
             let newStart = seg.startTime;
@@ -1023,13 +848,11 @@ export default function TimelineRuler({
               if (newStart <= seg.endTime - 0.01) {
                 newStart = Math.max(minValue, newStart);
               } else {
-                // flip
                 const flippedStart = seg.endTime;
                 const flippedEnd = Math.min(maxValue, newStart);
                 newStart = flippedStart;
                 newEnd = flippedEnd;
 
-                // auto change handle
                 pendingFlip = {
                   side: "right",
                   startValue: flippedEnd,
@@ -1049,7 +872,6 @@ export default function TimelineRuler({
                 newStart = flippedStart;
                 newEnd = flippedEnd;
 
-                // auto change handle
                 pendingFlip = {
                   side: "left",
                   startValue: flippedStart,
@@ -1061,9 +883,6 @@ export default function TimelineRuler({
             return { ...seg, startTime: newStart, endTime: newEnd };
           }
 
-          // ---------------------------
-          // MODE: DRAG WHOLE SEGMENT
-          // ---------------------------
           if (dragZoomState.mode === "segment") {
             const width = dragZoomState.endValue - dragZoomState.startValue;
 
@@ -1203,7 +1022,6 @@ export default function TimelineRuler({
       y: 0.5,
     };
 
-    // Track in undo stack
     setUndoStack((prev) => [...prev, { type: "add-zoom", segment: newSegment }]);
     setRedoStack([]);
 
@@ -1217,83 +1035,42 @@ export default function TimelineRuler({
 
     setLocalStartTime(startTime);
     setLocalEndTime(endTime);
-
-    // onZoomEffectCreate({
-    //   id: Date.now().toString(),
-    //   startTime: Math.max(0, localValue - 1),
-    //   endTime: Math.min(maxValue, localValue + 2),
-    //   zoomLevel: 2.0,
-    //   x: 0.5,
-    //   y: 0.5,
-    // });
   };
-  // const [open, setOpen] = useState(false);
+
   return (
-    //this is to handle zoom click
     <div className="w-full max-w-6xl mx-auto">
       <div className="flex flex-row items-center justify-between w-full mb-6 gap-3 sm:gap-6 ">
         <div className="flex gap-3 sm:gap-4 items-center">
           <button
             onClick={handleZoomClick}
-            className="h-[50.85px] w-[111.71px] px-4 flex items-center justify-center gap-1 font-medium bg-white text-[#8A76FC] text-sm rounded-lg hover:shadow-md transition-all duration-200"
+            className="btn-toolbar-item h-[50.85px] w-[111.71px] px-4 flex items-center justify-center gap-1 font-medium bg-white text-[#8A76FC] text-sm rounded-lg hover:shadow-md transition-all duration-200"
           >
             <Image src="/icons/zoooom.svg" alt="Zoom" width={26} height={26} />
             <span className="text-sm font-medium leading-none">Zoom</span>
           </button>
 
-          {/* Apply Zooms button removed — zoom effects are applied at export time */}
-
-          {/* <button
-            onClick={addSegment}
-            className="h-10 px-4 flex items-center justify-center gap-2 font-medium bg-linear-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-sm rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
-          >
-            <Image
-              src="/icons/+.svg"
-              alt="Add"
-              width={16}
-              height={16}
-              className="w-5 h-5 brightness-0 invert"
-            />
-            Add Segment
-          </button> */}
-          {/* this is to handle the trim */}
           <button
             onClick={handleSmartTrim}
             disabled={processing}
-            className="h-[50.85px] w-[111.71px] px-4 flex items-center justify-center gap-2 font-medium bg-white text-[#8A76FC] text-sm rounded-lg hover:shadow-md transition-all duration-200"
+            className="btn-toolbar-item h-[50.85px] w-[111.71px] px-4 flex items-center justify-center gap-2 font-medium bg-white text-[#8A76FC] text-sm rounded-lg hover:shadow-md transition-all duration-200"
           >
             <Image src="/icons/trim-new.svg" alt="Trim" width={16} height={16} />
             <span className="text-sm font-medium leading-none"> Trim </span>
           </button>
-          {/* Reset Timeline  */}
+
           {onResetVideo && hasTimelineEdits && (
             <button
               onClick={onResetVideo}
-              className="h-[50.85px] w-[163px] px-4 flex items-center justify-center gap-2 font-medium bg-white text-[#8A76FC] text-sm rounded-lg hover:shadow-md transition-all duration-200"
+              className="btn-toolbar-item h-[50.85px] w-[163px] px-4 flex items-center justify-center gap-2 font-medium bg-white text-[#8A76FC] text-sm rounded-lg hover:shadow-md transition-all duration-200"
             >
               <span className="text-sm font-medium leading-none"> Reset Timeline </span>
             </button>
           )}
-          {/* <button
-            onClick={() => removeSegment(activeSegment)}
-            disabled={segments.length === 0}
-            className="h-10 px-4 flex items-center justify-center gap-2 font-medium bg-linear-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white text-sm rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:from-red-400 disabled:to-red-500"
-          >
-            <Image
-              src="/icons/delete-demo.svg"
-              alt="Delete"
-              width={16}
-              height={16}
-              className="w-5 h-5 brightness-0 invert"
-            />
-            Delete
-          </button> */}
-          {/* Zoom Slider */}
-          <div className="flex items-center gap-2 px-3 py-2 bg-gray-100/80 rounded-lg backdrop-blur-sm ">
-            {/* Minus button */}
+
+          <div className="zoom-slider-housing flex items-center gap-2 px-3 py-2 bg-gray-100/80 rounded-lg backdrop-blur-sm ">
             <button
               onClick={() => setZoomLevel((prev) => Math.max(1, prev * 0.8))}
-              className="text-gray-600 hover:text-purple-600 hover:bg-white rounded p-1 transition-colors"
+              className="text-gray-600 hover:text-purple-600 hover:bg-white rounded p-1 transition-colors dark:text-white dark:hover:bg-white/10"
               title="Zoom out"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1301,7 +1078,6 @@ export default function TimelineRuler({
               </svg>
             </button>
 
-            {/* Slider */}
             <input
               type="range"
               min="1"
@@ -1346,10 +1122,9 @@ export default function TimelineRuler({
           "
             />
 
-            {/* Plus button */}
             <button
               onClick={() => setZoomLevel((prev) => Math.min(20, prev * 1.25))}
-              className="text-gray-600 hover:text-purple-600 hover:bg-white rounded p-1 transition-colors"
+              className="text-gray-600 hover:text-purple-600 hover:bg-white rounded p-1 transition-colors dark:text-white dark:hover:bg-white/10"
               title="Zoom in"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1361,20 +1136,14 @@ export default function TimelineRuler({
                 />
               </svg>
             </button>
-
-            {/* Zoom level display */}
-            {/* <span className="text-xs font-medium text-gray-700 ml-1 w-10 text-right">
-              {zoomLevel.toFixed(1)}x
-            </span> */}
           </div>
         </div>
         <div className="flex gap-2 sm:gap-3 items-center">
-          {/* Speed control (replaces the top fullscreen button) */}
-          <div className="h-[51px] px-3 flex items-center justify-center bg-white rounded-lg border border-[#E6E1FA]">
+          <div className="btn-toolbar-item h-[51px] px-3 flex items-center justify-center bg-white rounded-lg border border-[#E6E1FA]">
             <select
               value={String(playbackSpeed)}
               onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
-              className="h-[36px] bg-transparent text-sm text-[#7C5CFC] font-medium focus:outline-none cursor-pointer"
+              className="h-[36px] bg-transparent text-sm text-[#7C5CFC] font-medium focus:outline-none cursor-pointer dark:text-white [&>option]:dark:bg-[#0a081a]"
               title="Playback speed"
             >
               <option value="0.75">0.75x</option>
@@ -1385,7 +1154,7 @@ export default function TimelineRuler({
               <option value="2">2x</option>
             </select>
           </div>
-          {/* Delete button — works for both trim and zoom segments */}
+
           <button
             onClick={() => {
               if (mode === "trim" && activeSegment >= 0 && activeSegment < segments.length) {
@@ -1406,58 +1175,53 @@ export default function TimelineRuler({
               (mode === "zoom" && (zoomSegments.length === 0 || activeZoomIdx === -1)) ||
               (mode === "text" && !selectedTextOverlayId)
             }
-            className="h-[51px] w-[51px] px-3 flex items-center justify-center font-medium bg-white hover:bg-gray-50 text-gray-700 text-sm rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="btn-toolbar-item h-[51px] w-[51px] px-3 flex items-center justify-center font-medium bg-white hover:bg-gray-50 text-gray-700 text-sm rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="Delete"
           >
-            <Image src="/icons/Vector (1) copy.svg" alt="delete_icon" width={18.67} height={21} />
+            <Image
+              src="/icons/Vector (1) copy.svg"
+              alt="delete_icon"
+              width={18.67}
+              height={21}
+              className="dark:brightness-0 dark:invert"
+            />
           </button>
           <button
             onClick={handleUndo}
             disabled={undoStack.length === 0}
-            className="h-[51px] w-[51px] px-3 flex items-center justify-center font-medium bg-white hover:bg-gray-50 text-gray-700 text-sm rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="btn-toolbar-item h-[51px] w-[51px] px-3 flex items-center justify-center font-medium bg-white hover:bg-gray-50 text-gray-700 text-sm rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="Undo"
           >
-            <Image src="/icons/undo.svg" alt="Undo" width={18.41} height={14.71} />
+            <Image
+              src="/icons/undo.svg"
+              alt="Undo"
+              width={18.41}
+              height={14.71}
+              className="dark:brightness-0 dark:invert"
+            />
           </button>
           <button
             onClick={handleRedo}
             disabled={redoStack.length === 0}
-            className="h-[51px] w-[51px] px-3 flex items-center justify-center font-medium bg-white hover:bg-gray-50 text-gray-700 text-sm rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="btn-toolbar-item h-[51px] w-[51px] px-3 flex items-center justify-center font-medium bg-white hover:bg-gray-50 text-gray-700 text-sm rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="Redo"
           >
-            <Image src="/icons/redo.svg" alt="Redo" width={18.41} height={14.71} />
+            <Image
+              src="/icons/redo.svg"
+              alt="Redo"
+              width={18.41}
+              height={14.71}
+              className="dark:brightness-0 dark:invert"
+            />
           </button>
-          {/* {onResetVideo && hasBeenTrimmed && (
-            <button
-              onClick={onResetVideo}
-              className="h-10 px-4 flex items-center justify-center gap-2 font-medium bg-linear-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white text-sm rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
-            >
-              <Image
-                src="/icons/reset.png"
-                alt="Reset"
-                width={16}
-                height={16}
-                className="w-4 h-4 brightness-0 invert"
-              />
-              Reset video
-            </button>
-          )} */}
         </div>
       </div>
 
-      {/* {zoomLevel > 1 && (
-        <div className="mb-2 text-sm text-gray-600">
-          Zoom: {zoomLevel.toFixed(1)}x (Ctrl+Scroll to zoom)
-        </div>
-      )} */}
-
-      {/* Timeline Container - Fixed width */}
-      <div className="max-w-[1379px] h-[173px]">
+      <div className="track-stream-container max-w-[1379px] h-[173px]">
         <div
           className=" flex items-center justify-center bg-transparent"
-          style={{ height: "173px" }}
+          style={{ height: "100%" }}
         >
-          {/* Left Scissor - Fixed position and size */}
           <div
             className="
             flex-none
@@ -1469,8 +1233,10 @@ export default function TimelineRuler({
             shrink-0
             select-none
             py-3
+            slice-handle
+            slice-handle-left
           "
-            style={{ width: "32px", height: "173px" }}
+            style={{ width: "32px", height: "100%" }}
             onMouseDown={() => {
               setDraggingScissor("left");
               setScissorPreview(null);
@@ -1485,13 +1251,13 @@ export default function TimelineRuler({
             z-30
             shrink-0
             select-none
+            slice-handle
+            slice-handle-left
             "
-              style={{ width: "20px", height: "143.5px" }}
+              style={{ width: "20px", height: "100%" }}
             >
-              {/* Top Line */}
-              <div className="w-px bg-white/80" style={{ height: "55.5px" }} />
+              <div className="flex-1 w-px bg-white/80" />
 
-              {/* Scissor Icon */}
               <Image
                 src="/icons/trim-new.svg"
                 alt="Trim"
@@ -1501,16 +1267,11 @@ export default function TimelineRuler({
                 style={{ filter: "brightness(0) invert(1)" }}
               />
 
-              {/* Bottom Line */}
-              <div className="w-px bg-white/80" style={{ height: "55.5px" }} />
+              <div className="flex-1 w-px bg-white/80" />
             </div>
           </div>
 
-          {/* Scrollable Timeline Container - Fixed width */}
-          <div
-            className="h-full overflow-hidden"
-            // style={{ width: `${1000}px`, height: "100%" }}
-          >
+          <div className="h-full overflow-hidden">
             <div
               ref={scrollContainerRef}
               className={` w-full h-full overflow-y-hidden ${
@@ -1520,13 +1281,12 @@ export default function TimelineRuler({
             >
               <div
                 ref={rulerRef}
-                className="relative bg-white border-y border-[#A594F9] cursor-pointer "
+                className="relative bg-white border-y border-[#A594F9] cursor-pointer track-layers-row"
                 style={{
                   width: `${baseTimelineWidth * zoomLevel}px`,
                   minWidth: `${baseTimelineWidth}px`,
                   height: "100%",
-                  // paddingLeft: "20px",
-                  // paddingRight: "20px",
+
                   boxSizing: "border-box",
                 }}
                 onMouseDown={(e) => {
@@ -1535,14 +1295,11 @@ export default function TimelineRuler({
                     setPlaying(false);
                     setDraggingCurrentTime(true);
                     updateCurrentTimeFromMouse(e);
-                    // Switch to non-trim mode when clicking on timeline
+
                     switchToNonTrimMode();
                   }
                 }}
                 onClick={(e) => {
-                  // Also switch to non-trim mode on click if not on a segment
-                  //console.log("hlo-1");
-                  //playMainVideo();
                   const target = e.target as HTMLElement;
                   if (!target.closest('[class*="segment"]')) {
                     switchToNonTrimMode();
@@ -1558,41 +1315,13 @@ export default function TimelineRuler({
                   setActiveZoomIdx={setActiveZoomIdx}
                   setActiveSegment={setActiveSegment}
                 />
-                {/* {generateTicks().map((tick, index) => {
-                  const positionPx =
-                    ((tick.value - minValue) / (maxValue - minValue)) * zoomedTimelineWidth;
 
-                  return (
-                    <div
-                      key={`${tick.type}-${index}`}
-                      className="absolute"
-                      style={{ left: `${positionPx}px`, top: "0" }}
-                    >
-                      <div
-                        className={`bg-[#A594F9] mx-auto ${
-                          tick.type === "major"
-                            ? "w-0.5 h-6"
-                            : tick.type === "middle"
-                              ? "w-0.5 h-5"
-                              : "w-px h-3"
-                        }`}
-                      />
-                      {tick.type === "major" && (
-                        <div className="absolute top-7 -translate-x-1/2 left-1/2">
-                          <span className="text-xs text-[#A594F9] font-medium">{tick.label}</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })} */}
-                {/* Current position line + triangle */}
                 <div
                   className="absolute top-0 h-full z-40 pointer-events-none"
                   style={{
                     left: `${0 + currentPosition - scrollLeft}px`,
                   }}
                 >
-                  {/* Triangle head */}
                   <div
                     className="absolute top-0 left-1/2 -translate-x-1/2
                w-0 h-0 
@@ -1600,10 +1329,9 @@ export default function TimelineRuler({
                border-l-transparent border-r-transparent border-t-green-500"
                   />
 
-                  {/* Vertical line */}
                   <div className="w-0.5 h-full bg-green-500 mx-auto" />
                 </div>
-                {/* Segments */}
+
                 {segments.map((segment, idx) => {
                   const startPosition =
                     ((segment.start - minValue) / (maxValue - minValue)) * zoomedTimelineWidth;
@@ -1614,9 +1342,9 @@ export default function TimelineRuler({
                   return (
                     <div
                       key={`segment-${idx}`}
-                      className={`absolute top-0 h-[84px] mt-[50px] group cursor-grab transition-opacity ${
+                      className={`absolute top-0 h-[84px] mt-[50px] group cursor-grab transition-opacity track-red sequence-block-shape width-trim-block ${
                         idx === activeSegment && activeSegment != -1
-                          ? "bg-[#FF3939]/54 opacity-70 z-10 hover:border-2 border-black rounded-md"
+                          ? "bg-[#FF3939]/54 opacity-70 z-10 hover:border-2 border-black rounded-md active"
                           : "bg-[#FF3939]/35 opacity-50 hover:opacity-65 z-8"
                       }`}
                       style={{
@@ -1627,7 +1355,6 @@ export default function TimelineRuler({
                         e.stopPropagation();
                         switchToTrimMode(idx);
                         playTrimSegment(segment, idx, e);
-                        //setActiveSegment(idx);
                       }}
                       onMouseDown={(e) => {
                         e.stopPropagation();
@@ -1640,7 +1367,6 @@ export default function TimelineRuler({
                         });
                       }}
                     >
-                      {/* Segment Label */}
                       <div className="w-full h-full flex justify-center items-center ">
                         <div className="flex items-center gap-1 px-2 py-1 bg-transparent pointer-events-none overflow-hidden">
                           <Image
@@ -1650,11 +1376,12 @@ export default function TimelineRuler({
                             height={14.89}
                             className="select-none"
                           />
-                          <div className="text-base font-bold text-[#8A76FC] select-none">Trim</div>
+                          <div className="text-base font-bold text-[#8A76FC] select-none track-text">
+                            Trim
+                          </div>
                         </div>
                       </div>
 
-                      {/* Left Resize Handle */}
                       <div
                         className="flex items-center justify-center absolute py-1 top-0 -left-1 h-[84px] w-[23px] bg-[#FF3939]/54 rounded-l-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#FF3939]"
                         onMouseDown={(e) => {
@@ -1673,7 +1400,6 @@ export default function TimelineRuler({
                         <div className="w-px h-[60px] bg-white/80" />
                       </div>
 
-                      {/* Right Resize Handle */}
                       <div
                         className="flex items-center justify-center absolute py-1 top-0 -right-1 h-[84px] w-[23px] bg-[#FF3939]/54 rounded-r-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#FF3939]"
                         onMouseDown={(e) => {
@@ -1704,9 +1430,9 @@ export default function TimelineRuler({
                   return (
                     <div
                       key={`segment-${idx}`}
-                      className={`absolute top-0 h-[84px] mt-[50px] group cursor-grab transition-opacity ${
+                      className={`absolute top-0 h-[84px] mt-[50px] group cursor-grab transition-opacity track-green sequence-block-shape width-zoom-block ${
                         idx == activeZoomIdx
-                          ? "bg-[#36B37E]/40 opacity-80 z-10 hover:border-2 border-[#36B37E] rounded-md"
+                          ? "bg-[#36B37E]/40 opacity-80 z-10 hover:border-2 border-[#36B37E] rounded-md active"
                           : "bg-[#36B37E]/25 opacity-70 hover:opacity-90 z-8"
                       }`}
                       style={{
@@ -1715,10 +1441,8 @@ export default function TimelineRuler({
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        //setZoomActive(idx);
-                        //switchToTrimMode(idx);
+
                         playZoomSegment(segment, idx, e);
-                        //setActiveSegment(idx);
                       }}
                       onMouseDown={(e) => {
                         e.stopPropagation();
@@ -1731,7 +1455,6 @@ export default function TimelineRuler({
                         });
                       }}
                     >
-                      {/* Segment Label */}
                       <div className="w-full h-full flex justify-center items-center ">
                         <div className="flex items-center gap-1 px-2 py-1 bg-transparent pointer-events-none overflow-hidden">
                           <Image
@@ -1741,11 +1464,12 @@ export default function TimelineRuler({
                             height={14.89}
                             className="select-none"
                           />
-                          <div className="text-base font-bold text-[#8A76FC] select-none">Zoom</div>
+                          <div className="text-base font-bold text-[#8A76FC] select-none track-text">
+                            Zoom
+                          </div>
                         </div>
                       </div>
 
-                      {/* Left Resize Handle */}
                       <div
                         className="flex items-center justify-center absolute py-1 top-0 -left-1 h-[84px] w-[23px] bg-[#36B37E]/80 rounded-l-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#36B37E]"
                         onMouseDown={(e) => {
@@ -1764,7 +1488,6 @@ export default function TimelineRuler({
                         <div className="w-px h-[60px] bg-white/80" />
                       </div>
 
-                      {/* Right Resize Handle */}
                       <div
                         className="flex items-center justify-center absolute py-1 top-0 -right-1 h-[84px] w-[23px] bg-[#36B37E]/80 rounded-r-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#36B37E]"
                         onMouseDown={(e) => {
@@ -1798,9 +1521,9 @@ export default function TimelineRuler({
                   return (
                     <div
                       key={`text-${overlay.id}`}
-                      className={`absolute top-0 h-[84px] mt-[50px] group cursor-grab transition-opacity ${
+                      className={`absolute top-0 h-[84px] mt-[50px] group cursor-grab transition-opacity track-yellow sequence-block-shape width-text-block ${
                         isSelected
-                          ? "bg-[#FFF4A8]/85 opacity-90 z-10 hover:border-2 border-[#B38700] rounded-md"
+                          ? "bg-[#FFF4A8]/85 opacity-90 z-10 hover:border-2 border-[#B38700] rounded-md active"
                           : "bg-[#FFF4A8]/65 opacity-75 hover:opacity-90 border border-[#D4A017] z-8 rounded-md"
                       }`}
                       style={{
@@ -1835,8 +1558,10 @@ export default function TimelineRuler({
                             height={14.89}
                             className="select-none"
                           />
-                          <div className="text-base font-bold text-[#8A76FC] select-none">Text</div>
-                          <div className="text-xs text-[#6B5BB5] select-none truncate max-w-[180px]">
+                          <div className="text-base font-bold text-[#8A76FC] select-none track-text">
+                            Text
+                          </div>
+                          <div className="text-xs text-[#6B5BB5] select-none truncate max-w-[180px] track-text">
                             {label}
                           </div>
                         </div>
@@ -1884,7 +1609,6 @@ export default function TimelineRuler({
             </div>
           </div>
 
-          {/* Right Scissor - Fixed position and size */}
           <div
             className="
             flex-none
@@ -1896,8 +1620,10 @@ export default function TimelineRuler({
             shrink-0
             select-none
             py-3
+            slice-handle
+            slice-handle-right
           "
-            style={{ width: "32px", height: "173px" }}
+            style={{ width: "32px", height: "100%" }}
             onMouseDown={() => {
               setDraggingScissor("right");
               setScissorPreview(null);
@@ -1912,13 +1638,13 @@ export default function TimelineRuler({
             z-30
             shrink-0
             select-none
+            slice-handle
+            slice-handle-right
             "
-              style={{ width: "20px", height: "143.5px" }}
+              style={{ width: "20px", height: "100%" }}
             >
-              {/* Top Line */}
-              <div className="w-px bg-white/80" style={{ height: "55.5px" }} />
+              <div className="flex-1 w-px bg-white/80" />
 
-              {/* Scissor Icon */}
               <Image
                 src="/icons/trim-new.svg"
                 alt="Trim"
@@ -1931,16 +1657,14 @@ export default function TimelineRuler({
                 }}
               />
 
-              {/* Bottom Line */}
-              <div className="w-px bg-white/80" style={{ height: "55.5px" }} />
+              <div className="flex-1 w-px bg-white/80" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Current value display */}
       <div className="mt-2 text-center">
-        <span className="text-sm font-medium text-[#A594F9]">
+        <span className="timecode-footer-readout text-sm font-medium text-[#A594F9]">
           Current: {localValue.toFixed(2)}s
         </span>
       </div>
