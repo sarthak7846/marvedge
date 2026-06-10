@@ -153,16 +153,8 @@ function buildRemovedBefore(removeSegments) {
   };
 }
 
-function remapZoomEffectsToTrimmedTimeline(
-  rawZoomEffects,
-  keepSegments,
-  removeSegments,
-) {
-  if (
-    !rawZoomEffects ||
-    rawZoomEffects.length === 0 ||
-    keepSegments.length === 0
-  ) {
+function remapZoomEffectsToTrimmedTimeline(rawZoomEffects, keepSegments, removeSegments) {
+  if (!rawZoomEffects || rawZoomEffects.length === 0 || keepSegments.length === 0) {
     return [];
   }
 
@@ -182,7 +174,7 @@ function remapZoomEffectsToTrimmedTimeline(
         Number.isFinite(z.endTime) &&
         Number.isFinite(z.zoomLevel) &&
         Number.isFinite(z.x) &&
-        Number.isFinite(z.y),
+        Number.isFinite(z.y)
     )
     .map((z) => ({
       startTime: Math.min(z.startTime, z.endTime),
@@ -211,21 +203,11 @@ function remapZoomEffectsToTrimmedTimeline(
     }
   }
 
-  return out
-    .filter((z) => z.endTime - z.startTime > EPS)
-    .sort((a, b) => a.startTime - b.startTime);
+  return out.filter((z) => z.endTime - z.startTime > EPS).sort((a, b) => a.startTime - b.startTime);
 }
 
-function remapTextOverlaysToTrimmedTimeline(
-  rawTextOverlays,
-  keepSegments,
-  removeSegments,
-) {
-  if (
-    !rawTextOverlays ||
-    rawTextOverlays.length === 0 ||
-    keepSegments.length === 0
-  ) {
+function remapTextOverlaysToTrimmedTimeline(rawTextOverlays, keepSegments, removeSegments) {
+  if (!rawTextOverlays || rawTextOverlays.length === 0 || keepSegments.length === 0) {
     return [];
   }
 
@@ -251,7 +233,7 @@ function remapTextOverlaysToTrimmedTimeline(
         Number.isFinite(t.endTime) &&
         Number.isFinite(t.x) &&
         Number.isFinite(t.y) &&
-        Number.isFinite(t.fontSize),
+        Number.isFinite(t.fontSize)
     )
     .map((t) => ({
       startTime: Math.min(t.startTime, t.endTime),
@@ -292,16 +274,10 @@ function remapTextOverlaysToTrimmedTimeline(
     }
   }
 
-  return out
-    .filter((t) => t.endTime - t.startTime > EPS)
-    .sort((a, b) => a.startTime - b.startTime);
+  return out.filter((t) => t.endTime - t.startTime > EPS).sort((a, b) => a.startTime - b.startTime);
 }
 
-function remapSubtitleCuesToTrimmedTimeline(
-  rawCues,
-  keepSegments,
-  removeSegments,
-) {
+function remapSubtitleCuesToTrimmedTimeline(rawCues, keepSegments, removeSegments) {
   if (!rawCues || rawCues.length === 0 || keepSegments.length === 0) {
     return [];
   }
@@ -313,10 +289,7 @@ function remapSubtitleCuesToTrimmedTimeline(
       end: Number(c.end),
       text: String(c.text ?? "").trim(),
     }))
-    .filter(
-      (c) =>
-        Number.isFinite(c.start) && Number.isFinite(c.end) && c.text.length > 0,
-    )
+    .filter((c) => Number.isFinite(c.start) && Number.isFinite(c.end) && c.text.length > 0)
     .map((c) => ({
       start: Math.min(c.start, c.end),
       end: Math.max(c.start, c.end),
@@ -357,7 +330,9 @@ function ffmpegEscapeFilterValue(value) {
 
 function resolveFontForDrawtext(fontFamily) {
   const raw = String(fontFamily || "").trim();
-  if (!raw) return { kind: "none", value: "" };
+  if (!raw) {
+    return { kind: "none", value: "" };
+  }
 
   // Prefer explicit font files for exact rendering fidelity.
   const candidates = {
@@ -435,15 +410,15 @@ function wrapText(text, fontSize, maxWidth, fontFamily) {
     if (words.length <= 1) {
       return paragraph;
     }
-    
+
     let currentLine = "";
     const lines = [];
-    
+
     for (let i = 0; i < words.length; i++) {
       const word = words[i];
       const testLine = currentLine ? currentLine + " " + word : word;
       const testWidth = estimateTextWidth(testLine, fontSize, fontFamily);
-      
+
       if (testWidth > maxWidth && currentLine) {
         lines.push(currentLine);
         currentLine = word;
@@ -456,21 +431,21 @@ function wrapText(text, fontSize, maxWidth, fontFamily) {
     }
     return lines.join("\n");
   });
-  
+
   return wrappedParagraphs.join("\n");
 }
 
 function writeTextOverlayFiles(tempDir, overlays, targetWidth) {
   return overlays.map((overlay, idx) => {
     const p = path.join(tempDir, `text-${idx}.txt`);
-    
+
     const parentW = overlay.parentW || (targetWidth > 1000 ? 800 : 400);
     const scale = targetWidth / parentW;
     const scaledFontSize = Math.max(10, Math.min(160, Math.round(overlay.fontSize * scale)));
-    const scaledBoxWidth = overlay.w ? (overlay.w * scale) : (240 * scale);
-    
+    const scaledBoxWidth = overlay.w ? overlay.w * scale : 240 * scale;
+
     const wrappedText = wrapText(overlay.text, scaledFontSize, scaledBoxWidth, overlay.fontFamily);
-    
+
     fs.writeFileSync(p, wrappedText, "utf8");
     return { path: p, overlay };
   });
@@ -554,14 +529,8 @@ function downloadFile(url, outputPath) {
     const u = new URL(url);
     const transport = u.protocol === "https:" ? https : http;
     const req = transport.get(url, (res) => {
-      if (
-        res.statusCode >= 300 &&
-        res.statusCode < 400 &&
-        res.headers.location
-      ) {
-        downloadFile(res.headers.location, outputPath)
-          .then(resolve)
-          .catch(reject);
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        downloadFile(res.headers.location, outputPath).then(resolve).catch(reject);
         return;
       }
       if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -623,8 +592,7 @@ async function renderChunkFromRecipe({
   const tempDir = path.dirname(outputPath);
   const bgPath = path.join(tempDir, "background.png");
   const hasCustomBackground =
-    recipe.selectedBackground === "custom" &&
-    Boolean(recipe.customBackgroundUrl);
+    recipe.selectedBackground === "custom" && Boolean(recipe.customBackgroundUrl);
 
   if (hasCustomBackground) {
     await downloadFile(recipe.customBackgroundUrl, bgPath);
@@ -636,17 +604,11 @@ async function renderChunkFromRecipe({
     compression: "Web",
     speed: "Default",
   };
-  const targetFps =
-    qSettings.fps === "60 FPS" ? 60 : qSettings.fps === "30 FPS" ? 30 : 24;
+  const targetFps = qSettings.fps === "60 FPS" ? 60 : qSettings.fps === "30 FPS" ? 30 : 24;
   const { overrideCrf, overridePreset } = pickCompression(recipe);
-  const filterThreadsEnv = Number.parseInt(
-    process.env.FFMPEG_FILTER_THREADS || "",
-    10,
-  );
+  const filterThreadsEnv = Number.parseInt(process.env.FFMPEG_FILTER_THREADS || "", 10);
   const filterThreads =
-    Number.isFinite(filterThreadsEnv) && filterThreadsEnv > 0
-      ? filterThreadsEnv
-      : 2;
+    Number.isFinite(filterThreadsEnv) && filterThreadsEnv > 0 ? filterThreadsEnv : 2;
 
   let speedFactor = 1.0;
   if (qSettings.speed === "0.75") {
@@ -699,7 +661,7 @@ async function renderChunkFromRecipe({
     recipe.segments || [],
     chunkAbsStart,
     chunkAbsEnd,
-    (s) => ({ start: toSeconds(s.start), end: toSeconds(s.end) }),
+    (s) => ({ start: toSeconds(s.start), end: toSeconds(s.end) })
   );
 
   const slicedZoom = overlapSliceAbsolute(
@@ -712,7 +674,7 @@ async function renderChunkFromRecipe({
       zoomLevel: Number(z.zoomLevel),
       x: Number(z.x),
       y: Number(z.y),
-    }),
+    })
   ).map((z) => ({
     startTime: z.start,
     endTime: z.end,
@@ -734,7 +696,7 @@ async function renderChunkFromRecipe({
       fontSize: Number(t.fontSize),
       color: String(t.color ?? "#ffffff"),
       fontFamily: String(t.fontFamily ?? "Arial"),
-    }),
+    })
   ).map((t) => ({
     startTime: t.start,
     endTime: t.end,
@@ -751,38 +713,24 @@ async function renderChunkFromRecipe({
     : Array.isArray(recipe.subtitles?.cues)
       ? recipe.subtitles.cues
       : [];
-  const slicedSubs = overlapSliceAbsolute(
-    subtitleList,
-    chunkAbsStart,
-    chunkAbsEnd,
-    (s) => ({
-      start: Number(s.start),
-      end: Number(s.end),
-      text: String(s.text || ""),
-    }),
-  );
+  const slicedSubs = overlapSliceAbsolute(subtitleList, chunkAbsStart, chunkAbsEnd, (s) => ({
+    start: Number(s.start),
+    end: Number(s.end),
+    text: String(s.text || ""),
+  }));
 
   const nativeRatio =
     probe.sourceWidth > 0 && probe.sourceHeight > 0
       ? probe.sourceWidth / probe.sourceHeight
       : 16 / 9;
   const selectedRatio = parseAspectRatioRatio(recipe.aspectRatio, nativeRatio);
-  const computedTarget = computeTargetSizeForRatio(
-    qSettings.quality,
-    selectedRatio,
-  );
+  const computedTarget = computeTargetSizeForRatio(qSettings.quality, selectedRatio);
   let targetWidth = computedTarget.width;
   let targetHeight = computedTarget.height;
 
-  const removeSegments = normalizeRemoveSegments(
-    slicedSegments,
-    timelineDuration,
-  );
+  const removeSegments = normalizeRemoveSegments(slicedSegments, timelineDuration);
   const keepSegments = invertToKeepSegments(removeSegments, timelineDuration);
-  const trimmedDuration = keepSegments.reduce(
-    (sum, seg) => sum + (seg.end - seg.start),
-    0,
-  );
+  const trimmedDuration = keepSegments.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
   const hasTrimEdits =
     keepSegments.length > 0 &&
     !(
@@ -796,23 +744,23 @@ async function renderChunkFromRecipe({
   }
 
   console.log(
-    `[${chunkId}] Window timeline_duration_s=${Math.max(0, timelineDuration).toFixed(3)} trimmed_duration_s=${Math.max(0, trimmedDuration).toFixed(3)}`,
+    `[${chunkId}] Window timeline_duration_s=${Math.max(0, timelineDuration).toFixed(3)} trimmed_duration_s=${Math.max(0, trimmedDuration).toFixed(3)}`
   );
 
   const remappedZoomEffects = remapZoomEffectsToTrimmedTimeline(
     slicedZoom,
     keepSegments,
-    removeSegments,
+    removeSegments
   );
   const remappedTextOverlays = remapTextOverlaysToTrimmedTimeline(
     slicedText,
     keepSegments,
-    removeSegments,
+    removeSegments
   );
   const remappedSubtitleCues = remapSubtitleCuesToTrimmedTimeline(
     slicedSubs,
     keepSegments,
-    removeSegments,
+    removeSegments
   );
 
   const filters = [];
@@ -832,11 +780,11 @@ async function renderChunkFromRecipe({
     for (let i = 0; i < n; i++) {
       const seg = keepSegments[i];
       filters.push(
-        `[tvs${i}]trim=start=${seg.start}:end=${seg.end},setpts=PTS-STARTPTS[tvseg${i}]`,
+        `[tvs${i}]trim=start=${seg.start}:end=${seg.end},setpts=PTS-STARTPTS[tvseg${i}]`
       );
       if (probe.hasAudio && audioOut) {
         filters.push(
-          `[tas${i}]atrim=start=${seg.start}:end=${seg.end},asetpts=PTS-STARTPTS[taseg${i}]`,
+          `[tas${i}]atrim=start=${seg.start}:end=${seg.end},asetpts=PTS-STARTPTS[taseg${i}]`
         );
         trimConcatIn += `[tvseg${i}][taseg${i}]`;
       } else {
@@ -869,14 +817,12 @@ async function renderChunkFromRecipe({
   // always normalize into target canvas first, preserving full source frame.
   filters.push(
     `${videoOut}scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease:flags=lanczos,` +
-      `pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:${previewPadColor},setsar=1[res]`,
+      `pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:${previewPadColor},setsar=1[res]`
   );
   videoOut = "[res]";
 
   if (remappedZoomEffects.length > 0) {
-    const sortedZooms = [...remappedZoomEffects].sort(
-      (a, b) => a.startTime - b.startTime,
-    );
+    const sortedZooms = [...remappedZoomEffects].sort((a, b) => a.startTime - b.startTime);
     const zSegs = [];
     let zCur = 0;
     for (const z of sortedZooms) {
@@ -919,7 +865,7 @@ async function renderChunkFromRecipe({
           const totalFrames = Math.max(2, Math.round(duration * targetFps));
           const rampFrames = Math.max(
             1,
-            Math.min(Math.round(targetFps * 0.35), Math.floor(totalFrames / 2)),
+            Math.min(Math.round(targetFps * 0.35), Math.floor(totalFrames / 2))
           );
           const holdEndFrame = Math.max(rampFrames, totalFrames - rampFrames);
 
@@ -939,11 +885,11 @@ async function renderChunkFromRecipe({
           filters.push(
             `[vs${i}]trim=start=${seg.start}:end=${seg.end},setpts=PTS-STARTPTS,` +
               `zoompan=z='${zExpr}':x='${xExpr}':y='${yExpr}':d=1:` +
-              `s=${targetWidth}x${targetHeight}:fps=${targetFps}[zseg${i}]`,
+              `s=${targetWidth}x${targetHeight}:fps=${targetFps}[zseg${i}]`
           );
         } else {
           filters.push(
-            `[vs${i}]trim=start=${seg.start}:end=${seg.end},setpts=PTS-STARTPTS[zseg${i}]`,
+            `[vs${i}]trim=start=${seg.start}:end=${seg.end},setpts=PTS-STARTPTS[zseg${i}]`
           );
         }
         concatIn += `[zseg${i}]`;
@@ -980,9 +926,7 @@ async function renderChunkFromRecipe({
     // Match local video-worker framing (inset card based on target frame directly).
     const cardW = Math.max(2, Math.floor((targetWidth * 0.9) / 2) * 2);
     const cardH = Math.max(2, Math.floor((targetHeight * 0.9) / 2) * 2);
-    const borderFilter = drawCardBorder
-      ? ",drawbox=x=0:y=0:w=iw:h=ih:color=white@0.95:t=9"
-      : "";
+    const borderFilter = drawCardBorder ? ",drawbox=x=0:y=0:w=iw:h=ih:color=white@0.95:t=9" : "";
 
     if (hasCustomBackground) {
       const customBgFilter =
@@ -994,10 +938,7 @@ async function renderChunkFromRecipe({
       if (drawCardShadow) {
         const spread = Math.max(10, Math.round(Math.min(cardW, cardH) * 0.02));
         const baseW = 320;
-        const baseH = Math.max(
-          180,
-          Math.round((baseW * cardH) / Math.max(1, cardW)),
-        );
+        const baseH = Math.max(180, Math.round((baseW * cardH) / Math.max(1, cardW)));
         const baseSpread = 20;
         const shadowSrc =
           `color=c=black@0.0:s=${baseW + baseSpread * 2}x${baseH + baseSpread * 2}:r=${targetFps},` +
@@ -1009,12 +950,12 @@ async function renderChunkFromRecipe({
         filters.push(
           `${customBgFilter};${shadowSrc};${shadowFx};${cardFilter};` +
             "[bg][sh]overlay=(W-w)/2+6:(H-h)/2+10:format=auto[bgsh];" +
-            "[bgsh][svid]overlay=(W-w)/2:(H-h)/2:format=auto:shortest=1[bgout]",
+            "[bgsh][svid]overlay=(W-w)/2:(H-h)/2:format=auto:shortest=1[bgout]"
         );
       } else {
         filters.push(
           `${customBgFilter};${cardFilter};` +
-            "[bg][svid]overlay=(W-w)/2:(H-h)/2:format=auto:shortest=1[bgout]",
+            "[bg][svid]overlay=(W-w)/2:(H-h)/2:format=auto:shortest=1[bgout]"
         );
       }
     } else {
@@ -1024,10 +965,7 @@ async function renderChunkFromRecipe({
       if (drawCardShadow) {
         const spread = Math.max(10, Math.round(Math.min(cardW, cardH) * 0.02));
         const baseW = 320;
-        const baseH = Math.max(
-          180,
-          Math.round((baseW * cardH) / Math.max(1, cardW)),
-        );
+        const baseH = Math.max(180, Math.round((baseW * cardH) / Math.max(1, cardW)));
         const baseSpread = 20;
         const shadowSrc =
           `color=c=black@0.0:s=${baseW + baseSpread * 2}x${baseH + baseSpread * 2}:r=${targetFps},` +
@@ -1039,12 +977,12 @@ async function renderChunkFromRecipe({
         filters.push(
           `${solidBgFilter};${shadowSrc};${shadowFx};${cardFilter};` +
             "[bg][sh]overlay=(W-w)/2+6:(H-h)/2+10:format=auto[bgsh];" +
-            "[bgsh][svid]overlay=(W-w)/2:(H-h)/2:format=auto:shortest=1[bgout]",
+            "[bgsh][svid]overlay=(W-w)/2:(H-h)/2:format=auto:shortest=1[bgout]"
         );
       } else {
         filters.push(
           `${solidBgFilter};${cardFilter};` +
-            "[bg][svid]overlay=(W-w)/2:(H-h)/2:format=auto:shortest=1[bgout]",
+            "[bg][svid]overlay=(W-w)/2:(H-h)/2:format=auto:shortest=1[bgout]"
         );
       }
     }
@@ -1060,13 +998,10 @@ async function renderChunkFromRecipe({
       const safeColor = normalizeHexColor(overlay.color, "white");
       const start = Math.max(0, overlay.startTime);
       const end = Math.max(start + EPS, overlay.endTime);
-      
+
       const parentW = overlay.parentW || (targetWidth > 1000 ? 800 : 400);
       const scale = targetWidth / parentW;
-      const size = Math.max(
-        10,
-        Math.min(160, Math.round(overlay.fontSize * scale)),
-      );
+      const size = Math.max(10, Math.min(160, Math.round(overlay.fontSize * scale)));
       const nx = Math.max(0, Math.min(1, overlay.x));
       const ny = Math.max(0, Math.min(1, overlay.y));
       const xExpr = `(w*${nx.toFixed(4)}-text_w/2)`;
@@ -1088,7 +1023,7 @@ async function renderChunkFromRecipe({
           `fontsize=${size}:fontcolor=${safeColor}:${fontOpt}` +
           `x='${xExpr}':y='${yExpr}':` +
           "shadowcolor=black@0.55:shadowx=1:shadowy=1:" +
-          `enable='between(t,${start.toFixed(3)},${end.toFixed(3)})'${next}`,
+          `enable='between(t,${start.toFixed(3)},${end.toFixed(3)})'${next}`
       );
       prev = next;
     });
@@ -1096,12 +1031,7 @@ async function renderChunkFromRecipe({
   }
 
   if (remappedSubtitleCues.length > 0) {
-    const assPath = writeAssSubtitles(
-      tempDir,
-      remappedSubtitleCues,
-      targetWidth,
-      targetHeight,
-    );
+    const assPath = writeAssSubtitles(tempDir, remappedSubtitleCues, targetWidth, targetHeight);
     const safeAss = ffmpegEscapeFilterValue(assPath);
     filters.push(`${videoOut}subtitles=${safeAss}[subv]`);
     videoOut = "[subv]";
@@ -1143,9 +1073,7 @@ async function renderChunkFromRecipe({
   }
 
   finalCmd
-    .on("start", (cmdLine) =>
-      console.log(`[${chunkId}] FFmpeg command: ${cmdLine}`),
-    )
+    .on("start", (cmdLine) => console.log(`[${chunkId}] FFmpeg command: ${cmdLine}`))
     .complexFilter(filterStr)
     .videoCodec("libx264")
     .audioCodec("aac")
@@ -1170,7 +1098,7 @@ async function renderChunkFromRecipe({
   const totalRenderMs = Date.now() - renderStartMs;
   console.log(
     `[${chunkId}] Timing render_ms=${totalRenderMs} ffmpeg_ms=${ffmpegMs} ` +
-      `trimmed_duration_s=${Math.max(0, trimmedDuration / speedFactor).toFixed(3)}`,
+      `trimmed_duration_s=${Math.max(0, trimmedDuration / speedFactor).toFixed(3)}`
   );
 }
 

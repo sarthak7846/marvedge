@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, unstable_after } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { invokeGcpWorker } from "@/app/lib/gcpWorker";
 import { getServerSession } from "next-auth";
@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
     };
 
     // 2. Dispatch to GCP Cloud Run workers (Scatter-Gather)
-    unstable_after(async () => {
+    after(async () => {
       try {
         await prisma.videoJob.update({
           where: { id: jobRecord.id },
