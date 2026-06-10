@@ -105,8 +105,8 @@ const AnalyticsMain = ({
   const chartData = viewsOverTime.length ? viewsOverTime : [{ date: "No data", views: 0 }];
 
   return (
-    <div className="p-4 md:p-8 bg-[#F1ECFF] min-h-screen">
-      <h2 className="text-base md:text-lg font-light text-gray-400 mb-6">
+    <div className="analytics-body p-4 md:p-8 bg-[#F1ECFF] dark:bg-transparent min-h-screen">
+      <h2 className="intro text-base md:text-lg font-light text-gray-400 mb-6">
         Track performance and engagement across all your demos.
       </h2>
 
@@ -117,6 +117,8 @@ const AnalyticsMain = ({
             onMouseEnter={() => handleCardHover(card.id)}
             onMouseLeave={handleCardLeave}
             className={`
+              stat-card
+              ${card.id === "completion" ? "blue" : card.id === "shares" ? "red" : ""}
               ${
                 card.bgColor
               } rounded-xl p-4 md:p-6 flex flex-col items-start shadow-sm min-h-[120px] md:min-h-[140px]
@@ -137,6 +139,7 @@ const AnalyticsMain = ({
             <div className="mb-2">
               <span
                 className={`
+                  stat-icon
                   inline-block p-2 rounded-lg transition-all duration-300
                   ${hoveredCard === card.id ? `scale-110 ${card.bgColor}` : card.bgColor}
                 `}
@@ -144,15 +147,17 @@ const AnalyticsMain = ({
                 {card.icon}
               </span>
             </div>
-            <div className="text-sm md:text-lg font-medium text-[#261753]">{card.label}</div>
+            <div className="stat-label text-sm md:text-lg font-medium text-[#261753]">
+              {card.label}
+            </div>
             <div
-              className={`text-2xl md:text-3xl font-bold text-[#261753] ${
+              className={`stat-value text-2xl md:text-3xl font-bold text-[#261753] ${
                 hoveredCard === card.id ? card.textColor : ""
               }`}
             >
               {card.value}
             </div>
-            <div className="text-sm text-green-600 font-semibold mt-1 flex items-center">
+            <div className="trend text-sm text-green-600 font-semibold mt-1 flex items-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="w-5 h-5 mr-1 text-green-600"
@@ -163,7 +168,8 @@ const AnalyticsMain = ({
               >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 17l6-6 4 4 8-8" />
               </svg>
-              {card.trend} <span className="text-gray-500 font-normal ml-1">{card.trendLabel}</span>
+              <strong>{card.trend}</strong>{" "}
+              <span className="text-gray-500 font-normal ml-1">{card.trendLabel}</span>
             </div>
           </div>
         ))}
@@ -175,16 +181,16 @@ const AnalyticsMain = ({
           animate={{ opacity: 1, scale: 1 }}
           whileHover={{ scale: 1.01 }}
           transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
-          className="bg-[#FBF9FF] rounded-[20px] p-8 shadow-sm min-h-[350px] flex flex-col"
+          className="panel bg-[#FBF9FF] rounded-[20px] p-8 shadow-sm min-h-[350px] flex flex-col"
         >
           <div className="mb-6 flex justify-between items-start">
             <div>
-              <h3 className="text-[22px] font-semibold text-[#2D2154] leading-tight">
+              <h2 className="text-[22px] font-semibold text-[#2D2154] leading-tight">
                 Views over time
-              </h3>
+              </h2>
               <p className="text-base text-[#8C82B4] mt-1">Demo views tracking</p>
             </div>
-            <select className="border border-[#E5DCFF] text-sm text-[#2D2154] rounded-lg px-3 py-1.5 bg-white outline-none">
+            <select className="range-btn border border-[#E5DCFF] text-sm text-[#2D2154] rounded-lg px-3 py-1.5 bg-white outline-none">
               <option>Past 30 days</option>
               <option>Past 3 months</option>
               <option>Past 1 year</option>
@@ -242,12 +248,12 @@ const AnalyticsMain = ({
           animate={{ opacity: 1, scale: 1 }}
           whileHover={{ scale: 1.01 }}
           transition={{ duration: 0.6, ease: "easeOut", delay: 0.4 }}
-          className="bg-[#FBF9FF] rounded-[20px] p-8 shadow-sm min-h-[350px] flex flex-col"
+          className="panel bg-[#FBF9FF] rounded-[20px] p-8 shadow-sm min-h-[350px] flex flex-col"
         >
           <div className="mb-6">
-            <h3 className="text-[22px] font-semibold text-[#2D2154] leading-tight">
+            <h2 className="text-[22px] font-semibold text-[#2D2154] leading-tight">
               Top performing Demos
-            </h3>
+            </h2>
             <p className="text-base text-[#8C82B4] mt-1">Your most viewed demos</p>
           </div>
           <div className="flex-1 flex flex-col gap-3">
@@ -255,17 +261,17 @@ const AnalyticsMain = ({
               topDemos.map((demo, i) => (
                 <div
                   key={i}
-                  className="flex justify-between items-center bg-white border border-[#E5DCFF] rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
+                  className="demo-item flex justify-between items-center bg-white border border-[#E5DCFF] rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#EAE5FB] flex items-center justify-center text-[#8A76FC] font-semibold">
+                    <div className="rank w-8 h-8 rounded-full bg-[#EAE5FB] flex items-center justify-center text-[#8A76FC] font-semibold">
                       {i + 1}
                     </div>
-                    <p className="font-medium text-[#2D2154] truncate max-w-[200px] md:max-w-[250px]">
+                    <p className="demo-name font-medium text-[#2D2154] truncate max-w-[200px] md:max-w-[250px]">
                       {demo.title}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[#6356D7] bg-[#F4F1FD] px-3 py-1 rounded-full">
+                  <div className="views flex items-center gap-1.5 text-[#6356D7] bg-[#F4F1FD] px-3 py-1 rounded-full">
                     <Eye size={14} />
                     <span className="font-semibold text-sm">{demo.views} views</span>
                   </div>
@@ -282,7 +288,7 @@ const AnalyticsMain = ({
                     className="md:w-6 md:h-6"
                   />
                 </div>
-                <p className="text-[#7569A5] font-semibold text-base">No Analytics yet</p>
+                <p className="no-data text-[#7569A5] font-semibold text-base">No Analytics yet</p>
                 <p className="text-base text-[#8C82B4]">
                   Create and share demos to see performance data
                 </p>

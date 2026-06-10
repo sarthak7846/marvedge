@@ -70,11 +70,11 @@ function RecorderTopbar({ onBack, userInitials }: RecorderTopbarProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
   return (
-    <div className="w-full flex items-center justify-between px-4 sm:px-8 py-2 sm:py-4 bg-white border-b border-[#ede7fa] shadow-sm">
+    <div className="topbar w-full flex items-center justify-between px-4 sm:px-8 py-2 sm:py-4 bg-white border-b border-[#ede7fa] shadow-sm">
       <div className="flex items-center gap-2 sm:gap-6">
         <button
           onClick={onBack}
-          className="text-[#7C5CFC] text-xl sm:text-2xl hover:bg-[#ede7fa] rounded-full p-1"
+          className="back-btn back text-[#7C5CFC] text-xl sm:text-2xl hover:bg-[#ede7fa] rounded-full p-1"
         >
           <Image
             src="/icons/arrow_left_icon.png"
@@ -86,14 +86,14 @@ function RecorderTopbar({ onBack, userInitials }: RecorderTopbarProps) {
         </button>
       </div>
       <div className="flex items-center gap-4 sm:gap-6">
-        <span className="hidden text-[#7C5CFC] font-medium text-base mr-[-2] sm:flex items-center gap-0">
-          Welcome, {username}
+        <span className="welcome hidden text-[#7C5CFC] font-medium text-base mr-[-2] sm:flex items-center gap-0">
+          Welcome, <span>{username}</span>
           <span role="img" aria-label="waving hand" className="ml-1">
             👋
           </span>
         </span>
 
-        <button className="relative text-[#7C5CFC] hover:bg-[#ede7fa] rounded-full p-2 hidden sm:block">
+        <button className="bell relative text-[#7C5CFC] hover:bg-[#ede7fa] rounded-full p-2 hidden sm:block">
           <Image
             src="/icons/bell.png"
             alt="Notifications"
@@ -101,10 +101,11 @@ function RecorderTopbar({ onBack, userInitials }: RecorderTopbarProps) {
             height={20}
             className="md:w-6 md:h-6"
           />
+          <span className="bell-dot absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#7C5CFC]" />
         </button>
         <div className="relative" ref={dropdownRef}>
           <button
-            className="w-10 h-10 md:w-12 md:h-12 rounded-full text-white flex items-center justify-center text-lg md:text-xl font-bold shadow cursor-pointer border-4 border-white hover:scale-105 transition-all overflow-hidden "
+            className="avatar w-10 h-10 md:w-12 md:h-12 rounded-full text-white flex items-center justify-center text-lg md:text-xl font-bold shadow cursor-pointer border-4 border-white hover:scale-105 transition-all overflow-hidden "
             onClick={() => setShowDropdown((v) => !v)}
             title={session?.user?.name || session?.user?.email || undefined}
             style={profileImage ? {} : { backgroundColor: "#6356D7" }}

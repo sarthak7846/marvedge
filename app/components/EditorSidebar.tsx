@@ -49,7 +49,7 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   title,
   onExportWebM,
   forceShowMobile = false,
-  // thumbnailUrl,
+
   selectedBackground,
   setSelectedBackground,
   backgroundType,
@@ -80,7 +80,6 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   demoSaved = false,
   onToggleDashboardMenu,
 }) => {
-  //const [exportMenuOpen, setExportMenuOpen] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<MainTab>("background");
   const [bgSubTab, setBgSubTab] = React.useState<BgSubTab>("image");
 
@@ -95,7 +94,6 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   );
   const [customBackgroundUrl, setCustomBackgroundUrl] = React.useState<string | null>(null);
 
-  // Sync down external changes if they happen upstream
   React.useEffect(() => {
     if (selectedBackground !== undefined) {
       setLocalSelectedBackground(selectedBackground);
@@ -113,7 +111,6 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   }, [customBackground]);
 
   const handleBackgroundSelect = (value: string | null) => {
-    // Toggle behavior: clicking the active background again removes it.
     const nextValue = localSelectedBackground === value ? null : value;
     setLocalSelectedBackground(nextValue);
     setSelectedBackground?.(nextValue);
@@ -130,14 +127,12 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
     }
   };
 
-  // Background options (Image)
   const imageBackgroundOptions: {
     id: string;
     name: string;
     thumbnail: string;
     type: "default" | "solid" | "gradient";
   }[] = [
-    // Default set (shown when no type is selected)
     {
       id: "def_mac_1",
       name: "mac-1",
@@ -187,7 +182,6 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
       type: "default",
     },
 
-    // Solid
     {
       id: "solid_blue_1",
       name: "blue-1",
@@ -309,7 +303,6 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
       type: "solid",
     },
 
-    // Gradient (images)
     {
       id: "grad_dark_1",
       name: "gradient-dark-1",
@@ -367,7 +360,6 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
     return bg.type === (localBackgroundType as "solid" | "gradient");
   });
 
-  // Background options (Gradient)
   const gradientOptions: { id: string; name: string; css: string }[] = [
     {
       id: "sunset",
@@ -401,7 +393,6 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
     },
   ];
 
-  // Background options (Color)
   const colorOptions: { id: string; name: string; hex: string }[] = [
     { id: "#111827", name: "Near Black", hex: "#111827" },
     { id: "#0ea5e9", name: "Sky", hex: "#0ea5e9" },
@@ -413,40 +404,12 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
     { id: "#0f172a", name: "Slate", hex: "#0f172a" },
   ];
 
-  // const Segmented = ({
-  //   value,
-  //   onChange,
-  //   options,
-  // }: {
-  //   value: string;
-  //   onChange: (v: any) => void;
-  //   options: { label: string; value: string }[];
-  // }) => (
-  //   <div className="inline-flex bg-[#F6F3FF] rounded-xl p-1 gap-1">
-  //     {options.map((o) => (
-  //       <button
-  //         key={o.value}
-  //         onClick={() => onChange(o.value)}
-  //         className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
-  //           value === o.value
-  //             ? "bg-white text-[#7C5CFC] shadow"
-  //             : "text-gray-600 hover:text-[#7C5CFC]"
-  //         }`}
-  //       >
-  //         {o.label}
-  //       </button>
-  //     ))}
-  //   </div>
-  // );
-  // const [interactionType, setInteractionType] = useState("Click");
-
   return (
     <aside
-      className={`w-full max-w-xs h-screen bg-white border-r border-[#ede7fa] px-4 py-4 flex flex-col gap-4 overflow-y-auto ${
+      className={`editor-sidebar w-full max-w-xs h-screen bg-white border-r border-[#ede7fa] px-4 py-4 flex flex-col gap-4 overflow-y-auto ${
         forceShowMobile ? "flex" : "hidden md:flex"
       }`}
     >
-      {/* 3-bar menu + title */}
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -467,12 +430,11 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
         </div>
       </div>
 
-      {/* Save Demo */}
       <button
         type="button"
         onClick={() => onOpenSaveDemo?.()}
         disabled={savingDemo}
-        className={`flex items-center justify-center gap-2 w-full h-[54px] font-semibold rounded-lg shadow transition text-sm ${
+        className={`save-btn flex items-center justify-center gap-2 w-full h-[54px] font-semibold rounded-lg shadow transition text-sm ${
           savingDemo
             ? "bg-[#8A76FC] text-white opacity-70 cursor-not-allowed"
             : "bg-[#8A76FC] hover:bg-[#7A66EC] text-white"
@@ -481,11 +443,9 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
         {savingDemo ? "Saving..." : demoSaved ? "Save Changes" : "Save Demo"}
       </button>
 
-      {/* Export Section */}
       <div className="relative">
         <button
-          className="flex items-center justify-center gap-2 w-full h-[54px] bg-[#A594F9] hover:bg-[#7C5CFC] text-white font-semibold py-1.5 rounded-lg shadow transition text-sm"
-          //onClick={() => setExportMenuOpen((v) => !v)} // Only toggle the menu
+          className="export-btn flex items-center justify-center gap-2 w-full h-[54px] bg-[#A594F9] hover:bg-[#7C5CFC] text-white font-semibold py-1.5 rounded-lg shadow transition text-sm"
           onClick={() => {
             onExportWebM();
           }}
@@ -494,49 +454,21 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
           <span className="text-md">Export Video</span>
         </button>
 
-        {
-          // exportMenuOpen &&
-          //(
-          // <div className="absolute left-0 mt-2 w-full bg-white border border-[#ede7fa] rounded-lg shadow z-10">
-          //   {/* <button
-          //     className="w-full text-left px-4 py-2 hover:bg-[#F6F3FF] text-[#7C5CFC] text-sm"
-          //     onClick={() => {
-          //       setExportMenuOpen(false);
-          //       onExportWebM();
-          //     }}
-          //   >
-          //     Export WebM
-          //   </button> */}
-          //   {/* Uncomment onDownloadMP4 if needed */}
-          //   {/* <button
-          //     className="w-full text-left px-4 py-2 hover:bg-[#F6F3FF] text-[#7C5CFC] text-sm rounded-b-lg"
-          //     onClick={() => {
-          //       setExportMenuOpen(false);
-          //       onDownloadMP4();
-          //     }}
-          //   >
-          //     Download MP4
-          //   </button> */}
-          // </div>
-          //)
-        }
+        {}
       </div>
 
-      {/* Demo Properties */}
-
-      {/* Main Tabs */}
-      <div className="flex justify-between bg-[#F6F3FF] rounded-xl p-1">
+      <div className="tab-switcher flex justify-between bg-[#F6F3FF] rounded-xl p-1">
         <button
-          className={`flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
-            activeTab === "background" ? "bg-white text-[#7C5CFC] shadow" : "text-gray-600"
+          className={`tab-item flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
+            activeTab === "background" ? "active bg-white text-[#7C5CFC] shadow" : "text-gray-600"
           }`}
           onClick={() => setActiveTab("background")}
         >
           Background
         </button>
         <button
-          className={`flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
-            activeTab === "tools" ? "bg-white text-[#7C5CFC] shadow" : "text-gray-600"
+          className={`tab-item flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
+            activeTab === "tools" ? "active bg-white text-[#7C5CFC] shadow" : "text-gray-600"
           }`}
           onClick={() => setActiveTab("tools")}
         >
@@ -544,14 +476,12 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
         </button>
       </div>
 
-      {/* cd  TAB */}
       {activeTab === "background" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-[#A594F9]">Background</h2>
+            <h2 className="control-block-label text-lg font-bold text-[#A594F9]">Background</h2>
           </div>
 
-          {/* Sub-tab: Image */}
           {bgSubTab === "image" && (
             <>
               <div className="grid grid-cols-4 gap-2">
@@ -561,9 +491,9 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
                     <button
                       key={bg.id}
                       onClick={() => handleBackgroundSelect(bg.id)}
-                      className={`relative rounded-lg overflow-hidden border-2 transition-all ${
+                      className={`bg-option-btn relative rounded-lg overflow-hidden border-2 transition-all ${
                         isActive
-                          ? "border-[#7C5CFC] shadow-md"
+                          ? "active border-[#7C5CFC] shadow-md"
                           : "border-[#ede7fa] hover:border-[#A594F9]"
                       }`}
                       title={bg.name}
@@ -586,7 +516,6 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
                   );
                 })}
 
-                {/* Custom image preview tile if available */}
                 {customBackgroundUrl && (
                   <button
                     onClick={() => handleBackgroundSelect("custom")}
@@ -597,7 +526,6 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
                     }`}
                     title={localCustomBackground?.name || "Custom"}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={customBackgroundUrl}
                       alt="Custom"
@@ -612,9 +540,10 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
                 )}
               </div>
 
-              {/* Type select + upload */}
               <div className="mt-3">
-                <label className="block text-[#A594F9] font-semibold mb-2">Select Type</label>
+                <label className="control-block-label block text-[#A594F9] font-semibold mb-2">
+                  Select Type
+                </label>
                 <select
                   value={localBackgroundType}
                   onChange={(e) => {
@@ -630,7 +559,7 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
               </div>
 
               <div className="mt-3">
-                <label className="block text-[#A594F9] font-semibold mb-2">
+                <label className="control-block-label block text-[#A594F9] font-semibold mb-2">
                   Upload Custom Image
                 </label>
                 <div className="relative">
@@ -658,7 +587,6 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
             </>
           )}
 
-          {/* Sub-tab: Gradient */}
           {bgSubTab === "gradient" && (
             <div className="grid grid-cols-3 gap-2">
               {gradientOptions.map((g) => {
@@ -686,7 +614,6 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
             </div>
           )}
 
-          {/* Sub-tab: Color */}
           {bgSubTab === "color" && (
             <div className="grid grid-cols-6 gap-2">
               {colorOptions.map((c) => {
@@ -715,7 +642,6 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
             </div>
           )}
 
-          {/* Sub-tab: Hidden */}
           {bgSubTab === "hidden" && (
             <div className="rounded-lg border border-dashed border-[#ede7fa] p-4 text-sm text-gray-600">
               <p className="mb-2">Hide background completely.</p>
@@ -734,12 +660,12 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
         </div>
       )}
 
-      {/* TOOLS TAB */}
       {activeTab === "tools" && (
         <div className="space-y-6">
-          {/* Aspect Ratio Section */}
           <div>
-            <h2 className="text-lg font-bold text-[#A594F9] mb-4">Aspect Ratio</h2>
+            <h2 className="control-block-label text-lg font-bold text-[#A594F9] mb-4">
+              Aspect Ratio
+            </h2>
             <div className="relative w-[180px]">
               <select
                 value={aspectRatio}
@@ -753,7 +679,7 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
                 <option value="2:3">2:3</option>
                 <option value="9:16">9:16</option>
               </select>
-              {/* Custom dropdown arrow */}
+
               <div className="absolute top-0 right-0 h-full w-10 flex items-center justify-center pointer-events-none">
                 <svg
                   className="w-4 h-4 text-[#7C5CFC]"
@@ -772,20 +698,21 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
             </div>
           </div>
 
-          {/* Browser Frame Section */}
           <div>
-            <h2 className="text-lg font-bold text-[#A594F9] mb-4">Browser Frame</h2>
+            <h2 className="control-block-label text-lg font-bold text-[#A594F9] mb-4">
+              Browser Frame
+            </h2>
             <div className="space-y-2">
               <button
                 type="button"
                 onClick={() =>
                   setBrowserFrameDrawShadow && setBrowserFrameDrawShadow(!browserFrameDrawShadow)
                 }
-                className="w-full flex items-center justify-between py-1 text-sm"
+                className="toggle-flex-row w-full flex items-center justify-between py-1 text-sm"
               >
-                <span className="text-[#6B6B6B]">Draw Shadow</span>
+                <span className="text-[#6B6B6B] dark:text-inherit">Draw Shadow</span>
                 <span
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                  className={`pill-slider relative inline-flex h-6 w-11 items-center rounded-full transition ${
                     browserFrameDrawShadow ? "bg-[#8A76FC]" : "bg-[#A3A3A3]"
                   }`}
                 >
@@ -802,11 +729,11 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
                 onClick={() =>
                   setBrowserFrameDrawBorder && setBrowserFrameDrawBorder(!browserFrameDrawBorder)
                 }
-                className="w-full flex items-center justify-between py-1 text-sm"
+                className="toggle-flex-row w-full flex items-center justify-between py-1 text-sm"
               >
-                <span className="text-[#6B6B6B]">Draw Border</span>
+                <span className="text-[#6B6B6B] dark:text-inherit">Draw Border</span>
                 <span
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                  className={`pill-slider relative inline-flex h-6 w-11 items-center rounded-full transition ${
                     browserFrameDrawBorder ? "bg-[#8A76FC]" : "bg-[#A3A3A3]"
                   }`}
                 >
@@ -820,9 +747,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
             </div>
           </div>
 
-          {/* Add Text Section */}
           <div>
-            <h2 className="text-lg font-bold text-[#A594F9] mb-4">Add Text</h2>
+            <h2 className="control-block-label text-lg font-bold text-[#A594F9] mb-4">Add Text</h2>
             <div className="space-y-3">
               <input
                 type="text"
@@ -937,16 +863,12 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
                 >
                   Add Text
                 </button>
-                {/* <div className="w-full rounded-lg border border-transparent text-[#8A76FC] py-2 text-sm font-semibold opacity-60 select-none flex items-center justify-center">
-                  Delete via canvas
-                </div> */}
               </div>
             </div>
           </div>
 
-          {/* Subtitles Section */}
           <div>
-            <h2 className="text-lg font-bold text-[#A594F9] mb-4">Subtitles</h2>
+            <h2 className="control-block-label text-lg font-bold text-[#A594F9] mb-4">Subtitles</h2>
             <button
               type="button"
               disabled={subtitlesLoading}
@@ -963,7 +885,7 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
               <button
                 type="button"
                 onClick={() => onClearSubtitles && onClearSubtitles()}
-                className="w-full mt-2 rounded-lg border border-[#8A76FC] text-[#8A76FC] py-2 text-sm font-semibold hover:bg-[#F6F3FF] transition"
+                className="btn-subtitles-block w-full mt-2 rounded-lg border border-[#8A76FC] text-[#8A76FC] py-2 text-sm font-semibold hover:bg-[#F6F3FF] transition"
               >
                 Skip Subtitles
               </button>

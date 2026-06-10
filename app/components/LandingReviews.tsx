@@ -26,7 +26,7 @@ export default function LandingReviews() {
         const res = await fetch("/api/reviews");
         if (res.ok) {
           const data = (await res.json()) as Review[];
-          // Filter 4-5 stars and take top 6 reviews
+
           const topReviews = data.filter((review) => review.rating >= 4).slice(0, 6);
           setReviews(topReviews);
         }
@@ -46,9 +46,8 @@ export default function LandingReviews() {
   return (
     <section id="reviews" className="bg-[#F6F5FB] py-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-16">
-        {/* Header Section */}
         <div className="text-center max-w-3xl mx-auto space-y-6">
-          <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight">
+          <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 dark:text-white tracking-tight leading-tight">
             Loved by Teams
           </h2>
           <p className="text-lg text-gray-500 max-w-2xl mx-auto">
@@ -57,7 +56,6 @@ export default function LandingReviews() {
           </p>
         </div>
 
-        {/* Reviews Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {reviews.map((review) => (
             <div

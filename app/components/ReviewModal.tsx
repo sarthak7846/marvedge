@@ -47,20 +47,20 @@ export default function ReviewModal({ isOpen, onClose }: { isOpen: boolean; onCl
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl relative animate-in fade-in zoom-in-95 duration-200">
+    <div className="review-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="review-modal bg-white rounded-2xl w-full max-w-md p-6 shadow-xl relative animate-in fade-in zoom-in-95 duration-200">
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 transition-colors"
+          className="review-close-btn absolute right-4 top-4 text-gray-400 hover:text-gray-600 transition-colors"
         >
           <X size={20} />
         </button>
 
         <div className="text-center mb-6 mt-2">
-          <h2 className="text-2xl font-bold text-[#6356d7] mb-2">
+          <h2 className="review-title text-2xl font-bold text-[#6356d7] mb-2">
             Liking Marvedge? Please leave a review
           </h2>
-          <p className="text-gray-500 text-sm">
+          <p className="review-desc text-gray-500 text-sm">
             Your feedback helps us build better tools for you.
           </p>
         </div>
@@ -82,13 +82,13 @@ export default function ReviewModal({ isOpen, onClose }: { isOpen: boolean; onCl
                     className={`${
                       star <= (hoverRating || rating)
                         ? "fill-yellow-400 text-yellow-400"
-                        : "text-gray-200"
+                        : "text-gray-200 review-star-unselected"
                     } transition-colors`}
                   />
                 </button>
               ))}
             </div>
-            <span className="text-sm font-medium text-gray-500 min-h-[20px]">
+            <span className="review-rating-label text-sm font-medium text-gray-500 min-h-[20px]">
               {rating > 0 ? `${rating} out of 5 stars` : "Select a rating"}
             </span>
           </div>
@@ -98,14 +98,14 @@ export default function ReviewModal({ isOpen, onClose }: { isOpen: boolean; onCl
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="What do you think about Marvedge?"
-              className="w-full h-32 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6356d7] focus:border-transparent resize-none text-gray-700"
+              className="review-textarea w-full h-32 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6356d7] focus:border-transparent resize-none text-gray-700"
             />
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-3 px-4 bg-[#6356d7] hover:bg-[#5246b8] text-white font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            className="review-submit-btn w-full py-3 px-4 bg-[#6356d7] hover:bg-[#5246b8] text-white font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
             {isSubmitting ? "Submitting..." : "Submit Review"}
           </button>

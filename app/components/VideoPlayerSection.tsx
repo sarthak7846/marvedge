@@ -3,7 +3,6 @@ import Image from "next/image";
 import VideoPreview from "@/app/components/VideoPreview";
 import SimpleTimeline from "@/app/components/SimpleTimeline";
 import RecordingTimeline from "@/app/components/RecordingTimeline";
-import playIcon from "@/public/mingcute_play-fill.png";
 import React, { useRef, useState } from "react";
 
 interface VideoPlayerSectionProps {
@@ -69,12 +68,16 @@ export default function VideoPlayerSection({
     <div className="w-full max-w-[900px] mx-auto">
       <div
         ref={containerRef}
-        className="bg-white rounded-2xl shadow-md flex flex-col items-center justify-center transition-all duration-300"
+        className="video-box bg-white rounded-2xl shadow-md flex flex-col transition-all duration-300 overflow-hidden"
       >
-        <div className="relative w-full h-auto aspect-video bg-white rounded-2xl overflow-hidden group">
-          {/* Top Control Bar */}
+        <div className="video-top w-full h-8 flex items-center px-4 gap-1.5 bg-[#f5f5f7] border-b border-[#ede7fa]">
+          <div className="circle w-2 h-2 rounded-full bg-gray-300"></div>
+          <div className="circle w-2 h-2 rounded-full bg-gray-300"></div>
+          <div className="circle w-2 h-2 rounded-full bg-gray-300"></div>
+        </div>
+
+        <div className="screen relative w-full h-auto aspect-video bg-white overflow-hidden group">
           <div className="absolute top-0 right-0 z-20 flex items-center gap-2 p-4 bg-linear-to-l rounded-bl-2xl">
-            {/* Volume Control */}
             <div className="flex items-center gap-2 bg-black/40 rounded-full px-3 py-2 backdrop-blur-sm">
               <svg
                 width="18"
@@ -99,7 +102,6 @@ export default function VideoPlayerSection({
               />
             </div>
 
-            {/* Fullscreen Button */}
             <button
               onClick={handleFullscreen}
               className="bg-black/40 hover:bg-black/60 text-white rounded-full p-2 transition backdrop-blur-sm"
@@ -259,8 +261,10 @@ export default function VideoPlayerSection({
               onClick={() => setVideoPlaying(true)}
               className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/50 transition-colors"
             >
-              <div className="bg-white hover:bg-gray-100 rounded-full p-4 transition-all shadow-lg">
-                <Image src={playIcon} alt="Play" width={32} height={32} className="w-8 h-8" />
+              <div className="play-circle bg-white hover:bg-gray-100 rounded-full p-4 transition-all shadow-lg text-[#7C5CFC]">
+                <svg className="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
               </div>
             </button>
           )}
@@ -302,8 +306,13 @@ export default function VideoPlayerSection({
           renderVideoPlayer(videoUrl, false)
         ) : screenStream ? (
           <div className="w-full max-w-[900px] mx-auto">
-            <div className="bg-white rounded-2xl shadow-md flex flex-col items-center justify-center transition-all duration-300">
-              <div className="w-full h-auto aspect-video bg-white rounded-2xl overflow-hidden">
+            <div className="video-box bg-white rounded-2xl shadow-md flex flex-col transition-all duration-300 overflow-hidden">
+              <div className="video-top w-full h-8 flex items-center px-4 gap-1.5 bg-[#f5f5f7] border-b border-[#ede7fa]">
+                <div className="circle w-2 h-2 rounded-full bg-gray-300"></div>
+                <div className="circle w-2 h-2 rounded-full bg-gray-300"></div>
+                <div className="circle w-2 h-2 rounded-full bg-gray-300"></div>
+              </div>
+              <div className="screen w-full h-auto aspect-video bg-white overflow-hidden">
                 <VideoPreview
                   videoUrl={null}
                   isRecording={recording}

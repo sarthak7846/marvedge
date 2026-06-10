@@ -8,11 +8,6 @@ import { motion, useInView, easeOut, useScroll, useTransform } from "framer-moti
 import { usePathname } from "next/navigation";
 
 const socialIcons = [
-  // {
-  //   image: "/Icon(1).png",
-  //   label: "Twitter",
-  //   url: "https://twitter.com/marvedgemedia",
-  // },
   {
     image: "/Icon.png",
     label: "Instagram",
@@ -38,7 +33,7 @@ const SocialIcon: React.FC<{
   label: string;
 }> = ({ image, url, label }) => {
   return (
-    <div className="rounded-4xl w-20 h-14 sm:w-24 sm:h-16 md:w-24 md:h-[72px] bg-white/5 hover:bg-white/10 backdrop-blur-sm transition flex items-center justify-center overflow-hidden shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]">
+    <div className="social rounded-4xl w-20 h-14 sm:w-24 sm:h-16 md:w-24 md:h-[72px] bg-white/5 hover:bg-white/10 backdrop-blur-sm transition flex items-center justify-center overflow-hidden shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]">
       <a
         href={url}
         target="_blank"
@@ -64,7 +59,7 @@ const LinkSection: React.FC<{
   index: number;
 }> = ({ title, items, index }) => {
   const sectionRef = useRef<HTMLDivElement>(null);
-  // Set `once: true` to trigger only once when section enters viewport
+
   const isInView = useInView(sectionRef, { once: true, margin: "-50px" });
 
   return (
@@ -119,137 +114,6 @@ const LinkSection: React.FC<{
   );
 };
 
-// COMMENTED OUT - Contact Form Component (keeping for potential reuse)
-// const ContactForm: React.FC = () => {
-//   const formRef = useRef<HTMLDivElement>(null);
-//   // Set `once: true` to trigger only once when form enters viewport
-//   const isInView = useInView(formRef, { once: true, margin: "-50px" });
-//   const [form, setForm] = useState({
-//     email: "",
-//     name: "",
-//     message: "",
-//   });
-//
-//   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-//     setForm({ ...form, [e.target.name]: e.target.value });
-//   };
-//
-//   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-//     e.preventDefault();
-//
-//     const { email, name, message } = form;
-//
-//     const res = await fetch("/api/contact", {
-//       method: "POST",
-//       headers: {
-//         "Content-Type": "application/json",
-//       },
-//       body: JSON.stringify({ email, name, message }),
-//     });
-//
-//     const result = await res.json();
-//     if (res.ok) {
-//       toast.success("Message sent successfully!");
-//       setForm({ email: "", name: "", message: "" });
-//     } else {
-//       toast.error(result.error || "Failed to send message.");
-//     }
-//   };
-//
-//   return (
-//     <motion.div
-//       ref={formRef}
-//       className="bg-[#3c3160] rounded-xl p-6 sm:p-8 shadow-lg w-full"
-//       initial={{ opacity: 0, y: 40 }}
-//       animate={{
-//         opacity: isInView ? 1 : 0,
-//         y: isInView ? 0 : 40,
-//       }}
-//       transition={{ duration: 0.8, ease: easeOut }}
-//       whileHover={{
-//         y: -5,
-//         boxShadow: "0 20px 40px rgba(60, 49, 96, 0.3)",
-//       }}
-//     >
-//       <h2 className="text-white text-xl sm:text-2xl font-semibold mb-4">Get In Touch</h2>
-//       <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
-//         {[
-//           { type: "email", placeholder: "Your Email", name: "email" },
-//           { type: "text", placeholder: "Full Name", name: "name" },
-//           { placeholder: "Your Message", isTextarea: true, name: "message" },
-//         ].map((input, index) => (
-//           <motion.div
-//             key={index}
-//             initial={{ opacity: 0, x: -20 }}
-//             animate={{
-//               opacity: isInView ? 1 : 0,
-//               x: isInView ? 0 : -20,
-//             }}
-//             transition={{
-//               duration: 0.5,
-//               ease: easeOut,
-//               delay: index * 0.1,
-//             }}
-//           >
-//             {input.isTextarea ? (
-//               <motion.textarea
-//                 name={input.name}
-//                 placeholder={input.placeholder}
-//                 value={form[input.name as keyof typeof form]}
-//                 onChange={handleChange}
-//                 rows={4}
-//                 className="bg-[#4b406a] text-white w-full placeholder:text-gray-300 rounded-lg px-3 py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-[#a68cff] resize-none"
-//                 whileFocus={{
-//                   scale: 1.02,
-//                   boxShadow: "0 0 20px rgba(166, 140, 255, 0.2)",
-//                 }}
-//               />
-//             ) : (
-//               <motion.input
-//                 type={input.type}
-//                 name={input.name}
-//                 placeholder={input.placeholder}
-//                 value={form[input.name as keyof typeof form]}
-//                 onChange={handleChange}
-//                 className="bg-[#4b406a] text-white w-full placeholder:text-gray-300 rounded-lg px-3 py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-[#a68cff]"
-//                 whileFocus={{
-//                   scale: 1.02,
-//                   boxShadow: "0 0 20px rgba(166, 140, 255, 0.2)",
-//                 }}
-//               />
-//             )}
-//           </motion.div>
-//         ))}
-//         <motion.button
-//           type="submit"
-//           className="flex cursor-pointer items-center justify-center gap-2 bg-[#a68cff] text-white font-semibold rounded-lg py-2 mt-2 text-sm sm:text-base hover:bg-[#8a6ec5] transition"
-//           whileHover={{
-//             scale: 1.05,
-//             boxShadow: "0 10px 25px rgba(166, 140, 255, 0.3)",
-//             y: -2,
-//           }}
-//           whileTap={{ scale: 0.95 }}
-//           initial={{ opacity: 0, y: 20 }}
-//           animate={{
-//             opacity: isInView ? 1 : 0,
-//             y: isInView ? 0 : 20,
-//           }}
-//           transition={{ duration: 0.5, ease: easeOut, delay: 0.4 }}
-//         >
-//           Send Message
-//           <Image
-//             src="/icons/msg.svg"
-//             alt="Notifications"
-//             width={20}
-//             height={20}
-//             className="w-5 h-5 sm:w-6 sm:h-6 invert brightness-0"
-//           />
-//         </motion.button>
-//       </form>
-//     </motion.div>
-//   );
-// };
-
 const WaitlistSection: React.FC = () => {
   const formRef = useRef<HTMLDivElement>(null);
   const isInView = useInView(formRef, { once: true, margin: "-50px" });
@@ -287,7 +151,6 @@ const WaitlistSection: React.FC = () => {
 
   return (
     <div className="w-full bg-white pt-6 sm:pt-8 pb-12 sm:pb-16 px-3 sm:px-4 md:px-6 lg:px-8 relative overflow-hidden">
-      {/* Center Ellipse */}
       <div className="absolute top-[-10%] left-1/2 transform -translate-x-1/2 w-full max-w-4xl pointer-events-none z-0">
         <Image
           src="/Ellipse 24.png"
@@ -298,7 +161,6 @@ const WaitlistSection: React.FC = () => {
         />
       </div>
 
-      {/* Left Ellipse */}
       <div className="absolute top-[20%] left-[-5%] w-xl max-w-xl pointer-events-none z-0">
         <Image
           src="/Ellipse 25.png"
@@ -309,7 +171,6 @@ const WaitlistSection: React.FC = () => {
         />
       </div>
 
-      {/* Right Ellipse */}
       <div className="absolute top-[-30%] right-[-10%] w-xl max-w-xl pointer-events-none z-0">
         <Image
           src="/Ellipse 25.png"
@@ -330,52 +191,6 @@ const WaitlistSection: React.FC = () => {
         }}
         transition={{ duration: 0.8, ease: easeOut }}
       >
-        {/* Early Access Label */}
-        {/* <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{
-            opacity: isInView ? 1 : 0,
-            y: isInView ? 0 : 20,
-          }}
-          transition={{ duration: 0.5, ease: easeOut }}
-        >
-          <p
-            className="text-transparent bg-clip-text bg-linear-to-r from-[#261753] via-[#6B4CAF] to-[#8A76FC] text-sm sm:text-lg md:text-xl font-semibold tracking-widest uppercase mb-3 sm:mb-4"
-            style={{ fontFamily: "var(--font-raleway)", fontWeight: 400 }}
-          >
-            Get Early Access
-          </p>
-        </motion.div> */}
-
-        {/* Title */}
-        {/* <motion.h2
-          className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-[#2d2347] mb-3 sm:mb-4"
-          style={{ fontFamily: "var(--font-raleway)", fontWeight: 400 }}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{
-            opacity: isInView ? 1 : 0,
-            y: isInView ? 0 : 20,
-          }}
-          transition={{ duration: 0.6, ease: easeOut, delay: 0.1 }}
-        >
-          Join Our <span className="text-[#8A76FC]/70">Waitlist</span>
-        </motion.h2> */}
-
-        {/* Description */}
-        {/* <motion.p
-          className="text-[#666666] text-sm sm:text-base md:text-lg mb-6 sm:mb-8 px-2 sm:px-0"
-          style={{ fontFamily: "var(--font-raleway)", fontWeight: 400 }}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{
-            opacity: isInView ? 1 : 0,
-            y: isInView ? 0 : 20,
-          }}
-          transition={{ duration: 0.6, ease: easeOut, delay: 0.2 }}
-        >
-          Be among the first to access Marvedge and transform your videos to eye catchy demo
-        </motion.p> */}
-
-        {/* Form */}
         <motion.form
           className="flex flex-col gap-4"
           onSubmit={handleSubmit}
@@ -393,20 +208,8 @@ const WaitlistSection: React.FC = () => {
               name: "email" | "name" | "message";
               isTextarea?: boolean;
             }>
-          ) /* currently disabled form fields */
-            .concat([
-              // {
-              //   type: "email",
-              //   placeholder: "Enter Your Email address",
-              //   name: "email",
-              // },
-              // { type: "text", placeholder: "Enter Your Full Name", name: "name" },
-              // {
-              //   placeholder: "Enter Your Message",
-              //   isTextarea: true,
-              //   name: "message",
-              // },
-            ])
+          )
+            .concat([])
             .map((input, index) => (
               <motion.div
                 key={index}
@@ -458,26 +261,6 @@ const WaitlistSection: React.FC = () => {
                 )}
               </motion.div>
             ))}
-
-          {/* Submit Button */}
-          {/* <motion.button
-            type="submit"
-            className="bg-[#8C5BFF] text-white font-semibold rounded-lg py-3 text-sm sm:text-base hover:bg-[#7a4fcf] transition cursor-pointer"
-            style={{ fontFamily: "var(--font-raleway)", fontWeight: 400 }}
-            whileHover={{
-              scale: 1.05,
-              boxShadow: "0 10px 25px rgba(140, 91, 255, 0.3)",
-            }}
-            whileTap={{ scale: 0.95 }}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{
-              opacity: isInView ? 1 : 0,
-              y: isInView ? 0 : 20,
-            }}
-            transition={{ duration: 0.6, ease: easeOut, delay: 0.6 }}
-          >
-            Join the waitlist
-          </motion.button> */}
         </motion.form>
       </motion.div>
     </div>
@@ -487,7 +270,7 @@ const WaitlistSection: React.FC = () => {
 const Footer: React.FC = () => {
   const sectionRef = useRef(null);
   const pathname = usePathname();
-  // Set `once: true` to trigger only once when section enters viewport
+
   const isInView = useInView(sectionRef, { once: true, margin: "-100px" });
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -500,36 +283,11 @@ const Footer: React.FC = () => {
   return (
     <>
       {pathname !== "/pricing" && <WaitlistSection />}
-      <div ref={sectionRef} className="w-full bg-[#261753] min-h-[40vh] relative overflow-hidden">
-        <motion.div
-          className="absolute top-20 left-1/4 w-32 h-32 bg-purple-900 rounded-full opacity-10"
-          animate={{
-            scale: [1, 1.2, 1],
-            rotate: [0, 180, 360],
-            x: [0, 50, 0],
-          }}
-          transition={{
-            duration: 12,
-            repeat: Infinity,
-            ease: "linear",
-          }}
-        />
-        <motion.div
-          className="absolute bottom-20 right-1/3 w-24 h-24 bg-purple-900 rounded-full opacity-10"
-          animate={{
-            scale: [1, 1.3, 1],
-            y: [0, -40, 0],
-            rotate: [0, -180, -360],
-          }}
-          transition={{
-            duration: 15,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-
+      <div
+        ref={sectionRef}
+        className="footer w-full bg-[#261753] min-h-[40vh] relative overflow-hidden flex flex-col justify-between"
+      >
         <section className="w-full max-w-7xl mx-auto py-6 sm:py-8 px-3 sm:px-4 md:px-6 lg:px-8 flex flex-row flex-wrap sm:flex-nowrap sm:justify-between sm:items-start relative z-10 gap-6 md:gap-8">
-          {/* Left: Logo and Description */}
           <motion.div
             className="flex flex-col gap-3 sm:gap-4 md:text-left max-w-xs sm:max-w-none shrink-0"
             initial={{ opacity: 0, y: 60 }}
@@ -555,19 +313,28 @@ const Footer: React.FC = () => {
                 delay: 0.2,
               }}
             >
-              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                <Image
-                  src="/images/Logo.png"
-                  alt="Marvedge Logo"
-                  width={32}
-                  height={32}
-                  className="w-8 h-8 sm:w-9 sm:h-9 object-contain"
-                />
+              <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
+                <div className="footer-logo-box flex items-center justify-center w-14 h-14 rounded-[15px] border border-[rgba(139,92,255,0.28)] bg-[rgba(14,16,36,0.7)] shrink-0">
+                  <Image
+                    src="/images/Logo.png"
+                    alt="Marvedge Logo"
+                    width={28}
+                    height={28}
+                    className="w-7 h-7 object-contain dark:hidden"
+                  />
+                  <Image
+                    src="/images/logo_dark.png"
+                    alt="Marvedge Logo dark"
+                    width={28}
+                    height={28}
+                    className="w-7 h-7 object-contain hidden dark:block"
+                  />
+                </div>
                 <h2
-                  className="text-white text-lg sm:text-xl md:text-2xl font-semibold"
+                  className="brand text-white text-lg sm:text-xl md:text-2xl font-semibold flex items-center gap-1.5"
                   style={{ fontFamily: "var(--font-raleway)" }}
                 >
-                  MARVEDGE
+                  MAR <strong className="text-white">VEDGE</strong>
                 </h2>
               </div>
               <p
@@ -580,7 +347,6 @@ const Footer: React.FC = () => {
             </motion.div>
           </motion.div>
 
-          {/* Middle: Company Links */}
           <motion.div
             className="flex justify-start sm:justify-center sm:flex-1 shrink-0"
             initial={{ opacity: 0, y: 60 }}
@@ -600,7 +366,6 @@ const Footer: React.FC = () => {
             ))}
           </motion.div>
 
-          {/* Right: Social Icons */}
           <motion.div
             className="sm:shrink-0 sm:ml-auto  flex justify-end shrink-0"
             initial={{ opacity: 0, y: 60 }}
@@ -635,7 +400,7 @@ const Footer: React.FC = () => {
         </section>
 
         <motion.footer
-          className="w-full flex flex-col items-center pt-2 sm:pt-3 pb-0 px-3 sm:px-4 absolute bottom-10 left-0 right-0 z-10"
+          className="copyright w-full max-w-7xl mx-auto flex flex-col items-center pt-6 pb-8 px-3 sm:px-4 border-t border-[rgba(165,139,255,0.12)] relative z-10 mt-8"
           initial={{ opacity: 0, y: 60 }}
           animate={{
             opacity: isInView ? 1 : 0,
@@ -661,7 +426,8 @@ const Footer: React.FC = () => {
               delay: 1.0,
             }}
           >
-            Copyright © 2025. All rights reserved. Created with 🩶 for better conversation.
+            Copyright © 2025. All rights reserved. Created with purple heart for better
+            conversation.
           </motion.p>
         </motion.footer>
         <ToastContainer position="top-center" autoClose={3000} />
