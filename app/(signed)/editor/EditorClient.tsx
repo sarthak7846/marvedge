@@ -83,7 +83,7 @@ export default function EditorPage() {
   const isDark = mounted && (theme === "system" ? resolvedTheme : theme) === "dark";
 
   const savedDemosRef = useRef<Set<string>>(new Set());
-  const defaultZoomSeededForVideoRef = useRef<string | null>(null);
+  // const defaultZoomSeededForVideoRef = useRef<string | null>(null);
   const zoomFocusStageRef = useRef<HTMLDivElement | null>(null);
 
   const editorState = useEditorState();
@@ -924,6 +924,8 @@ export default function EditorPage() {
     };
   }, [flushAutosave]);
 
+  // Disable default zoom seeding for recorded videos as per user request
+  /*
   useEffect(() => {
     if (!params || !videoUrl || duration <= 0) {
       return;
@@ -960,6 +962,7 @@ export default function EditorPage() {
     ]);
     defaultZoomSeededForVideoRef.current = videoUrl;
   }, [params, videoUrl, duration, zoomEffects.length, zoomSegments.length]);
+  */
 
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
