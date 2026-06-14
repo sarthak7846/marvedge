@@ -1,0 +1,282 @@
+.dark .landing-page nav {
+  background: rgba(12, 14, 32, 0.72) !important;
+  backdrop-filter: blur(16px) !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+
+.dark .landing-page nav button,
+.dark .landing-page nav span {
+  color: #fff !important;
+}
+
+.dark .landing-page nav .md\:hidden {
+  background: rgba(12, 14, 32, 0.96) !important;
+  border-bottom: 1px solid var(--line) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark .landing-page .hero h1,
+.dark .landing-page h1 {
+  color: var(--text) !important;
+}
+
+.dark .landing-page h1 span.text-\[\#494369\],
+.dark .landing-page h1 span.text-\[\#261753\] {
+  color: var(--text) !important;
+}
+
+.dark .landing-page .hero h1 span.text-\[\#8A76FC\]\/70,
+.dark .landing-page h1 span.text-\[\#8A76FC\]\/70 {
+  color: #9b75ff !important;
+  text-shadow: 0 0 28px rgba(139, 92, 255, 0.35) !important;
+}
+
+.dark .landing-page p.text-gray-600,
+.dark .landing-page p.text-gray-700,
+.dark .landing-page p.text-gray-500 {
+  color: var(--muted) !important;
+}
+
+.dark .landing-page button.bg-\[\#8A76FC\] {
+  background: linear-gradient(
+    135deg,
+    var(--purple),
+    var(--purple-2)
+  ) !important;
+  border: 1px solid rgba(154, 112, 255, 0.7) !important;
+  box-shadow: 0 16px 34px rgba(91, 37, 232, 0.3) !important;
+  color: #fff !important;
+}
+
+.dark .landing-page button.bg-\[\#8A76FC\]:hover {
+  opacity: 0.9 !important;
+}
+
+.dark .landing-page button.border-gray-300 {
+  background: rgba(12, 14, 32, 0.72) !important;
+  border: 1px solid var(--line) !important;
+  color: #fff !important;
+}
+
+.dark .landing-page button.border-gray-300:hover {
+  background: rgba(18, 20, 45, 0.8) !important;
+}
+
+.dark .landing-page #features .bg-white {
+  background: linear-gradient(
+    180deg,
+    rgba(17, 19, 43, 0.9),
+    rgba(10, 12, 31, 0.9)
+  ) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+
+.dark .landing-page #features h3 {
+  color: #fff !important;
+}
+
+.dark .landing-page #features p {
+  color: var(--muted) !important;
+}
+
+.dark .landing-page #features .bg-purple-100 {
+  background: rgba(139, 92, 255, 0.16) !important;
+  color: var(--purple) !important;
+}
+
+.dark .landing-page #features .bg-blue-100 {
+  background: rgba(61, 149, 255, 0.15) !important;
+  color: var(--blue) !important;
+}
+
+.dark .landing-page #features .bg-green-100 {
+  background: rgba(47, 212, 127, 0.15) !important;
+  color: var(--green) !important;
+}
+
+.dark .landing-page #features .bg-yellow-100 {
+  background: rgba(243, 204, 69, 0.15) !important;
+  color: var(--yellow) !important;
+}
+
+.dark .landing-page #features .bg-red-100 {
+  background: rgba(255, 92, 134, 0.15) !important;
+  color: var(--pink) !important;
+}
+
+.dark .landing-page #book-demo ul {
+  color: #c8c3d5 !important;
+}
+
+.dark .landing-page #book-demo div.rounded-2xl {
+  background: linear-gradient(
+    180deg,
+    rgba(17, 19, 43, 0.9),
+    rgba(10, 12, 31, 0.9)
+  ) !important;
+  border: 1px solid rgba(139, 92, 255, 0.45) !important;
+  box-shadow: 0 0 45px rgba(139, 92, 255, 0.2) !important;
+}
+
+.dark .landing-page #book-demo input {
+  background: rgba(20, 20, 45, 0.82) !important;
+  border: 1px solid rgba(165, 139, 255, 0.18) !important;
+  color: #fff !important;
+}
+
+.dark .landing-page #book-demo input::placeholder {
+  color: #878196 !important;
+}
+
+.dark .landing-page #book-demo button[type="submit"] {
+  background: linear-gradient(
+    135deg,
+    var(--purple),
+    var(--purple-2)
+  ) !important;
+  border: 1px solid rgba(154, 112, 255, 0.7) !important;
+  color: #fff !important;
+}
+
+.dark .landing-page #pricing .bg-\[\#EBE5FF\] {
+  background: rgba(139, 92, 255, 0.16) !important;
+  color: #c8b8ff !important;
+}
+
+.dark .landing-page #pricing h2 {
+  color: #f8f7ff !important;
+}
+
+.dark .landing-page #pricing h2 span.text-\[\#8C5BFF\] {
+  color: var(--purple) !important;
+}
+
+.dark .landing-page #pricing .border-\[\#E9E4F5\] {
+  background: linear-gradient(
+    180deg,
+    rgba(17, 19, 43, 0.9),
+    rgba(10, 12, 31, 0.9)
+  ) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+
+.dark .landing-page #pricing .border-\[\#E9E4F5\] h3,
+.dark .landing-page #pricing .border-\[\#E9E4F5\] .text-5xl,
+.dark .landing-page #pricing .border-\[\#E9E4F5\] .text-4xl {
+  color: #fff !important;
+}
+
+.dark .landing-page #pricing .border-\[\#E9E4F5\] p.text-\[\#666666\],
+.dark .landing-page #pricing .border-\[\#E9E4F5\] span.text-gray-500 {
+  color: var(--muted) !important;
+}
+
+.dark .landing-page #pricing .border-\[\#E9E4F5\] li {
+  color: #c8c3d5 !important;
+}
+
+.dark .landing-page #pricing .border-\[\#E9E4F5\] li svg {
+  color: var(--purple) !important;
+}
+
+.dark .landing-page #pricing .border-\[\#E9E4F5\] button {
+  background: linear-gradient(
+    135deg,
+    var(--purple),
+    var(--purple-2)
+  ) !important;
+  border: 1px solid rgba(154, 112, 255, 0.7) !important;
+  color: #fff !important;
+}
+
+.dark .landing-page #pricing .bg-\[\#8C5BFF\] {
+  border: 1px solid var(--line-strong) !important;
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(139, 92, 255, 0.36),
+      transparent 54%
+    ),
+    linear-gradient(180deg, rgba(45, 28, 108, 0.98), rgba(16, 15, 42, 0.98)) !important;
+  box-shadow: 0 0 42px rgba(139, 92, 255, 0.32) !important;
+}
+
+.dark .landing-page #pricing .bg-\[\#8C5BFF\] button {
+  background: #fff !important;
+  color: var(--purple-2) !important;
+}
+
+.dark .landing-page #pricing .bg-\[\#8C5BFF\] li span.bg-white {
+  background: rgba(139, 92, 255, 0.22) !important;
+}
+
+.dark .landing-page #pricing .bg-\[\#8C5BFF\] li svg {
+  color: #cdbfff !important;
+}
+
+.dark .landing-page #reviews .bg-white {
+  background: linear-gradient(
+    180deg,
+    rgba(17, 19, 43, 0.9),
+    rgba(10, 12, 31, 0.9)
+  ) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+
+.dark .landing-page #reviews h3 {
+  color: #fff !important;
+}
+
+.dark .landing-page #reviews .text-gray-700 {
+  color: #c8c3d5 !important;
+}
+
+.dark .landing-page .footer {
+  margin-top: 70px !important;
+  border-top: 1px solid rgba(165, 139, 255, 0.12) !important;
+  background:
+    radial-gradient(
+      circle at 16% 36%,
+      rgba(139, 92, 255, 0.2),
+      transparent 23%
+    ),
+    radial-gradient(
+      circle at 78% 74%,
+      rgba(139, 92, 255, 0.22),
+      transparent 23%
+    ),
+    rgba(4, 6, 19, 0.7) !important;
+}
+
+.dark .landing-page .footer h2,
+.dark .landing-page .footer h3 {
+  color: #fff !important;
+}
+
+.dark .landing-page .footer p,
+.dark .landing-page .footer li {
+  color: var(--muted) !important;
+}
+
+.dark .landing-page .footer li:hover {
+  color: #a68cff !important;
+}
+
+.dark .landing-page .footer-logo-box,
+.dark .landing-page .social {
+  border: 1px solid rgba(139, 92, 255, 0.28) !important;
+  border-radius: 15px !important;
+  background: rgba(14, 16, 36, 0.7) !important;
+}
+
+.dark .landing-page .social {
+  box-shadow: 0 0 26px rgba(139, 92, 255, 0.16) !important;
+}
+
+.dark .landing-page .copyright {
+  border-top: 1px solid rgba(165, 139, 255, 0.12) !important;
+  color: #8f899e !important;
+}

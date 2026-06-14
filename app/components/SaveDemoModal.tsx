@@ -81,7 +81,7 @@ export default function SaveDemoModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Enter demo title..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] focus:border-[#7C5CFC] transition-all"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] focus:border-[#7C5CFC] transition-all text-black"
               disabled={processing}
             />
           </div>
@@ -94,7 +94,7 @@ export default function SaveDemoModal({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Enter demo description..."
               rows={3}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] focus:border-[#7C5CFC] transition-all resize-none"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] focus:border-[#7C5CFC] transition-all resize-none text-black"
               disabled={processing}
             />
           </div>

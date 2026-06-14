@@ -14,12 +14,12 @@ export default async function LandingPage() {
   }
 
   return (
-    <>
+    <div className="landing-page min-h-screen">
       <Navbar />
       <HeroSection />
       <Pricing />
       <LandingReviews />
       <Footer />
-    </>
+    </div>
   );
 }

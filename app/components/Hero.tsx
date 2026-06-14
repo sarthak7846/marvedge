@@ -34,7 +34,7 @@ const Hero: React.FC = () => {
   const actionButtonText = status === "authenticated" ? "Go to Dashboard" : "Start Free Trial";
 
   const ref = useRef<HTMLElement>(null);
-  // Set `once: true` to trigger isInView only once when the section enters the viewport
+
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -118,7 +118,6 @@ const Hero: React.FC = () => {
       />
 
       <div className="w-full px-3 sm:px-4 md:px-6 lg:max-w-6xl lg:mx-auto flex flex-col items-center text-center relative">
-        {/* Center Ellipse */}
         <div className="absolute top-[-20%] left-1/2 transform -translate-x-1/2 w-full max-w-4xl pointer-events-none z-0">
           <Image
             src="/Ellipse 29.png"
@@ -129,7 +128,6 @@ const Hero: React.FC = () => {
           />
         </div>
 
-        {/* Left Ellipse */}
         <div className="absolute top-[-10%] left-[-15%] w-full max-w-4xl pointer-events-none z-0">
           <Image
             src="/Ellipse 29.png"
@@ -140,7 +138,6 @@ const Hero: React.FC = () => {
           />
         </div>
 
-        {/* Right Ellipse */}
         <div className="absolute top-[-30%] right-[-15%] w-full max-w-4xl pointer-events-none z-0">
           <Image
             src="/Ellipse 29.png"
@@ -243,7 +240,16 @@ const Hero: React.FC = () => {
             alt="Interactive demo showcase"
             width={1200}
             height={600}
-            className="w-full h-auto object-cover"
+            className="w-full h-auto object-cover dark:hidden"
+            priority
+          />
+          <Image
+            src="/images/landing_image_dark.png"
+            alt="Interactive demo showcase dark"
+            width={1200}
+            height={600}
+            className="w-full h-auto object-cover hidden dark:block"
+            priority
           />
         </motion.div>
       </div>

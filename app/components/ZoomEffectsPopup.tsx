@@ -22,7 +22,6 @@ export default function ZoomEffectsPopup({
   onZoomEffectsChange,
   currentTime,
   duration,
-  onSeek, // eslint-disable-line @typescript-eslint/no-unused-vars
 }: ZoomEffectsPopupProps) {
   const [editingEffect, setEditingEffect] = useState<ZoomEffect | null>(null);
   const [startTime, setStartTime] = useState("");
@@ -124,11 +123,9 @@ export default function ZoomEffectsPopup({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Overlay */}
       <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose} />
-      {/* Modal */}
+
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 p-6 max-h-[90vh] overflow-y-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-800">Zoom Effects</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -136,7 +133,6 @@ export default function ZoomEffectsPopup({
           </button>
         </div>
 
-        {/* Form */}
         <div className="space-y-4 mb-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -208,10 +204,20 @@ export default function ZoomEffectsPopup({
           </div>
 
           <div className="flex gap-2">
-            <Button onClick={handleSetCurrentTime} variant="outline" size="sm">
+            <Button
+              onClick={handleSetCurrentTime}
+              variant="outline"
+              size="sm"
+              className="btn-mini-cancel"
+            >
               Set Current Time ({formatTime(currentTime)})
             </Button>
-            <Button onClick={handleAddTestEffect} variant="outline" size="sm">
+            <Button
+              onClick={handleAddTestEffect}
+              variant="outline"
+              size="sm"
+              className="btn-mini-cancel"
+            >
               Add Test Effect
             </Button>
           </div>
@@ -219,10 +225,10 @@ export default function ZoomEffectsPopup({
           <div className="flex gap-2">
             {editingEffect ? (
               <>
-                <Button onClick={handleUpdateEffect} className="flex-1">
+                <Button onClick={handleUpdateEffect} className="flex-1 btn-mini-purple">
                   Update Effect
                 </Button>
-                <Button onClick={resetForm} variant="outline">
+                <Button onClick={resetForm} variant="outline" className="btn-mini-cancel">
                   Cancel
                 </Button>
               </>
@@ -230,7 +236,7 @@ export default function ZoomEffectsPopup({
               <Button
                 onClick={handleAddEffect}
                 disabled={!startTime || !endTime}
-                className="flex-1"
+                className="flex-1 btn-mini-purple"
               >
                 Add Effect
               </Button>
@@ -238,7 +244,6 @@ export default function ZoomEffectsPopup({
           </div>
         </div>
 
-        {/* Effects List */}
         <div>
           <h3 className="text-lg font-semibold mb-4">Current Effects</h3>
           {zoomEffects.length === 0 ? (
@@ -260,7 +265,12 @@ export default function ZoomEffectsPopup({
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={() => handleEditEffect(effect)} variant="outline" size="sm">
+                    <Button
+                      onClick={() => handleEditEffect(effect)}
+                      variant="outline"
+                      size="sm"
+                      className="btn-mini-cancel"
+                    >
                       Edit
                     </Button>
                     <Button

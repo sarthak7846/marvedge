@@ -1,28 +1,24 @@
 "use client";
 
 import React, { useEffect, useCallback, useState, useRef } from "react";
-// import { FaBars } from "react-icons/fa6";
-//import { FaExpand, FaVolumeUp, FaVolumeMute } from "react-icons/fa";
+
 import { X } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
-// import { useSession } from "next-auth/react";
+
 import { useRouter } from "next/navigation";
 import ReactPlayer from "react-player";
 import axios from "axios";
-//import { videoTrimmer } from "@/app/lib/ffmpeg"; // Moved to export handler
-//import Image from "next/image";
 
-// Components
+import { useTheme } from "next-themes";
+
 import SidemenuDashboard from "@/app/components/SidemenuDashboard";
 import EditorSidebar from "@/app/components/EditorSidebar";
-// EditorTopbar removed to keep editor viewport scroll-free
+
 import TimelineRuler from "@/app/components/TimeLine";
 import ZoomEffectsPopup from "@/app/components/ZoomEffectsPopup";
 import SaveDemoModal from "@/app/components/SaveDemoModal";
 import CustomVideoControls from "@/app/components/CustomVideoControls";
-// import CustomVideoControls from "./components/CustomVideoControls";
 
-// Hooks
 import { useEditor } from "@/app/hooks/useEditor";
 import { useBlobStore } from "@/app/store/blobStore";
 import { useEditorState } from "./hooks/useEditorState";
@@ -33,7 +29,6 @@ import { useOverlays } from "./hooks/useOverlays";
 import { useBackgroundStyle } from "./hooks/useBackgroundStyle";
 import { useTimelineInit } from "./hooks/useTimelineInit";
 
-// Utils
 import { handleSaveDemo, exportVideo } from "./utils/videoHandlers";
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import ZoomModal from "@/app/components/ZoomModal";
@@ -44,10 +39,10 @@ import { uploadBlobToGcs } from "@/app/lib/gcsUploadClient";
 type TextOverlayItem = {
   id: string;
   text: string;
-  x: number; // normalized 0..1
-  y: number; // normalized 0..1
-  w: number; // px
-  h: number; // px
+  x: number;
+  y: number;
+  w: number;
+  h: number;
   startTime: number;
   endTime: number;
   fontFamily: string;
@@ -80,13 +75,17 @@ function resolveOverlayFontFamily(value: string): string {
 
 export default function EditorPage() {
   const router = useRouter();
+  const { theme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  const isDark = mounted && (theme === "system" ? resolvedTheme : theme) === "dark";
 
-  // Track saved demos in this session to prevent duplicates
   const savedDemosRef = useRef<Set<string>>(new Set());
-  const defaultZoomSeededForVideoRef = useRef<string | null>(null);
+  // const defaultZoomSeededForVideoRef = useRef<string | null>(null);
   const zoomFocusStageRef = useRef<HTMLDivElement | null>(null);
 
-  // Custom hooks for state management
   const editorState = useEditorState();
   const {
     params,
@@ -158,17 +157,13 @@ export default function EditorPage() {
     setBrowserFrameDrawBorder,
   } = editorState;
 
-  // External hooks
   const { videoUrl: recordedVideoUrl, thumbnailUrl, processing, resetVideo } = useEditor();
 
   const blob = useBlobStore((state) => state.blob);
   const sourceDuration = useBlobStore((state) => state.sourceDuration);
-  // const { data: session } = useSession();
 
-  // Format time helper
   const { formatTimeForInput } = useFormatTime();
 
-  // Text overlays need to be initialized before useURLParams() so URL restores don't hit TDZ.
   const [textOverlays, setTextOverlays] = useState<TextOverlayItem[]>([]);
   const setTextOverlaysFromUrl = React.useCallback((overlays: unknown) => {
     if (!overlays) {
@@ -180,19 +175,16 @@ export default function EditorPage() {
     }
   }, []);
 
-  // Initialize params
   useEffect(() => {
     const nextParams = new URLSearchParams(window.location.search);
     setParams(nextParams);
-    // Ensure existing demos opened from `/demos` immediately have an id for Save/Autosave,
-    // even before other URL restoration effects run.
+
     const urlDemoId = nextParams.get("demoId");
     if (urlDemoId) {
       setSavedDemoId(urlDemoId);
     }
   }, [setParams, setSavedDemoId]);
 
-  // URL params handling
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     if (searchParams.get("subscribed") === "true") {
@@ -228,14 +220,12 @@ export default function EditorPage() {
     formatTimeForInput,
   });
 
-  // Bridge recorder → editor: if no video URL from URL params, use blob from Zustand
   useEffect(() => {
     if (!videoUrl && blob) {
       setVideoUrl(URL.createObjectURL(blob));
     }
   }, [videoUrl, blob, setVideoUrl]);
 
-  // Video duration detection
   useVideoDuration({
     videoUrl,
     duration,
@@ -245,13 +235,11 @@ export default function EditorPage() {
     setDuration,
   });
 
-  // Fullscreen handling
   const { handleFullscreen } = useFullscreen({
     videoContainerRef,
     setIsFullscreen,
   });
 
-  // Overlays handling
   const { handleMouseDown, handleMouseUp } = useOverlays({
     canvasRef,
     playerRef,
@@ -260,13 +248,11 @@ export default function EditorPage() {
     textFont,
   });
 
-  // Background style
   const { getBackgroundStyle, imageMap } = useBackgroundStyle({
     selectedBackground,
     customBackground,
   });
 
-  // Timeline initialization
   useTimelineInit({
     duration,
     timelineEndTime,
@@ -277,7 +263,6 @@ export default function EditorPage() {
     formatTimeForInput,
   });
 
-  // Set recorded video URL if no URL parameter is provided
   useEffect(() => {
     if (!params) {
       return;
@@ -287,10 +272,7 @@ export default function EditorPage() {
     }
   }, [recordedVideoUrl, params, setVideoUrl]);
 
-  // Reset demoSaved state when video changes (allows saving again with different video)
   useEffect(() => {
-    // For existing demos (opened from /demos), keep "saved" state.
-    // For fresh recorder sessions, allow saving.
     if (videoUrl && !editorState.savedDemoId) {
       setDemoSaved(false);
     }
@@ -302,9 +284,7 @@ export default function EditorPage() {
     }
   }, [editorState.savedDemoId, setDemoSaved]);
 
-  // Restore editing state (trim/zoom blocks) from saved demo URL params
   useEffect(() => {
-    // Restore trim segments from saved editing data
     if (currentSegments.length > 0 && segments.length === 0) {
       const numeric = currentSegments
         .map((s) => ({
@@ -316,24 +296,16 @@ export default function EditorPage() {
         setSegments(numeric);
       }
     }
-    // Restore zoom segments from saved editing data
+
     if (zoomEffects.length > 0 && zoomSegments.length === 0) {
       setZoomSegments(zoomEffects);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSegments, zoomEffects]);
 
-  // User initials were previously used in the topbar (now removed).
+  const setProgress = () => {};
 
-  // No-op setProgress to satisfy required callback
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const setProgress = (_value?: number) => {};
-
-  // Use recording duration if available, otherwise use detected duration
-  //const displayDuration = recordingDuration > 0 ? recordingDuration : duration;
   const resolvedDuration = Math.max(0, duration || 0);
 
-  // Timeline change handler
   const handleTimelineChange = useCallback(
     (start: number, end: number) => {
       setInputStartTime(formatTimeForInput(start));
@@ -342,7 +314,6 @@ export default function EditorPage() {
     [formatTimeForInput, setInputStartTime, setInputEndTime]
   );
 
-  // Keep timeline bounds synced with the best-known runtime duration.
   useEffect(() => {
     if (!Number.isFinite(resolvedDuration) || resolvedDuration <= 0) {
       return;
@@ -378,7 +349,6 @@ export default function EditorPage() {
     setInputEndTime(formatTimeForInput(duration));
   }
 
-  // Dashboard menu handlers
   const closeDashboardMenu = () => {
     setIsDashboardMenuOpen(false);
   };
@@ -387,10 +357,6 @@ export default function EditorPage() {
     setIsDashboardMenuOpen(!isDashboardMenuOpen);
   };
 
-  // Delete handler is now UI-only — handled inside TimeLine.tsx
-  // Video trimming happens at export time in videoHandlers.ts
-
-  // Save demo handler
   const onSaveDemo = async (data: { title: string; description: string }) => {
     const effectiveDemoId = editorState.savedDemoId || params?.get("demoId") || null;
     const isExistingDemo = !!effectiveDemoId;
@@ -398,10 +364,8 @@ export default function EditorPage() {
       return;
     }
 
-    // Create a unique key for this demo to prevent duplicates in this session
     const demoKey = `${data.title}|${videoUrl}|${data.description}`;
 
-    // Check if this exact demo was already saved in this session
     if (!isExistingDemo && savedDemosRef.current.has(demoKey)) {
       toast.error("This demo has already been saved in this session!");
       return;
@@ -434,23 +398,12 @@ export default function EditorPage() {
       setDemoSaved,
       setSavedDemoId,
       onSaveSuccess: () => {
-        // Track this demo as saved
         if (!isExistingDemo) {
           savedDemosRef.current.add(demoKey);
         }
       },
     });
   };
-
-  // Video trim handler
-  // const onVideoTrim = async (segments: { start: number; end: number }[]) => {
-  //   await videoTrimHandler(segments, {
-  //     videoUrl: videoUrl!,
-  //     setVideoUrl,
-  //     setProgress,
-  //     duration: 0,
-  //   });
-  // };
 
   const [segments, setSegments] = useState<{ start: number; end: number }[]>([]);
   const [nativeAspectRatio, setNativeAspectRatio] = useState("16/9");
@@ -468,7 +421,7 @@ export default function EditorPage() {
     }
     try {
       const parsed = JSON.parse(urlSubtitles) as unknown;
-      // Accept either an array of cues or a { cues: [...] } payload.
+
       let cues: unknown = null;
       if (Array.isArray(parsed)) {
         cues = parsed;
@@ -507,7 +460,7 @@ export default function EditorPage() {
       return "";
     }
     const t = currentTime;
-    // Binary search over sorted cues by start time.
+
     let lo = 0;
     let hi = subtitleCues.length - 1;
     while (lo <= hi) {
@@ -521,7 +474,7 @@ export default function EditorPage() {
         return c.text;
       }
     }
-    // Might be between cues; no caption.
+
     return "";
   }, [subtitleCues, currentTime]);
 
@@ -564,7 +517,7 @@ export default function EditorPage() {
       }
 
       const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-      const MAX_POLLS = 180; // 6 minutes (180 × 2s)
+      const MAX_POLLS = 180;
       for (let pollCount = 0; pollCount < MAX_POLLS; pollCount++) {
         const statusRes = await axios.get(`/api/jobs/${jobId}`);
         const state = statusRes.data?.state as string | undefined;
@@ -642,8 +595,7 @@ export default function EditorPage() {
     Number.isFinite(ratioW) && Number.isFinite(ratioH) && ratioW > 0 && ratioH > 0
       ? ratioW / ratioH
       : 16 / 9;
-  // Browser frame UI modes are removed; keep only cheap border/shadow styling.
-  // Slightly thinner + less visible than before (requested).
+
   const browserFrameBorder = browserFrameDrawBorder ? "4px solid rgba(255,255,255,0.55)" : "none";
   const browserFrameShadow = browserFrameDrawShadow ? "0 14px 34px rgba(0,0,0,0.32)" : "none";
   const isPortraitPreview = previewRatioValue < 1;
@@ -677,12 +629,9 @@ export default function EditorPage() {
     return res.data?.exportedVideo?.id;
   };
 
-  // Called when the user confirms their settings in the new modal
   const onExportVideo = async (settings: ExportSettings) => {
     setShowExportSettings(false);
 
-    // If user uploaded a custom background image, create a temporary object URL for the compositor.
-    // For preset image backgrounds (solid/gradient/default), we convert them to a worker-downloadable URL.
     const localObjectUrl = customBackground ? URL.createObjectURL(customBackground) : null;
     let resolvedSelectedBackground = selectedBackground || "none";
     let resolvedCustomBackgroundUrl: string | null = localObjectUrl;
@@ -697,7 +646,6 @@ export default function EditorPage() {
       !resolvedSelectedBackground.startsWith("gradient:") &&
       imageMap[resolvedSelectedBackground]
     ) {
-      // Worker can only download an actual image URL. Public assets are served from the app origin.
       const src = imageMap[resolvedSelectedBackground];
       resolvedSelectedBackground = "custom";
       resolvedCustomBackgroundUrl = src.startsWith("http")
@@ -727,9 +675,9 @@ export default function EditorPage() {
       savedDemoId: editorState.savedDemoId,
       settings: {
         ...settings,
-        // Keep export default at 24fps for faster render throughput.
+
         fps: "24 FPS",
-        // Speed is controlled from the main editor controls (not export modal).
+
         speed:
           playbackSpeed === 1
             ? "Default"
@@ -755,7 +703,6 @@ export default function EditorPage() {
       setShowExportResultModal(true);
     }
 
-    // Clean up the object URL after export
     if (localObjectUrl) {
       URL.revokeObjectURL(localObjectUrl);
     }
@@ -834,28 +781,10 @@ export default function EditorPage() {
     }
   };
 
-  // Zoom effects handlers
-  // const onZoomEffectCreate = (effect: ZoomEffect) => {
-  //   console.log("Creating zoom effect:", effect);
-  //   console.log("Zoom level:", effect.zoomLevel, "Expected: > 1.0");
-  //   console.log("Coordinates:", { x: effect.x, y: effect.y }, "Expected: 0-1 range");
-
-  //   if (effect.zoomLevel <= 1.0) {
-  //     console.warn("⚠️ Zoom level is too low, forcing to 2.0");
-  //     effect.zoomLevel = 2.0;
-  //   }
-
-  //   setZoomEffects((prev) => [...prev, effect]);
-  //   console.log("Total zoom effects:", [...zoomEffects, effect].length);
-  // };
-
   const onZoomEffectsChange = (effects: ZoomEffect[]) => {
     setZoomEffects(effects);
   };
 
-  // Zoom effects are now applied at export time, not immediately
-
-  //useEffect(() => {}, [videoUrl]);
   const [mode, setMode] = useState<"main" | "trim" | "zoom" | "text">("main");
   const [childHandleProgress, setChildHandleProgress] = useState<
     null | ((data: { playedSeconds: number }) => void)
@@ -869,8 +798,6 @@ export default function EditorPage() {
   const lastInteractionRef = useRef<number>(0);
   const isDraggingTimelineRef = useRef<boolean>(false);
 
-  // Autosave editing state for already-saved demos.
-  // This keeps edits persisted when the user navigates away without clicking "Save Demo".
   const autosaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAutosavePayloadRef = React.useRef<string>("");
   const autosaveInFlightRef = React.useRef(false);
@@ -931,7 +858,6 @@ export default function EditorPage() {
     try {
       await axios.patch("/api/demo", payload);
     } catch (e) {
-      // Don't toast here; autosave should be silent.
       console.warn("Autosave failed:", e);
     } finally {
       autosaveInFlightRef.current = false;
@@ -992,26 +918,24 @@ export default function EditorPage() {
     };
   }, [flushAutosave]);
 
-  // Ensure internal Next.js navigations (dashboard button, sidebar links, etc.) still persist edits.
   React.useEffect(() => {
     return () => {
       void flushAutosave();
     };
   }, [flushAutosave]);
 
-  // Restore a default 3-second zoom block for fresh recorder sessions.
+  // Disable default zoom seeding for recorded videos as per user request
+  /*
   useEffect(() => {
     if (!params || !videoUrl || duration <= 0) {
       return;
     }
 
-    // Only seed for recorder-origin flow (no `video` query param).
     const isRecorderFlow = !params.get("video");
     if (!isRecorderFlow) {
       return;
     }
 
-    // Do not override loaded/saved zoom edits.
     if (zoomEffects.length > 0 || zoomSegments.length > 0) {
       return;
     }
@@ -1038,6 +962,7 @@ export default function EditorPage() {
     ]);
     defaultZoomSeededForVideoRef.current = videoUrl;
   }, [params, videoUrl, duration, zoomEffects.length, zoomSegments.length]);
+  */
 
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -1064,7 +989,6 @@ export default function EditorPage() {
     : 1;
   const zoomFocusSizePct = 15;
 
-  // Correct zoom centering: translate so the selected point is at view center
   const zoomCx = (activePreviewZoomSegment?.x ?? 0.5) * 100;
   const zoomCy = (activePreviewZoomSegment?.y ?? 0.5) * 100;
   const zoomTranslateX = shouldApplyZoomPreview
@@ -1153,11 +1077,10 @@ export default function EditorPage() {
       (z) => currentTime >= z.startTime && currentTime <= z.endTime
     );
 
-    // if segment exist
     if (segment) {
       setZoomLevel(segment.zoomLevel);
     } else {
-      setZoomLevel(1); // normal zoom
+      setZoomLevel(1);
     }
     if (mode === "zoom" && activeZoomIdx != -1) {
       if (Date.now() - lastInteractionRef.current < 500) {
@@ -1448,10 +1371,8 @@ export default function EditorPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [selectedTextOverlayId]);
 
-  //const [open, setOpen] = useState(true);
-
   return (
-    <main className="flex flex-col min-h-screen w-full bg-gray-50 overflow-hidden">
+    <main className="editor-page flex flex-col min-h-screen w-full bg-gray-50 overflow-hidden">
       <ExportSettingsModal
         isOpen={showExportSettings}
         onClose={() => setShowExportSettings(false)}
@@ -1466,7 +1387,7 @@ export default function EditorPage() {
           if (resultActionLoading) {
             return;
           }
-          // If user closes without saving a share link, cleanup the temporary Cloudinary export.
+
           if (pendingExport && !shareLinkSaved) {
             axios
               .post("/api/exported-videos/cleanup", {
@@ -1487,6 +1408,7 @@ export default function EditorPage() {
       <Toaster
         position="top-center"
         toastOptions={{
+          className: "toast-popup-card",
           style: {
             background: "#2D2A3A",
             color: "#fff",
@@ -1502,8 +1424,7 @@ export default function EditorPage() {
       />
 
       <div className="flex flex-1 min-h-0 overflow-hidden relative">
-        {/* Sidebar for Desktop */}
-        <div className="hidden md:block w-80 bg-white shadow-lg z-40">
+        <div className="editor-sidebar-container hidden md:block w-80 bg-white shadow-lg z-40">
           <div className="w-full h-full relative">
             <EditorSidebar
               title={sidebarTitle}
@@ -1543,13 +1464,10 @@ export default function EditorPage() {
             />
             {activeZoomIdx != -1 && showZoomModal ? (
               <ZoomModal
-                //isOpen={open}
                 onClose={() => setShowZoomModal(false)}
                 activeZoomIdx={activeZoomIdx}
                 setZoomSegments={setZoomSegments}
                 zoomSegments={zoomSegments}
-                // videourl={videoUrl}
-                // playerRef={playerRef}
               />
             ) : (
               <div></div>
@@ -1557,7 +1475,6 @@ export default function EditorPage() {
           </div>
         </div>
 
-        {/* Mobile Drawer for EditorSidebar */}
         {isSidebarOpen && (
           <div className="fixed inset-0 z-50 flex md:hidden">
             <div
@@ -1614,7 +1531,6 @@ export default function EditorPage() {
           </div>
         )}
 
-        {/* Dashboard menu drawer (all sizes) */}
         {isDashboardMenuOpen && (
           <div className="fixed inset-0 z-50 flex">
             <div
@@ -1628,30 +1544,28 @@ export default function EditorPage() {
 
         <div className="flex-1 min-h-0 overflow-hidden">
           <div className="mt-3" />
-          {/* Video Wrapper */}
+
           <div
             className={
               "flex flex-col items-center w-full max-w-[1200px] mx-auto rounded-2xl bg-transparent"
             }
-            //style={{ boxShadow: "0 8px 24px rgba(124, 92, 252, 0.3)" }}
           >
-            {/* Video container */}
             <div
               ref={videoContainerRef}
-              className={`relative w-full max-w-[1120px] sm:h-auto rounded-2xl border ${
+              className={`monitor-viewport relative w-full max-w-[1120px] sm:h-auto rounded-2xl border ${
                 isFullscreen ? "border-[#7C5CFC] shadow-lg" : "border-[#E6E1FA]"
               } flex flex-col items-center justify-center mb-1 transition-all duration-300`}
               style={{
                 aspectRatio: "16 / 9",
                 minHeight: "160px",
-                // Add symmetric vertical inset so the stage isn't stuck to the top when backgrounds are enabled.
+
                 padding: `${stageContainerPadY}px ${selectedBackground ? "0px" : "5px"}`,
                 boxShadow: "0 4px 24px 0 #E6E1FA",
                 ...getBackgroundStyle(),
               }}
             >
               <div
-                className=""
+                className="editor-video-card"
                 style={{
                   width: "auto",
                   aspectRatio: previewFrameAspectRatio,
@@ -1663,9 +1577,15 @@ export default function EditorPage() {
                   flexDirection: "column",
                   borderRadius: "1.25rem",
                   overflow: "hidden",
-                  background: hasCanvasBackground ? "#F6F3FF" : "#000000",
-                  border: browserFrameBorder,
-                  boxShadow: browserFrameShadow,
+                  background: isDark
+                    ? `${hasCanvasBackground ? "linear-gradient(#F6F3FF, #F6F3FF)" : "linear-gradient(#000000, #000000)"} padding-box, linear-gradient(135deg, #6c4cff, #8b73ff) border-box`
+                    : hasCanvasBackground
+                      ? "#F6F3FF"
+                      : "#000000",
+                  border: isDark ? "1px solid transparent" : browserFrameBorder,
+                  boxShadow: isDark
+                    ? "0 0 30px rgba(62, 47, 217, 0.25), 0 10px 40px rgba(0, 0, 0, 0.7)"
+                    : browserFrameShadow,
                   transition: "width 0.3s ease, height 0.3s ease",
                 }}
               >
@@ -1689,7 +1609,6 @@ export default function EditorPage() {
                     }}
                   >
                     <div className="w-full h-full">
-                      {/*In FullScreen video require one div, so don't remove div */}
                       {videoUrl ? (
                         <ReactPlayer
                           key={videoUrl}
@@ -1734,11 +1653,10 @@ export default function EditorPage() {
                             );
                           }}
                           onProgress={(data) => {
-                            // Completely skip onProgress during timeline drag
                             if (isDraggingTimelineRef.current) {
                               return;
                             }
-                            // Also skip for 500ms after drag ends to prevent stale events
+
                             if (Date.now() - lastInteractionRef.current < 500) {
                               return;
                             }
@@ -1916,7 +1834,6 @@ export default function EditorPage() {
                               <div
                                 className="absolute -top-7 left-1/2 -translate-x-1/2 bg-[#7C5CFC] text-white p-1 rounded cursor-grab shadow-md"
                                 onMouseDown={(e) => {
-                                  // Trigger standard drag logic, but prevent default so it doesn't blur textarea
                                   handleTextOverlayMouseDown(e, overlay.id);
                                 }}
                               >
@@ -2031,7 +1948,6 @@ export default function EditorPage() {
                 </div>
               </div>
 
-              {/* Controls container - only show when video is available */}
               {videoUrl && (
                 <div className="w-full flex flex-col gap-3 mt-5">
                   <CustomVideoControls
@@ -2078,7 +1994,6 @@ export default function EditorPage() {
             </div>
           )}
 
-          {/* Timeline - only show when video is available */}
           {videoUrl && (
             <div className="mr-2 mt-8 mb-5 pr-8 sm:mr-0 mx-4 sm:mx-8">
               {resolvedDuration > 0 ? (
@@ -2096,10 +2011,7 @@ export default function EditorPage() {
                     const safeValue = Number.isFinite(value) ? value : 0;
                     const clampedValue = Math.max(0, Math.min(safeDuration, safeValue));
                     setCurrentTime(clampedValue);
-                    // Only seek the player when NOT actively dragging the timeline.
-                    // During drag, we only update the currentTime state for visual feedback.
-                    // Seeking during drag causes the player to fire onProgress events that
-                    // create race conditions with the skip-over-trim-block logic.
+
                     if (!isDraggingTimelineRef.current && Number.isFinite(clampedValue)) {
                       playerRef.current?.seekTo(clampedValue, "seconds");
                     }

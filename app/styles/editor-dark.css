@@ -1,0 +1,252 @@
+.dark .editor-page {
+  background-color: var(--bg-base) !important;
+}
+
+.dark .editor-sidebar {
+  background-color: var(--bg-sidebar) !important;
+  border-color: var(--panel-border) !important;
+}
+
+.dark .editor-sidebar-container {
+  background-color: var(--bg-sidebar) !important;
+  border-color: var(--panel-border) !important;
+  box-shadow: none !important;
+}
+
+.dark .tab-switcher {
+  border: 1px solid rgba(255, 255, 255, 0.02) !important;
+  background-color: #151229 !important;
+}
+
+.dark .tab-item {
+  color: var(--text-gray) !important;
+}
+
+.dark .tab-item.active {
+  background-color: #110e2c !important;
+  color: var(--text-light) !important;
+}
+
+.dark .control-block-label {
+  color: #6a6496 !important;
+}
+
+.dark .toggle-flex-row {
+  color: #e2e1eb !important;
+}
+
+.dark .pill-slider {
+  background-color: #231e3d !important;
+}
+
+.dark .pill-slider::before {
+  background-color: white !important;
+}
+
+.dark .btn-mini-purple {
+  color: white !important;
+  background-color: var(--btn-purple) !important;
+}
+
+.dark .btn-mini-purple:hover {
+  background-color: var(--btn-purple-hover) !important;
+}
+
+.dark .btn-mini-cancel {
+  color: #c9c7db !important;
+  background-color: transparent !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark .btn-subtitles-block {
+  background-color: #0f0c24 !important;
+  color: #928dbf !important;
+  border-color: var(--panel-border) !important;
+}
+
+.dark .crown-badge {
+  color: #fbbf24 !important;
+}
+
+.dark .notification-bell {
+  color: #a3a1cc !important;
+}
+
+.dark .user-avatar {
+  background-color: #4c3de3 !important;
+  color: white !important;
+}
+
+.dark .monitor-viewport {
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7) !important;
+  border: 1px solid var(--panel-border) !important;
+  background-color: var(--bg-sidebar) !important;
+}
+
+.dark .editor-video-card {
+  box-shadow:
+    0 0 30px rgba(62, 47, 217, 0.25),
+    0 10px 40px rgba(0, 0, 0, 0.7) !important;
+  border: 1px solid #231c52 !important;
+}
+
+.dark .infinite-loop-outer-frame {
+  border: 2px solid #231c52 !important;
+  box-shadow: 0 0 30px rgba(62, 47, 217, 0.25) !important;
+}
+
+.dark .infinite-loop-middle-frame {
+  border: 1px solid #161233 !important;
+}
+
+.dark .infinite-loop-inner-frame {
+  border: 1px solid #2e285e !important;
+  background-color: #04030a !important;
+}
+
+.dark .loop-inner-warning-text {
+  color: #f87171 !important;
+}
+
+.dark .loop-inner-warning-text::before {
+  background-color: #ef4444 !important;
+}
+
+.dark .floating-stop-button {
+  box-shadow: 0 0 12px #3e2fd9 !important;
+  background-color: #ef4444 !important;
+}
+
+.dark .floating-stop-button::after {
+  color: white !important;
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8) !important;
+}
+
+.dark .toast-popup-card {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+  border: 1px solid #059669 !important;
+  color: #34d399 !important;
+}
+
+.dark .toast-popup-card::before {
+  background-color: #10b981 !important;
+  color: #060512 !important;
+}
+
+.dark .playback-progress-bar-rail {
+  background-color: #1a1738 !important;
+}
+
+.dark .playback-utility-icon {
+  opacity: 0.8 !important;
+}
+
+.dark .sequence-block-shape {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark .track-red {
+  background-color: var(--track-red-bg) !important;
+  border-color: var(--track-red-border) !important;
+  opacity: 0.8 !important;
+}
+.dark .track-red.active {
+  border: 2px solid var(--track-red-border) !important;
+}
+.dark .track-red .track-text {
+  color: var(--track-red-text) !important;
+}
+
+.dark .track-green {
+  background-color: var(--track-green-bg) !important;
+  border-color: var(--track-green-border) !important;
+  opacity: 0.8 !important;
+}
+.dark .track-green.active {
+  border: 2px solid var(--track-green-border) !important;
+}
+.dark .track-green .track-text {
+  color: var(--track-green-text) !important;
+}
+
+.dark .track-yellow {
+  background-color: var(--track-yellow-bg) !important;
+  border-color: var(--track-yellow-border) !important;
+  opacity: 0.8 !important;
+}
+.dark .track-yellow.active {
+  border: 2px solid var(--track-yellow-border) !important;
+}
+.dark .track-yellow .track-text {
+  color: var(--track-yellow-text) !important;
+}
+
+.dark .btn-toolbar-item {
+  background-color: var(--bg-sidebar) !important;
+  border: 1px solid var(--panel-border) !important;
+  color: var(--text-light) !important;
+}
+.dark .btn-toolbar-item:hover:not(:disabled) {
+  background-color: var(--bg-base) !important;
+  border-color: var(--btn-purple) !important;
+  color: var(--text-light) !important;
+}
+.dark .btn-toolbar-item:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+}
+
+.dark .zoom-slider-housing {
+  background-color: var(--bg-sidebar) !important;
+  border: 1px solid var(--panel-border) !important;
+}
+
+.dark .track-stream-container {
+  background-color: var(--bg-sidebar) !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 10px !important;
+  padding: 12px 14px !important;
+}
+
+.dark .track-ruler-milestones {
+  color: var(--text-gray) !important;
+}
+
+.dark .track-layers-row {
+  background-color: rgba(62, 47, 217, 0.04) !important;
+  border: 1px dashed var(--btn-purple) !important;
+  border-radius: 6px !important;
+}
+
+.dark .slice-handle {
+  background-color: rgba(62, 47, 217, 0.25) !important;
+  color: var(--text-light) !important;
+}
+.dark .slice-handle-left {
+  border-right: 1px solid var(--btn-purple) !important;
+}
+.dark .slice-handle-right {
+  border-left: 1px solid var(--btn-purple) !important;
+}
+
+.dark .width-zoom-block {
+  background-color: var(--track-green-bg) !important;
+  border: 1px solid var(--track-green-border) !important;
+  color: var(--track-green-text) !important;
+}
+
+.dark .width-text-block {
+  background-color: var(--track-yellow-bg) !important;
+  border: 1px solid var(--track-yellow-border) !important;
+  color: var(--track-yellow-text) !important;
+}
+
+.dark .width-trim-block {
+  background-color: var(--track-red-bg) !important;
+  border: 1px solid var(--track-red-border) !important;
+  color: var(--track-red-text) !important;
+}
+
+.dark .timecode-footer-readout {
+  color: var(--btn-purple) !important;
+}

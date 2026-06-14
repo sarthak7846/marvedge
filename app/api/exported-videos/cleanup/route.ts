@@ -46,6 +46,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "exportedUrl is required" }, { status: 400 });
     }
 
+    // Ownership gate: the exportedUrl must belong to the caller. The only server-side
+    // record that ties a freshly-exported (unsaved) Cloudinary URL to a user is the
+    // VideoJob created at /api/jobs/create, so verify against the caller's jobs.
+    const ownedJob = await prisma.videoJob.findFirst({
+      where: { userId, exportedUrl },
+      select: { id: true },
+    });
+
+    if (!ownedJob) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
     if (demoId) {
       const demo = await prisma.demo.findUnique({
         where: { id: demoId },
@@ -64,8 +76,33 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await deleteCloudinaryVideoByUrl(exportedUrl);
-    await deleteCloudinaryVideoByUrl(sourceVideoUrl || null);
+    // Never destroy an asset that a persisted (saved) ExportedVideo still references.
+    const savedReferencingExport = await prisma.exportedVideo.findFirst({
+      where: { exportedUrl },
+      select: { id: true },
+    });
+
+    if (!savedReferencingExport) {
+      await deleteCloudinaryVideoByUrl(exportedUrl);
+    }
+
+    // Only delete the source video if it is also owned by the caller (i.e. it was the
+    // input to one of their jobs) and is not still referenced by a saved export.
+    if (sourceVideoUrl) {
+      const ownsSource = await prisma.videoJob.findFirst({
+        where: { userId, videoUrl: sourceVideoUrl },
+        select: { id: true },
+      });
+      const sourceStillReferenced = await prisma.exportedVideo.findFirst({
+        where: { sourceVideoUrl },
+        select: { id: true },
+      });
+
+      if (ownsSource && !sourceStillReferenced) {
+        await deleteCloudinaryVideoByUrl(sourceVideoUrl);
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to cleanup exported video:", error);

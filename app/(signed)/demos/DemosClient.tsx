@@ -80,7 +80,6 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Initialize immediately from SSR props
   const [demos, setDemos] = useState<Demo[]>(initialDemos);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +88,7 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
   const [sortOption, setSortOption] = useState<"title" | "updatedAt" | "createdAt" | "views">(
     "updatedAt"
   );
-  // Seed durationMap from SSR data (demos that already have duration in DB)
+
   const [durationMap, setDurationMap] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     for (const demo of initialDemos) {
@@ -101,7 +100,6 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
   });
 
   const fetchDurations = useCallback(async (demoList: Demo[]) => {
-    // Only probe demos that don't have a cached duration yet
     const uncached = demoList.filter((d) => !d.duration && d.videoUrl);
     for (const demo of uncached) {
       try {
@@ -118,16 +116,14 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
         const dur = await probeVideoDuration(playableUrl);
         if (dur > 0) {
           setDurationMap((prev) => ({ ...prev, [demo.id]: formatTime(dur) }));
-          // Persist to DB so next load is instant
+
           fetch("/api/demo/duration", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: demo.id, duration: dur }),
           }).catch(() => {});
         }
-      } catch {
-        // skip this demo
-      }
+      } catch {}
     }
   }, []);
 
@@ -154,9 +150,6 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
     }
   };
 
-  // We explicitly DO NOT fetchDemos on mount anymore because Next.js SSR passes initialDemos instantly!
-  // Removed global on-mount useEffect.
-
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
@@ -170,7 +163,6 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filter and Sort demos
   const filteredAndSortedDemos = demos
     .filter(
       (demo) =>
@@ -185,7 +177,7 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
       } else if (sortOption === "createdAt") {
         return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
       } else if (sortOption === "views") {
-        return 0; // Views logic to be implemented on backend
+        return 0;
       }
       return 0;
     });
@@ -200,7 +192,6 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
       demoId: demo.id,
     });
 
-    // Add segments and zoom data if available in editing
     if (demo.editing) {
       if (demo.editing.segments) {
         params.append("segments", JSON.stringify(demo.editing.segments));
@@ -227,7 +218,6 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
         params.append("browserFrame", JSON.stringify(demo.editing.browserFrame));
       }
     } else if (demo.segments) {
-      // fallback for old demos
       params.append("segments", JSON.stringify(demo.segments));
     }
 
@@ -260,10 +250,10 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#F3F0FC]">
-      <div className="bg-[#F3F0FC] rounded-xl p-8">
+    <div className="demos-page min-h-screen bg-[#F3F0FC]">
+      <div className="demos-body rounded-xl p-8">
         <div className="mb-8">
-          <h2 className="text-2xl font-normal text-[#8B8B8B] mb-2">
+          <h2 className="text-2xl font-normal text-[#8B8B8B] dark:text-[var(--text-muted)] mb-2">
             Manage and organize all your interactive demos.
           </h2>
           <div className="flex flex-wrap items-center justify-between mt-6 gap-4">
@@ -272,13 +262,13 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
               placeholder="Search your demos"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 min-w-[300px] px-4 py-3 rounded-lg bg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#A594F9]"
+              className="demos-search flex-1 min-w-[300px] px-4 py-3 rounded-lg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#A594F9]"
             />
 
             <div className="flex items-center gap-6 ml-auto">
               <div className="relative">
                 <button
-                  className="flex items-center gap-2 px-6 py-3 rounded-lg bg-white border border-gray-200 text-[#A594F9] font-medium hover:bg-[#ede7fa]"
+                  className="demos-sort-btn flex items-center gap-2 px-6 py-3 rounded-lg bg-white border border-gray-200 text-[#A594F9] font-medium hover:bg-[#ede7fa]"
                   onClick={() => setSortDropdownOpen((v) => !v)}
                 >
                   <FaSort className="text-lg" /> Sort By
@@ -286,7 +276,7 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
                 {sortDropdownOpen && (
                   <div
                     ref={sortDropdownRef}
-                    className="absolute left-0 top-full mt-2 bg-white rounded-2xl shadow-lg p-4 z-50 border border-gray-100 min-w-[180px] animate-fade-in"
+                    className="demos-dropdown-menu absolute left-0 top-full mt-2 bg-white rounded-2xl shadow-lg p-4 z-50 border border-gray-100 min-w-[180px] animate-fade-in"
                   >
                     <div className="flex flex-col gap-2">
                       <div
@@ -294,7 +284,7 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
                           setSortOption("title");
                           setSortDropdownOpen(false);
                         }}
-                        className={`flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "title" ? "text-purple-700 bg-purple-50" : "text-[#A594F9]"}`}
+                        className={`flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "title" ? "text-purple-700 bg-purple-50 active-sort" : "text-[#A594F9]"}`}
                       >
                         <FaListUl className="text-lg" /> Title
                       </div>
@@ -303,7 +293,7 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
                           setSortOption("updatedAt");
                           setSortDropdownOpen(false);
                         }}
-                        className={`flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "updatedAt" ? "text-purple-700 bg-purple-50" : "text-[#A594F9]"}`}
+                        className={`flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "updatedAt" ? "text-purple-700 bg-purple-50 active-sort" : "text-[#A594F9]"}`}
                       >
                         <FaRegClock className="text-lg" /> Last Updated
                       </div>
@@ -312,7 +302,7 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
                           setSortOption("createdAt");
                           setSortDropdownOpen(false);
                         }}
-                        className={`flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "createdAt" ? "text-purple-700 bg-purple-50" : "text-[#A594F9]"}`}
+                        className={`flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "createdAt" ? "text-purple-700 bg-purple-50 active-sort" : "text-[#A594F9]"}`}
                       >
                         <FaPlusSquare className="text-lg" /> Created date
                       </div>
@@ -321,7 +311,7 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
                           setSortOption("views");
                           setSortDropdownOpen(false);
                         }}
-                        className={`flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "views" ? "text-purple-700 bg-purple-50" : "text-[#A594F9]"}`}
+                        className={`flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "views" ? "text-purple-700 bg-purple-50 active-sort" : "text-[#A594F9]"}`}
                       >
                         <FaEye className="text-lg" /> Views
                       </div>
@@ -331,20 +321,20 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
               </div>
               <div className="flex gap-2">
                 <button
-                  className={`p-3 rounded-lg border ${
+                  className={`p-3 rounded-lg border transition-all ${
                     view === "grid"
-                      ? "bg-[#A594F9] text-white"
-                      : "bg-white text-[#A594F9] border-gray-200"
+                      ? "bg-[#A594F9] text-white dark:bg-[var(--purple-primary)] dark:border-[var(--purple-primary)]"
+                      : "bg-white text-[#A594F9] border-gray-200 dark:bg-[var(--bg-card)] dark:border-[var(--border-primary)] dark:text-[var(--purple-light)]"
                   }`}
                   onClick={() => setView("grid")}
                 >
                   <FaTh className="text-xl" />
                 </button>
                 <button
-                  className={`p-3 rounded-lg border ${
+                  className={`p-3 rounded-lg border transition-all ${
                     view === "list"
-                      ? "bg-[#A594F9] text-white"
-                      : "bg-white text-[#A594F9] border-gray-200"
+                      ? "bg-[#A594F9] text-white dark:bg-[var(--purple-primary)] dark:border-[var(--purple-primary)]"
+                      : "bg-white text-[#A594F9] border-gray-200 dark:bg-[var(--bg-card)] dark:border-[var(--border-primary)] dark:text-[var(--purple-light)]"
                   }`}
                   onClick={() => setView("list")}
                 >
@@ -355,8 +345,10 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
           </div>
         </div>
         <div className="mt-8">
-          <h3 className="text-3xl font-semibold text-[#1A0033] mb-6">Your Demos</h3>
-          <div className="flex justify-end text-[#A594F9] mb-2 font-medium">
+          <h3 className="text-3xl font-semibold text-[#1A0033] dark:text-[var(--text-primary)] mb-6">
+            Your Demos
+          </h3>
+          <div className="flex justify-end text-[#A594F9] dark:text-[var(--purple-light)] mb-2 font-medium">
             {filteredAndSortedDemos.length}/{demos.length} demos
           </div>
           {loading ? (
@@ -376,11 +368,13 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
               {filteredAndSortedDemos.map((demo: Demo) => (
                 <div
                   key={demo.id}
-                  className="bg-white rounded-2xl p-4 flex flex-col h-full shadow-sm cursor-pointer hover:shadow-md transition"
+                  className="demos-card bg-white rounded-2xl p-4 flex flex-col h-full shadow-sm cursor-pointer hover:shadow-md transition"
                   onClick={() => handleEditDemo(demo)}
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <div className="text-2xl text-[#8B8B8B] font-normal">{demo.title}</div>
+                    <div className="text-2xl text-[#8B8B8B] dark:text-[var(--text-primary)] font-normal">
+                      {demo.title}
+                    </div>
                     <button
                       className="text-red-400 hover:text-red-600 text-xl flex-shrink-0"
                       onClick={(e) => {
@@ -406,7 +400,7 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
                       className="w-full h-full object-cover rounded-xl"
                     />
                   </div>
-                  <div className="flex items-center justify-between text-[#8B8B8B] text-base mb-2">
+                  <div className="flex items-center justify-between text-[#8B8B8B] dark:text-[var(--text-soft)] text-base mb-2">
                     <div className="flex items-center gap-2">
                       <FaRegClock className="text-lg" /> {durationMap[demo.id] || "..."}
                     </div>
@@ -415,19 +409,19 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
                     </div>
                     <div>Draft</div>
                   </div>
-                  <div className="text-sm text-[#8B8B8B] truncate">
+                  <div className="text-sm text-[#8B8B8B] dark:text-[var(--text-muted)] truncate">
                     {demo.description || "No description"}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="bg-white rounded-2xl overflow-hidden">
+            <div className="bg-white dark:bg-[var(--bg-card)] dark:border dark:border-[var(--border-primary)] rounded-2xl overflow-hidden">
               <table className="w-full text-left">
-                <thead className="bg-[#F3F0FC] text-[#8B8B8B] text-lg">
+                <thead className="bg-[#F3F0FC] dark:bg-[var(--panel-primary)] text-[#8B8B8B] dark:text-[var(--text-muted)] text-lg">
                   <tr>
                     <th className="py-4 px-6 font-medium">Demos</th>
-                    {/* <th className="py-4 px-6 font-medium">Duration</th> */}
+
                     <th className="py-4 px-6 font-medium">Status</th>
                     <th className="py-4 px-6 font-medium">Updated</th>
                     <th className="py-4 px-6 font-medium text-center">Actions</th>
@@ -437,32 +431,40 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
                   {filteredAndSortedDemos.map((demo: Demo) => (
                     <tr
                       key={demo.id}
-                      className="border-t border-[#F3F0FC] hover:bg-[#F8F6FF] cursor-pointer"
+                      className="border-t border-[#F3F0FC] dark:border-[var(--border-primary)] hover:bg-[#F8F6FF] dark:hover:bg-[var(--active-start)]/30 cursor-pointer"
                       onClick={() => handleEditDemo(demo)}
                     >
                       <td className="py-4 px-6 flex items-center gap-4">
-                        <span className="inline-flex items-center justify-center w-14 h-14 rounded-xl overflow-hidden">
+                        <span className="inline-flex items-center justify-center w-14 h-14 rounded-xl overflow-hidden bg-white dark:bg-gradient-to-br dark:from-[#8a63ff] dark:to-[#5c38f7] border border-[#E9E4F5] dark:border-none shadow-sm shrink-0">
                           <Image
-                            src="/SmallMarvedgeLogo.png"
+                            src="/images/Transparent logo.png"
                             alt="Demo thumbnail"
-                            width={56}
-                            height={56}
-                            className="w-full h-full object-cover"
+                            width={28}
+                            height={28}
+                            className="w-7 h-7 object-contain dark:hidden block"
+                          />
+                          <Image
+                            src="/images/Transparent logo.png"
+                            alt="Demo thumbnail"
+                            width={28}
+                            height={28}
+                            className="w-7 h-7 object-contain brightness-0 invert dark:block hidden"
                           />
                         </span>
                         <div>
-                          <div className="font-semibold text-lg text-[#1A0033]">{demo.title}</div>
-                          <div className="text-[#8B8B8B] text-sm">
+                          <div className="font-semibold text-lg text-[#1A0033] dark:text-[var(--text-primary)]">
+                            {demo.title}
+                          </div>
+                          <div className="text-[#8B8B8B] dark:text-[var(--text-muted)] text-sm">
                             {demo.description || "No description"}
                           </div>
                         </div>
                       </td>
-                      {/* <td className="py-4 px-6 text-[#8B8B8B] font-medium">
-                        {formatTime(demo.startTime)} -{" "}
-                        {formatTime(demo.endTime)}
-                      </td> */}
-                      <td className="py-4 px-6 text-[#8B8B8B] font-medium">Draft</td>
-                      <td className="py-4 px-6 text-[#8B8B8B] font-medium">
+
+                      <td className="py-4 px-6 text-[#8B8B8B] dark:text-[var(--text-soft)] font-medium">
+                        Draft
+                      </td>
+                      <td className="py-4 px-6 text-[#8B8B8B] dark:text-[var(--text-soft)] font-medium">
                         {formatDate(demo.updatedAt)}
                       </td>
                       <td className="py-4 px-6">

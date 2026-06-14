@@ -341,14 +341,14 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F3F0FC]">
-      <div className="flex flex-wrap items-center gap-2 px-2 sm:px-4 md:px-8 pb-3 pt-4 bg-white border-b border-gray-200 overflow-x-auto">
+    <div className="settings-page min-h-screen bg-[#F3F0FC]">
+      <div className="tabs flex flex-wrap items-center gap-2 px-2 sm:px-4 md:px-8 pb-3 pt-4 bg-white border-b border-gray-200 overflow-x-auto">
         {TABS.map((tab) => (
           <button
             key={tab}
-            className={`flex-1 min-w-[120px] px-3 sm:px-6 py-2 border rounded-lg text-base sm:text-lg font-medium transition-colors focus:outline-none whitespace-nowrap ${
+            className={`tab flex-1 min-w-[120px] px-3 sm:px-6 py-2 border rounded-lg text-base sm:text-lg font-medium transition-colors focus:outline-none whitespace-nowrap ${
               activeTab === tab
-                ? "bg-[#7C5CFC] text-white shadow"
+                ? "active bg-[#7C5CFC] text-white shadow"
                 : "bg-transparent text-gray-500 hover:bg-[#ede7fa]"
             }`}
             onClick={() => setActiveTab(tab)}
@@ -365,26 +365,13 @@ const SettingsPage = () => {
             <p className="text-gray-500 mb-6">Manage your profile settings here.</p>
           </div>
           <form
-            className="w-full mx-auto mt-2 mb-12 bg-white rounded-xl border border-[#ede7fa] shadow-none p-4 sm:p-6 md:p-8 lg:p-10 relative"
+            className="card w-full mx-auto mt-2 mb-12 bg-white rounded-xl border border-[#ede7fa] shadow-none p-4 sm:p-6 md:p-8 lg:p-10 relative"
             onSubmit={handleSave}
             noValidate
           >
-            {/* <button
-              type="button"
-              className="absolute top-4 right-4 sm:top-6 sm:right-6 md:top-8 md:right-8 rounded-full p-3  transition-colors shadow-lg flex items-center justify-center w-12 h-12"
-              onClick={() => fileInputRef.current?.click()}
-              title="Edit photo"
-            >
-              <Image
-                src="/icons/lets-icons_edit-fill.png"
-                alt="Edit"
-                width={24}
-                height={24}
-              />
-            </button> */}
             <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 mb-8">
               <div className="w-24 h-24">
-                <div className="w-24 h-24 rounded-full bg-[#F3F0FC] flex items-center justify-center text-3xl font-bold text-[#7C5CFC] border-2 border-[#E0D7FF] cursor-pointer hover:opacity-80 transition-opacity">
+                <div className="avatar-placeholder w-24 h-24 rounded-full bg-[#F3F0FC] flex items-center justify-center text-3xl font-bold text-[#7C5CFC] border-2 border-[#E0D7FF] cursor-pointer hover:opacity-80 transition-opacity">
                   {avatar && avatar.trim() ? (
                     <Image
                       key={avatar}
@@ -413,7 +400,7 @@ const SettingsPage = () => {
                   <button
                     type="button"
                     disabled={isSaving || isUploading}
-                    className="px-5 py-2 rounded-lg bg-white border  text-[#8A76FC] font-semibold shadow hover:bg-[#F3F0FC] transition w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="remove-photo-btn px-5 py-2 rounded-lg bg-white border border-gray-200 text-[#8A76FC] font-semibold shadow hover:bg-[#F3F0FC] transition w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     onClick={handleRemovePhoto}
                   >
                     <Image src="/icons/si_bin-line.png" alt="Remove" width={18} height={18} />
@@ -580,11 +567,11 @@ const SettingsPage = () => {
           <div className="w-full mb-12">
             <h2 className="text-xl sm:text-2xl font-bold mb-4">Data Management</h2>
             <div className="flex flex-col gap-3 sm:gap-4 px-4 sm:px-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#F3F0FC] rounded-lg border border-[#ede7fa] p-4 sm:px-6 sm:py-4 gap-3 sm:gap-4">
+              <div className="card account-card flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#F3F0FC] rounded-lg border border-[#ede7fa] p-4 sm:px-6 sm:py-4 gap-3 sm:gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm sm:text-base text-[#1A0033]">
+                  <h3 className="font-semibold text-sm sm:text-base text-[#1A0033]">
                     Update Password
-                  </div>
+                  </h3>
                   <div className="text-xs sm:text-sm text-gray-500 mt-1">
                     We will send a secure reset link to your email.
                   </div>
@@ -592,24 +579,24 @@ const SettingsPage = () => {
                 <button
                   onClick={handleSendPasswordReset}
                   disabled={isSendingPasswordReset}
-                  className="text-[#7C5CFC] text-sm sm:text-base font-semibold px-4 py-2 rounded-lg border border-[#d9d1fb] bg-white hover:bg-[#ede7fa] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="send-btn text-[#7C5CFC] text-sm sm:text-base font-semibold px-4 py-2 rounded-lg border border-[#d9d1fb] bg-white hover:bg-[#ede7fa] transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSendingPasswordReset ? "Sending..." : "Send Link"}
                 </button>
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-red-50 rounded-lg border border-red-200 p-4 sm:px-6 sm:py-4 gap-3 sm:gap-4">
+              <div className="card delete-card flex flex-col sm:flex-row sm:items-center sm:justify-between bg-red-50 rounded-lg border border-red-200 p-4 sm:px-6 sm:py-4 gap-3 sm:gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm sm:text-base text-[#E53E3E]">
+                  <h3 className="font-semibold text-sm sm:text-base text-[#E53E3E]">
                     Delete Account
-                  </div>
+                  </h3>
                   <div className="text-xs sm:text-sm text-red-400 mt-1">
                     Once you delete the account, your data cannot be retrieved. Be Certain!
                   </div>
                 </div>
                 <button
                   onClick={handleDeleteAccount}
-                  className="text-[#E53E3E] text-xl sm:text-2xl focus:outline-none shrink-0"
+                  className="delete-btn text-[#E53E3E] text-xl sm:text-2xl focus:outline-none shrink-0"
                 >
                   <Image
                     src="/icons/icon2.png"

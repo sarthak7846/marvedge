@@ -48,6 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`overflow-x-hidden ${raleway.variable} ${inter.variable} ${roboto.variable} ${poppins.variable} ${caveat.variable}`}
     >
       <body className="overflow-x-hidden bg-white">

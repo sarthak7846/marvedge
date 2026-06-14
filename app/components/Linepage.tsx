@@ -30,14 +30,12 @@ const Linepage = ({
     const ticks: { value: number; type: string; label?: string }[] = [];
 
     const totalRange = maxValue - minValue;
-    const targetTickCount = 8 * zoomLevel; // Increase with zoom
+    const targetTickCount = 8 * zoomLevel;
     const roughStep = totalRange / targetTickCount;
 
-    // Round major step to nearest integer second >= 1
     const majorStep = Math.max(1, Math.round(roughStep));
 
-    // Always keep an odd number of subdivisions
-    let divisions = 5; // default = 5 ticks (1 major + 4 minors)
+    let divisions = 5;
     if (zoomLevel > 3) {
       divisions = 7;
     }
@@ -49,15 +47,13 @@ const Linepage = ({
     }
 
     const minorStep = majorStep / (divisions - 1);
-    const midIndex = Math.floor(divisions / 2); // middle tick index
+    const midIndex = Math.floor(divisions / 2);
 
-    // Start from nearest major tick
     const startMajorTick = Math.ceil(minValue / majorStep) * majorStep;
 
     for (let v = startMajorTick; v <= maxValue; v += majorStep) {
       ticks.push({ value: v, type: "major", label: formatTime(v) });
 
-      // Add subdivisions
       for (let i = 1; i < divisions; i++) {
         const tickVal = v + i * minorStep;
         if (tickVal < v + majorStep && tickVal < maxValue) {
@@ -68,7 +64,7 @@ const Linepage = ({
         }
       }
     }
-    //console.log("ticks", ticks);
+
     return ticks;
   };
 
@@ -76,7 +72,7 @@ const Linepage = ({
 
   return (
     <div
-      className="relative bg-white h-full select-none"
+      className="relative bg-white dark:bg-[var(--bg-sidebar)] h-full select-none"
       style={{ width }}
       onClick={() => {
         setMode("main");
@@ -85,7 +81,7 @@ const Linepage = ({
       }}
     >
       {ticks.map((tick, index) => {
-        const padding = 20; // space on left & right
+        const padding = 20;
         const paddedWidth = width - padding * 2;
         const positionPx =
           padding + ((tick.value - minValue) / (maxValue - minValue)) * paddedWidth;

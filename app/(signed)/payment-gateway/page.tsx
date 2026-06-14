@@ -23,7 +23,7 @@ function PaymentGatewayContent() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ plan: "pro" }),
       });
       const data = await res.json();
       console.log("Order Data:", data);

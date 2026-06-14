@@ -33,16 +33,27 @@ export async function GET() {
 
 //Current session strategy is set to use jwt, entry in the Session table will only be created when set to "database"
 export async function DELETE(req: NextRequest) {
-  const id = req.nextUrl.searchParams.get("id");
-
-  if (!id) {
-    return NextResponse.json({ message: "Demo Id could not be found." }, { status: 404 });
-  }
-
   try {
-    await prisma.demo.delete({
-      where: { id },
+    const session = await getServerSession(authOptions);
+
+    if (!session || !session.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const id = req.nextUrl.searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ message: "Demo Id could not be found." }, { status: 400 });
+    }
+
+    // Scope the delete to the logged-in user so a demo can only be deleted by its owner.
+    const result = await prisma.demo.deleteMany({
+      where: { id, userId: session.user.id },
     });
+
+    if (result.count === 0) {
+      return NextResponse.json({ error: "Demo not found" }, { status: 404 });
+    }
 
     return NextResponse.json({ message: "Demo deleted successfully" });
   } catch (error) {
