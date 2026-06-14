@@ -11,11 +11,7 @@ const compat = new FlatCompat({
 
 const eslintConfig = [
   ...compat.config({
-    extends: [
-      "next/core-web-vitals",
-      "next/typescript",
-      "plugin:prettier/recommended",
-    ],
+    extends: ["next/core-web-vitals", "next/typescript", "plugin:prettier/recommended"],
     ignorePatterns: ["app/generated/**"],
     rules: {
       // ✅ Prettier formatting rules
@@ -41,6 +37,8 @@ const eslintConfig = [
       // ❌ disable conflicting formatting rules
       indent: "off",
       "max-len": "off",
+
+      "max-lines-per-function": ["warn", { max: 150, skipBlankLines: true, skipComments: true }],
     },
   }),
 ];
