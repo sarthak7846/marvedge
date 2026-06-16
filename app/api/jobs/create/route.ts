@@ -5,6 +5,144 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
 export const maxDuration = 300;
 
+const EXEMPT_EMAILS = [
+  "aryaanandpathak30@gmail.com",
+  "sarthakbehera10@gmail.com",
+  "ashishmishra19122000@gmail.com",
+  "sandipsubham.32@gmail.com",
+  "kanupriya2052017@gmail.com",
+  "rathourrahul21@gmail.com",
+  "ajitkumarshankhwar25@gmail.com",
+  "somyanayak281@gmail.com",
+  "manushichillar412@gmail.com",
+];
+
+// Returns true when the user is allowed to start another export.
+async function isExportAllowed(
+  userId: string,
+  email: string | null | undefined,
+  plan: string | null
+): Promise<boolean> {
+  const isExempt =
+    (email && EXEMPT_EMAILS.includes(email)) || plan === "PRO" || plan === "ENTERPRISE";
+  if (isExempt) {
+    return true;
+  }
+
+  const jobCount = await prisma.videoJob.count({
+    where: { userId, status: "COMPLETED" },
+  });
+  const savedCount = await prisma.exportedVideo.count({
+    where: { userId },
+  });
+  const exportCount = Math.max(jobCount, savedCount);
+
+  return exportCount < 3;
+}
+
+// Dispatches chunked processing to GCP Cloud Run workers and merges the result.
+async function dispatchVideoJob(
+  jobId: string,
+  videoUrl: string,
+  duration: number,
+  normalizedPayload: Record<string, unknown>
+): Promise<void> {
+  try {
+    await prisma.videoJob.update({
+      where: { id: jobId },
+      data: {
+        status: "PROCESSING",
+        progress: 25,
+      },
+    });
+
+    const chunkDuration = 10;
+    const chunksCount = Math.ceil(duration / chunkDuration);
+    const chunkFilenames: string[] = [];
+    const fetchTasks = [];
+
+    for (let i = 0; i < chunksCount; i++) {
+      const startTime = i * chunkDuration;
+      const currentChunkDuration = Math.min(chunkDuration, duration - startTime);
+      const chunkId = `${jobId}_chunk_${String(i).padStart(3, "0")}`;
+      const outputObject = `${chunkId}.mp4`;
+
+      chunkFilenames.push(outputObject);
+
+      // Store a function that RETURNS the promise, but don't call it yet!
+      fetchTasks.push(() =>
+        invokeGcpWorker(
+          {
+            chunkId,
+            recipeId: jobId,
+            outputObject,
+            videoUrl,
+            recipe: normalizedPayload,
+            startTime,
+            duration: currentChunkDuration,
+          },
+          "/process"
+        )
+      );
+    }
+
+    // True Concurrency Queue Logic (Actual Deferred Execution)
+    const MAX_CONCURRENT_CHUNKS = 5;
+    const executing = new Set<Promise<unknown>>();
+    const results = [];
+
+    for (const task of fetchTasks) {
+      const promise = task().finally(() => executing.delete(promise));
+      executing.add(promise);
+      results.push(promise);
+      if (executing.size >= MAX_CONCURRENT_CHUNKS) {
+        await Promise.race(executing);
+      }
+    }
+
+    const completedTasks = await Promise.all(results);
+
+    const validChunkFilenames = (
+      completedTasks as { result?: { skipped?: boolean; processedObject?: string } }[]
+    )
+      .filter((res) => res && res.result && !res.result.skipped)
+      .map((res) => res.result!.processedObject!);
+
+    await prisma.videoJob.update({
+      where: { id: jobId },
+      data: { progress: 80 },
+    });
+
+    const mergeResp = await invokeGcpWorker(
+      {
+        recipeId: jobId,
+        chunkFilenames: validChunkFilenames,
+      },
+      "/merge"
+    );
+
+    const exportedUrl = mergeResp.result?.exportedUrl || null;
+
+    await prisma.videoJob.update({
+      where: { id: jobId },
+      data: {
+        status: "COMPLETED",
+        progress: 100,
+        exportedUrl,
+      },
+    });
+  } catch (dispatchError) {
+    console.error("Job dispatch failed:", dispatchError);
+    await prisma.videoJob.update({
+      where: { id: jobId },
+      data: {
+        status: "FAILED",
+        error: dispatchError instanceof Error ? dispatchError.message : "Dispatch failed",
+      },
+    });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -65,39 +203,14 @@ export async function POST(req: NextRequest) {
 
     const userId = user.id;
 
-    const EXEMPT_EMAILS = [
-      "aryaanandpathak30@gmail.com",
-      "sarthakbehera10@gmail.com",
-      "ashishmishra19122000@gmail.com",
-      "sandipsubham.32@gmail.com",
-      "kanupriya2052017@gmail.com",
-      "rathourrahul21@gmail.com",
-      "ajitkumarshankhwar25@gmail.com",
-      "somyanayak281@gmail.com",
-      "manushichillar412@gmail.com",
-    ];
-
-    const isExempt =
-      (session.user.email && EXEMPT_EMAILS.includes(session.user.email)) ||
-      user.plan === "PRO" ||
-      user.plan === "ENTERPRISE";
-    if (!isExempt) {
-      const jobCount = await prisma.videoJob.count({
-        where: { userId, status: "COMPLETED" },
-      });
-      const savedCount = await prisma.exportedVideo.count({
-        where: { userId },
-      });
-      const exportCount = Math.max(jobCount, savedCount);
-
-      if (exportCount >= 3) {
-        return NextResponse.json(
-          {
-            error: "Free trial limit of 3 exports reached. Please upgrade your plan.",
-          },
-          { status: 403 }
-        );
-      }
+    const exportAllowed = await isExportAllowed(userId, session.user.email, user.plan);
+    if (!exportAllowed) {
+      return NextResponse.json(
+        {
+          error: "Free trial limit of 3 exports reached. Please upgrade your plan.",
+        },
+        { status: 403 }
+      );
     }
 
     // 1. Create a job record in the database
@@ -148,102 +261,7 @@ export async function POST(req: NextRequest) {
     };
 
     // 2. Dispatch to GCP Cloud Run workers (Scatter-Gather)
-    after(async () => {
-      try {
-        await prisma.videoJob.update({
-          where: { id: jobRecord.id },
-          data: {
-            status: "PROCESSING",
-            progress: 25,
-          },
-        });
-
-        const chunkDuration = 10;
-        const chunksCount = Math.ceil(duration / chunkDuration);
-        const chunkFilenames: string[] = [];
-        const fetchTasks = [];
-
-        for (let i = 0; i < chunksCount; i++) {
-          const startTime = i * chunkDuration;
-          const currentChunkDuration = Math.min(chunkDuration, duration - startTime);
-          const chunkId = `${jobRecord.id}_chunk_${String(i).padStart(3, "0")}`;
-          const outputObject = `${chunkId}.mp4`;
-
-          chunkFilenames.push(outputObject);
-
-          // Store a function that RETURNS the promise, but don't call it yet!
-          fetchTasks.push(() =>
-            invokeGcpWorker(
-              {
-                chunkId,
-                recipeId: jobRecord.id,
-                outputObject,
-                videoUrl,
-                recipe: normalizedPayload as unknown as Record<string, unknown>,
-                startTime,
-                duration: currentChunkDuration,
-              },
-              "/process"
-            )
-          );
-        }
-
-        // True Concurrency Queue Logic (Actual Deferred Execution)
-        const MAX_CONCURRENT_CHUNKS = 5;
-        const executing = new Set<Promise<unknown>>();
-        const results = [];
-
-        for (const task of fetchTasks) {
-          const promise = task().finally(() => executing.delete(promise));
-          executing.add(promise);
-          results.push(promise);
-          if (executing.size >= MAX_CONCURRENT_CHUNKS) {
-            await Promise.race(executing);
-          }
-        }
-
-        const completedTasks = await Promise.all(results);
-
-        const validChunkFilenames = (
-          completedTasks as { result?: { skipped?: boolean; processedObject?: string } }[]
-        )
-          .filter((res) => res && res.result && !res.result.skipped)
-          .map((res) => res.result!.processedObject!);
-
-        await prisma.videoJob.update({
-          where: { id: jobRecord.id },
-          data: { progress: 80 },
-        });
-
-        const mergeResp = await invokeGcpWorker(
-          {
-            recipeId: jobRecord.id,
-            chunkFilenames: validChunkFilenames,
-          },
-          "/merge"
-        );
-
-        const exportedUrl = mergeResp.result?.exportedUrl || null;
-
-        await prisma.videoJob.update({
-          where: { id: jobRecord.id },
-          data: {
-            status: "COMPLETED",
-            progress: 100,
-            exportedUrl,
-          },
-        });
-      } catch (dispatchError) {
-        console.error("Job dispatch failed:", dispatchError);
-        await prisma.videoJob.update({
-          where: { id: jobRecord.id },
-          data: {
-            status: "FAILED",
-            error: dispatchError instanceof Error ? dispatchError.message : "Dispatch failed",
-          },
-        });
-      }
-    });
+    after(() => dispatchVideoJob(jobRecord.id, videoUrl, duration, normalizedPayload));
 
     // 3. Return the job ID to the client instantly
     return NextResponse.json({
