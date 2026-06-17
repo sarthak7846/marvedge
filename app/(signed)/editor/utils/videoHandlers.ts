@@ -70,6 +70,103 @@ interface SaveDemoParams {
   onSaveSuccess?: () => void;
 }
 
+async function uploadDemoSourceVideo(videoUrl: string): Promise<string | null> {
+  try {
+    const response = await fetch(videoUrl);
+    if (!response.ok) {
+      throw new Error("Failed to fetch video blob");
+    }
+    const videoBlob = await response.blob();
+    const fixedVideoBlob = await fixWebmDurationIfNeeded(videoBlob);
+
+    console.log("Uploading source video to GCS...");
+    const upload = await uploadBlobToGcs({
+      blob: fixedVideoBlob,
+      filename: "video.webm",
+      kind: "demo-source",
+    });
+    return upload.url;
+  } catch (cloudError) {
+    console.error("Error uploading source video to GCS:", cloudError);
+    toast.dismiss();
+    toast.error("Failed to upload source video");
+    return null;
+  }
+}
+
+interface DemoConflictParams {
+  data: { title: string; description: string };
+  editingToSave: Record<string, unknown>;
+  conflictData: unknown;
+  setSidebarTitle: (title: string) => void;
+  setSidebarDescription: (description: string) => void;
+  setShowSaveDemoModal: (show: boolean) => void;
+  setDemoSaved?: (saved: boolean) => void;
+  setSavedDemoId?: (id: string | null) => void;
+  onSaveSuccess?: () => void;
+}
+
+async function handleDemoConflict({
+  data,
+  editingToSave,
+  conflictData,
+  setSidebarTitle,
+  setSidebarDescription,
+  setShowSaveDemoModal,
+  setDemoSaved,
+  setSavedDemoId,
+  onSaveSuccess,
+}: DemoConflictParams): Promise<void> {
+  console.log("Demo already saved:", conflictData);
+  const existingId = getDemoIdFromApiResponse(conflictData) || undefined;
+  if (existingId) {
+    try {
+      const patchRes = await axios.patch("/api/demo", {
+        id: existingId,
+        title: data.title,
+        description: data.description,
+        editing: editingToSave,
+      });
+      if (setDemoSaved) {
+        setDemoSaved(true);
+      }
+      if (setSavedDemoId) {
+        setSavedDemoId(existingId);
+      }
+      if (onSaveSuccess) {
+        onSaveSuccess();
+      }
+      toast.dismiss();
+      toast.success("Demo updated successfully!");
+      // Ensure sidebar reflects the saved text immediately.
+      setSidebarTitle(data.title);
+      setSidebarDescription(data.description);
+      setShowSaveDemoModal(false);
+      console.log("Demo updated after 409:", patchRes.data);
+      return;
+    } catch (patchErr) {
+      console.error("Failed to update existing demo after 409:", patchErr);
+      toast.dismiss();
+      toast.error("Failed to update demo");
+      throw patchErr;
+    }
+  }
+
+  if (setDemoSaved) {
+    setDemoSaved(true);
+  }
+  const conflictDemoId = getDemoIdFromApiResponse(conflictData);
+  if (setSavedDemoId && conflictDemoId) {
+    setSavedDemoId(conflictDemoId);
+  }
+  if (onSaveSuccess) {
+    onSaveSuccess();
+  }
+  toast.dismiss();
+  toast.warning("This demo has already been saved!");
+  setShowSaveDemoModal(false);
+}
+
 export async function handleSaveDemo(
   data: { title: string; description: string },
   params: SaveDemoParams
@@ -121,28 +218,11 @@ export async function handleSaveDemo(
     // First, upload source video to GCS if it's a blob URL
     let sourceVideoUrl = videoUrl;
     if (!existingDemoId && videoUrl.startsWith("blob:")) {
-      try {
-        // Get the video blob
-        const response = await fetch(videoUrl);
-        if (!response.ok) {
-          throw new Error("Failed to fetch video blob");
-        }
-        const videoBlob = await response.blob();
-        const fixedVideoBlob = await fixWebmDurationIfNeeded(videoBlob);
-
-        console.log("Uploading source video to GCS...");
-        const upload = await uploadBlobToGcs({
-          blob: fixedVideoBlob,
-          filename: "video.webm",
-          kind: "demo-source",
-        });
-        sourceVideoUrl = upload.url;
-      } catch (cloudError) {
-        console.error("Error uploading source video to GCS:", cloudError);
-        toast.dismiss();
-        toast.error("Failed to upload source video");
+      const uploadedUrl = await uploadDemoSourceVideo(videoUrl);
+      if (!uploadedUrl) {
         return;
       }
+      sourceVideoUrl = uploadedUrl;
     }
 
     // Use current segments from the timeline
@@ -191,53 +271,17 @@ export async function handleSaveDemo(
       if (axios.isAxiosError(error)) {
         if (error.response) {
           if (error.response.status === 409) {
-            // Demo already exists
-            console.log("Demo already saved:", error.response.data);
-            const existingId = getDemoIdFromApiResponse(error.response.data) || undefined;
-            if (existingId) {
-              try {
-                const patchRes = await axios.patch("/api/demo", {
-                  id: existingId,
-                  title: data.title,
-                  description: data.description,
-                  editing: editingToSave,
-                });
-                if (setDemoSaved) {
-                  setDemoSaved(true);
-                }
-                if (setSavedDemoId) {
-                  setSavedDemoId(existingId);
-                }
-                if (onSaveSuccess) {
-                  onSaveSuccess();
-                }
-                toast.dismiss();
-                toast.success("Demo updated successfully!");
-                // Ensure sidebar reflects the saved text immediately.
-                setSidebarTitle(data.title);
-                setSidebarDescription(data.description);
-                setShowSaveDemoModal(false);
-                console.log("Demo updated after 409:", patchRes.data);
-                return;
-              } catch (patchErr) {
-                console.error("Failed to update existing demo after 409:", patchErr);
-                toast.dismiss();
-                toast.error("Failed to update demo");
-                throw patchErr;
-              }
-            }
-            if (setDemoSaved) {
-              setDemoSaved(true);
-            }
-            if (setSavedDemoId && error.response.data.demo?.id) {
-              setSavedDemoId(error.response.data.demo.id);
-            }
-            if (onSaveSuccess) {
-              onSaveSuccess();
-            }
-            toast.dismiss();
-            toast.warning("This demo has already been saved!");
-            setShowSaveDemoModal(false);
+            await handleDemoConflict({
+              data,
+              editingToSave,
+              conflictData: error.response.data,
+              setSidebarTitle,
+              setSidebarDescription,
+              setShowSaveDemoModal,
+              setDemoSaved,
+              setSavedDemoId,
+              onSaveSuccess,
+            });
             return;
           }
           console.error(
@@ -545,6 +589,163 @@ async function fetchPublicAssetAsBlob(assetPathOrUrl: string): Promise<Blob> {
   return await resp.blob();
 }
 
+interface ResolveExportBackgroundParams {
+  selectedBackground: string;
+  customBackgroundUrl: string | null;
+  imageMap: Record<string, string>;
+  toastId: string | number;
+}
+
+async function resolveExportBackground({
+  selectedBackground,
+  customBackgroundUrl,
+  imageMap,
+  toastId,
+}: ResolveExportBackgroundParams): Promise<{
+  backgroundToUse: string;
+  resolvedCustomBackgroundUrl: string | null;
+}> {
+  let backgroundToUse = "transparent";
+  let resolvedCustomBackgroundUrl: string | null = null;
+  if (selectedBackground === "custom" && customBackgroundUrl) {
+    try {
+      toast.loading("Uploading custom background...", { id: toastId });
+      const response = await fetch(customBackgroundUrl);
+      if (!response.ok) {
+        throw new Error("Failed to read custom background");
+      }
+      const bgBlob = await response.blob();
+      resolvedCustomBackgroundUrl = await uploadImageBlobToGcs(bgBlob);
+      backgroundToUse = "custom";
+    } catch (bgError) {
+      console.error("Custom background upload failed:", bgError);
+      backgroundToUse = "transparent";
+    }
+  } else if (
+    selectedBackground &&
+    selectedBackground !== "none" &&
+    selectedBackground !== "transparent"
+  ) {
+    // For built-in backgrounds, ensure backend FFmpeg gets a real image input matching frontend selection.
+    const mappedValue = imageMap[selectedBackground];
+    if (mappedValue) {
+      try {
+        toast.loading("Preparing selected background...", { id: toastId });
+        if (mappedValue.toLowerCase().endsWith(".svg")) {
+          const pngBlob = await rasterizeSvgToPngBlob(mappedValue, 1920, 1080);
+          resolvedCustomBackgroundUrl = await uploadImageBlobToGcs(pngBlob);
+        } else {
+          // Public-root images like /staticbackground.jpg etc.
+          const blob = await fetchPublicAssetAsBlob(mappedValue);
+          resolvedCustomBackgroundUrl = await uploadImageBlobToGcs(blob);
+        }
+        backgroundToUse = "custom";
+      } catch (svgBgError) {
+        console.error("Failed to rasterize/upload selected SVG background:", svgBgError);
+        // Fallback to key so worker still applies a deterministic style.
+        backgroundToUse = selectedBackground;
+      }
+    } else {
+      // gradient:* / color:* paths
+      backgroundToUse = selectedBackground;
+    }
+  }
+  return { backgroundToUse, resolvedCustomBackgroundUrl };
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function createMp4Downloader(jobId: string, sidebarTitle: string) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  return async (_url: string) => {
+    const safeName = (sidebarTitle || "Exported_Demo")
+      .replace(/[^\w\s-]/g, "")
+      .trim()
+      .replace(/\s+/g, "_");
+    const filename = `${safeName || "Exported_Demo"}.mp4`;
+    const downloadUrl = `/api/jobs/${jobId}/download?title=${encodeURIComponent(
+      sidebarTitle || "Exported_Demo"
+    )}`;
+
+    try {
+      const response = await fetch(downloadUrl, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`);
+      }
+      const blob = await response.blob();
+      const localUrl = URL.createObjectURL(new Blob([blob], { type: "video/mp4" }));
+      const link = document.createElement("a");
+      link.href = localUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(localUrl);
+    } catch (err) {
+      console.error("Blob download failed, falling back to direct link:", err);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = filename;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+}
+
+interface PollExportJobParams {
+  jobId: string;
+  setProgress: (p: number) => void;
+  toastId: string | number;
+}
+
+async function pollExportJob({
+  jobId,
+  setProgress,
+  toastId,
+}: PollExportJobParams): Promise<string | null> {
+  // Poll for job status every 5s
+  const MAX_POLLS = 180; // 15 minutes max (180 × 5s)
+  for (let pollCount = 0; pollCount < MAX_POLLS; pollCount++) {
+    try {
+      const statusRes = await axios.get(`/api/jobs/${jobId}`);
+      const { state, progress, exportedUrl, error } = statusRes.data;
+
+      if (state === "active" || state === "waiting" || state === "delayed") {
+        setProgress(progress || 0);
+        toast.loading(`Processing... ${progress || 0}%`, { id: toastId });
+        await sleep(5000);
+        continue;
+      }
+
+      if (state === "completed") {
+        if (!exportedUrl) {
+          throw new Error("Export completed but no output URL was returned");
+        }
+        setProgress(100);
+        toast.success("Export complete!", { id: toastId });
+        return exportedUrl;
+      }
+
+      if (state === "failed") {
+        throw new Error(error || "Unknown error");
+      }
+    } catch (err) {
+      console.error("Error polling job status", err);
+      const message = err instanceof Error ? err.message : "Lost connection to processing server";
+      toast.error(`Export failed: ${message}`, { id: toastId });
+      return null;
+    }
+
+    await sleep(5000);
+  }
+
+  toast.error("Export timed out after 15 minutes", { id: toastId });
+  return null;
+}
+
 export const exportVideo = async ({
   videoUrl,
   selectedBackground,
@@ -573,51 +774,12 @@ export const exportVideo = async ({
 
   try {
     let uploadedSourceVideo = false;
-    let backgroundToUse = "transparent";
-    let resolvedCustomBackgroundUrl: string | null = null;
-    if (selectedBackground === "custom" && customBackgroundUrl) {
-      try {
-        toast.loading("Uploading custom background...", { id: toastId });
-        const response = await fetch(customBackgroundUrl);
-        if (!response.ok) {
-          throw new Error("Failed to read custom background");
-        }
-        const bgBlob = await response.blob();
-        resolvedCustomBackgroundUrl = await uploadImageBlobToGcs(bgBlob);
-        backgroundToUse = "custom";
-      } catch (bgError) {
-        console.error("Custom background upload failed:", bgError);
-        backgroundToUse = "transparent";
-      }
-    } else if (
-      selectedBackground &&
-      selectedBackground !== "none" &&
-      selectedBackground !== "transparent"
-    ) {
-      // For built-in backgrounds, ensure backend FFmpeg gets a real image input matching frontend selection.
-      const mappedValue = imageMap[selectedBackground];
-      if (mappedValue) {
-        try {
-          toast.loading("Preparing selected background...", { id: toastId });
-          if (mappedValue.toLowerCase().endsWith(".svg")) {
-            const pngBlob = await rasterizeSvgToPngBlob(mappedValue, 1920, 1080);
-            resolvedCustomBackgroundUrl = await uploadImageBlobToGcs(pngBlob);
-          } else {
-            // Public-root images like /staticbackground.jpg etc.
-            const blob = await fetchPublicAssetAsBlob(mappedValue);
-            resolvedCustomBackgroundUrl = await uploadImageBlobToGcs(blob);
-          }
-          backgroundToUse = "custom";
-        } catch (svgBgError) {
-          console.error("Failed to rasterize/upload selected SVG background:", svgBgError);
-          // Fallback to key so worker still applies a deterministic style.
-          backgroundToUse = selectedBackground;
-        }
-      } else {
-        // gradient:* / color:* paths
-        backgroundToUse = selectedBackground;
-      }
-    }
+    const { backgroundToUse, resolvedCustomBackgroundUrl } = await resolveExportBackground({
+      selectedBackground,
+      customBackgroundUrl,
+      imageMap,
+      toastId,
+    });
 
     toast.loading("Preparing video for backend...", { id: toastId });
 
@@ -677,91 +839,19 @@ export const exportVideo = async ({
     }
 
     toast.loading("Processing video...", { id: toastId });
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const downloadAsMp4 = async (_url: string) => {
-      const safeName = (sidebarTitle || "Exported_Demo")
-        .replace(/[^\w\s-]/g, "")
-        .trim()
-        .replace(/\s+/g, "_");
-      const filename = `${safeName || "Exported_Demo"}.mp4`;
-      const downloadUrl = `/api/jobs/${jobId}/download?title=${encodeURIComponent(
-        sidebarTitle || "Exported_Demo"
-      )}`;
+    const downloadAsMp4 = createMp4Downloader(jobId, sidebarTitle);
 
-      try {
-        const response = await fetch(downloadUrl, { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error(`Download failed: ${response.status}`);
-        }
-        const blob = await response.blob();
-        const localUrl = URL.createObjectURL(new Blob([blob], { type: "video/mp4" }));
-        const link = document.createElement("a");
-        link.href = localUrl;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(localUrl);
-      } catch (err) {
-        console.error("Blob download failed, falling back to direct link:", err);
-        const link = document.createElement("a");
-        link.href = downloadUrl;
-        link.download = filename;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-    };
-
-    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-    // 2. Poll for job status every 5s
-    const MAX_POLLS = 180; // 15 minutes max (180 × 5s)
-    for (let pollCount = 0; pollCount < MAX_POLLS; pollCount++) {
-      try {
-        const statusRes = await axios.get(`/api/jobs/${jobId}`);
-        const { state, progress, exportedUrl, error } = statusRes.data;
-
-        if (state === "active" || state === "waiting" || state === "delayed") {
-          setProgress(progress || 0);
-          toast.loading(`Processing... ${progress || 0}%`, { id: toastId });
-          await sleep(5000);
-          continue;
-        }
-
-        if (state === "completed") {
-          if (!exportedUrl) {
-            throw new Error("Export completed but no output URL was returned");
-          }
-
-          setProgress(100);
-          toast.success("Export complete!", { id: toastId });
-
-          return {
-            exportedUrl,
-            sourceVideoUrl,
-            downloadAsMp4,
-            uploadedSourceVideo,
-          };
-        }
-
-        if (state === "failed") {
-          throw new Error(error || "Unknown error");
-        }
-      } catch (err) {
-        console.error("Error polling job status", err);
-        const message = err instanceof Error ? err.message : "Lost connection to processing server";
-        toast.error(`Export failed: ${message}`, { id: toastId });
-        return null;
-      }
-
-      await sleep(5000);
+    const exportedUrl = await pollExportJob({ jobId, setProgress, toastId });
+    if (!exportedUrl) {
+      return null;
     }
 
-    toast.error("Export timed out after 15 minutes", { id: toastId });
-    return null;
+    return {
+      exportedUrl,
+      sourceVideoUrl,
+      downloadAsMp4,
+      uploadedSourceVideo,
+    };
   } catch (error) {
     console.error("Export error:", error);
     toast.error("Failed to start export", { id: toastId });

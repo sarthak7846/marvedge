@@ -50,6 +50,201 @@ function normalizeBrowserFrameMode(value: string | null): BrowserFrameMode | nul
   return null;
 }
 
+// Resolves a gs:// video URL to a playable URL (or sets the URL directly).
+async function resolvePlayableVideoUrl(
+  urlVideo: string,
+  setVideoUrl: (url: string | null) => void
+): Promise<void> {
+  try {
+    if (!urlVideo.startsWith("gs://")) {
+      setVideoUrl(urlVideo);
+      return;
+    }
+
+    const response = await fetch(`/api/gcs/resolve?url=${encodeURIComponent(urlVideo)}`, {
+      cache: "no-store",
+    });
+    const data = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      playableUrl?: string;
+    };
+    if (response.ok && data.ok && data.playableUrl) {
+      setVideoUrl(data.playableUrl);
+      return;
+    }
+    // Fallback to public URL so we still surface an explicit load failure in UI if resolve fails, but without throwing a scheme error.
+    setVideoUrl(urlVideo.replace("gs://", "https://storage.googleapis.com/"));
+  } catch {
+    setVideoUrl(urlVideo.replace("gs://", "https://storage.googleapis.com/"));
+  }
+}
+
+interface BrowserFrameHandlers {
+  setBrowserFrameMode: (mode: BrowserFrameMode) => void;
+  setBrowserFrameDrawShadow: (enabled: boolean) => void;
+  setBrowserFrameDrawBorder: (enabled: boolean) => void;
+}
+
+function applyBrowserFrameParam(urlBrowserFrame: string, handlers: BrowserFrameHandlers): void {
+  const { setBrowserFrameMode, setBrowserFrameDrawShadow, setBrowserFrameDrawBorder } = handlers;
+  try {
+    const parsed = JSON.parse(urlBrowserFrame) as {
+      mode?: string;
+      drawShadow?: boolean;
+      drawBorder?: boolean;
+    };
+    const mode = normalizeBrowserFrameMode(parsed.mode ?? null);
+    if (mode) {
+      setBrowserFrameMode(mode);
+    }
+    if (typeof parsed.drawShadow === "boolean") {
+      setBrowserFrameDrawShadow(parsed.drawShadow);
+    }
+    if (typeof parsed.drawBorder === "boolean") {
+      setBrowserFrameDrawBorder(parsed.drawBorder);
+    }
+  } catch {
+    const mode = normalizeBrowserFrameMode(urlBrowserFrame);
+    if (mode) {
+      setBrowserFrameMode(mode);
+    }
+  }
+}
+
+// Reads all editor params from the URL and pushes them into editor state.
+function applyEditorUrlParams({
+  params,
+  setVideoUrl,
+  setInputStartTime,
+  setInputEndTime,
+  setTimelineEndTime,
+  setSidebarTitle,
+  setSidebarDescription,
+  setLoadedSegments,
+  setCurrentSegments,
+  setZoomEffects,
+  setSubtitles,
+  setSavedDemoId,
+  setSelectedBackground,
+  setBackgroundType,
+  setTextOverlays,
+  setAspectRatio,
+  setBrowserFrameMode,
+  setBrowserFrameDrawShadow,
+  setBrowserFrameDrawBorder,
+  formatTimeForInput,
+}: UseURLParamsProps): void {
+  if (!params) {
+    return;
+  }
+
+  const urlVideo = params.get("video");
+  const urlStartTime = params.get("startTime");
+  const urlEndTime = params.get("endTime");
+  const urlSegments = params.get("segments");
+  const urlZoom = params.get("zoom");
+  const urlSubtitles = params.get("subtitles");
+  const urlTitle = params.get("title");
+  const urlDescription = params.get("description");
+  const urlDemoId = params.get("demoId");
+  const urlAspectRatio = params.get("aspectRatio");
+  const urlBrowserFrame = params.get("browserFrame");
+  const urlBackground = params.get("background");
+  const urlBackgroundType = params.get("backgroundType");
+  const urlTextOverlays = params.get("textOverlays");
+
+  // These should restore even if the video URL isn't set yet (prevents TDZ/ordering issues).
+  if (urlDemoId) {
+    setSavedDemoId(urlDemoId);
+  }
+  if (urlTitle) {
+    setSidebarTitle(urlTitle);
+  }
+  if (urlDescription) {
+    setSidebarDescription(urlDescription);
+  }
+  if (urlBackground && setSelectedBackground) {
+    setSelectedBackground(urlBackground);
+  }
+  if (urlBackgroundType && setBackgroundType) {
+    setBackgroundType(urlBackgroundType);
+  }
+  if (urlTextOverlays && setTextOverlays) {
+    try {
+      setTextOverlays(JSON.parse(urlTextOverlays));
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!urlVideo) {
+    return;
+  }
+
+  resolvePlayableVideoUrl(urlVideo, setVideoUrl);
+
+  // Set timeline values if provided
+  if (urlStartTime && urlEndTime) {
+    const startSeconds = parseInt(urlStartTime);
+    const endSeconds = parseInt(urlEndTime);
+
+    if (!isNaN(startSeconds) && !isNaN(endSeconds)) {
+      setInputStartTime(formatTimeForInput(startSeconds));
+      setInputEndTime(formatTimeForInput(endSeconds));
+      setTimelineEndTime(endSeconds);
+    }
+  }
+
+  const normalizedAspectRatio = normalizeAspectRatio(urlAspectRatio);
+  if (normalizedAspectRatio) {
+    setAspectRatio(normalizedAspectRatio);
+  }
+  if (urlBrowserFrame) {
+    applyBrowserFrameParam(urlBrowserFrame, {
+      setBrowserFrameMode,
+      setBrowserFrameDrawShadow,
+      setBrowserFrameDrawBorder,
+    });
+  }
+
+  // Load segments if provided
+  if (urlSegments) {
+    try {
+      const segments = JSON.parse(urlSegments);
+      console.log("Loaded segments from URL:", segments);
+      const convertedSegments = segments.map((seg: { start: string; end: string }) => ({
+        start: seg.start,
+        end: seg.end,
+      }));
+      setLoadedSegments(convertedSegments);
+      setCurrentSegments(convertedSegments);
+    } catch (error) {
+      console.error("Error parsing segments from URL:", error);
+    }
+  }
+
+  // Load zoom effects if provided
+  if (urlZoom) {
+    try {
+      const zoom = JSON.parse(urlZoom);
+      console.log("Loaded zoom effects from URL:", zoom);
+      setZoomEffects(zoom);
+    } catch (error) {
+      console.error("Error parsing zoom from URL:", error);
+    }
+  }
+
+  // Load subtitles if provided
+  if (urlSubtitles && setSubtitles) {
+    try {
+      const subs = JSON.parse(urlSubtitles);
+      setSubtitles(subs);
+    } catch (error) {
+      console.error("Error parsing subtitles from URL:", error);
+    }
+  }
+}
+
 export function useURLParams({
   params,
   setVideoUrl,
@@ -73,155 +268,28 @@ export function useURLParams({
   formatTimeForInput,
 }: UseURLParamsProps) {
   useEffect(() => {
-    if (!params) {
-      return;
-    }
-
-    const urlVideo = params.get("video");
-    const urlStartTime = params.get("startTime");
-    const urlEndTime = params.get("endTime");
-    const urlSegments = params.get("segments");
-    const urlZoom = params.get("zoom");
-    const urlSubtitles = params.get("subtitles");
-    const urlTitle = params.get("title");
-    const urlDescription = params.get("description");
-    const urlDemoId = params.get("demoId");
-    const urlAspectRatio = params.get("aspectRatio");
-    const urlBrowserFrame = params.get("browserFrame");
-    const urlBackground = params.get("background");
-    const urlBackgroundType = params.get("backgroundType");
-    const urlTextOverlays = params.get("textOverlays");
-
-    // These should restore even if the video URL isn't set yet (prevents TDZ/ordering issues).
-    if (urlDemoId) {
-      setSavedDemoId(urlDemoId);
-    }
-    if (urlTitle) {
-      setSidebarTitle(urlTitle);
-    }
-    if (urlDescription) {
-      setSidebarDescription(urlDescription);
-    }
-    if (urlBackground && setSelectedBackground) {
-      setSelectedBackground(urlBackground);
-    }
-    if (urlBackgroundType && setBackgroundType) {
-      setBackgroundType(urlBackgroundType);
-    }
-    if (urlTextOverlays && setTextOverlays) {
-      try {
-        setTextOverlays(JSON.parse(urlTextOverlays));
-      } catch {
-        // ignore
-      }
-    }
-
-    if (urlVideo) {
-      const resolvePlayableUrl = async () => {
-        try {
-          if (!urlVideo.startsWith("gs://")) {
-            setVideoUrl(urlVideo);
-            return;
-          }
-
-          const response = await fetch(`/api/gcs/resolve?url=${encodeURIComponent(urlVideo)}`, {
-            cache: "no-store",
-          });
-          const data = (await response.json().catch(() => ({}))) as {
-            ok?: boolean;
-            playableUrl?: string;
-          };
-          if (response.ok && data.ok && data.playableUrl) {
-            setVideoUrl(data.playableUrl);
-            return;
-          }
-          // Fallback to public URL so we still surface an explicit load failure in UI if resolve fails, but without throwing a scheme error.
-          setVideoUrl(urlVideo.replace("gs://", "https://storage.googleapis.com/"));
-        } catch {
-          setVideoUrl(urlVideo.replace("gs://", "https://storage.googleapis.com/"));
-        }
-      };
-
-      resolvePlayableUrl();
-
-      // Set timeline values if provided
-      if (urlStartTime && urlEndTime) {
-        const startSeconds = parseInt(urlStartTime);
-        const endSeconds = parseInt(urlEndTime);
-
-        if (!isNaN(startSeconds) && !isNaN(endSeconds)) {
-          setInputStartTime(formatTimeForInput(startSeconds));
-          setInputEndTime(formatTimeForInput(endSeconds));
-          setTimelineEndTime(endSeconds);
-        }
-      }
-
-      const normalizedAspectRatio = normalizeAspectRatio(urlAspectRatio);
-      if (normalizedAspectRatio) {
-        setAspectRatio(normalizedAspectRatio);
-      }
-      if (urlBrowserFrame) {
-        try {
-          const parsed = JSON.parse(urlBrowserFrame) as {
-            mode?: string;
-            drawShadow?: boolean;
-            drawBorder?: boolean;
-          };
-          const mode = normalizeBrowserFrameMode(parsed.mode ?? null);
-          if (mode) {
-            setBrowserFrameMode(mode);
-          }
-          if (typeof parsed.drawShadow === "boolean") {
-            setBrowserFrameDrawShadow(parsed.drawShadow);
-          }
-          if (typeof parsed.drawBorder === "boolean") {
-            setBrowserFrameDrawBorder(parsed.drawBorder);
-          }
-        } catch {
-          const mode = normalizeBrowserFrameMode(urlBrowserFrame);
-          if (mode) {
-            setBrowserFrameMode(mode);
-          }
-        }
-      }
-
-      // Load segments if provided
-      if (urlSegments) {
-        try {
-          const segments = JSON.parse(urlSegments);
-          console.log("Loaded segments from URL:", segments);
-          const convertedSegments = segments.map((seg: { start: string; end: string }) => ({
-            start: seg.start,
-            end: seg.end,
-          }));
-          setLoadedSegments(convertedSegments);
-          setCurrentSegments(convertedSegments);
-        } catch (error) {
-          console.error("Error parsing segments from URL:", error);
-        }
-      }
-
-      // Load zoom effects if provided
-      if (urlZoom) {
-        try {
-          const zoom = JSON.parse(urlZoom);
-          console.log("Loaded zoom effects from URL:", zoom);
-          setZoomEffects(zoom);
-        } catch (error) {
-          console.error("Error parsing zoom from URL:", error);
-        }
-      }
-
-      // Load subtitles if provided
-      if (urlSubtitles && setSubtitles) {
-        try {
-          const subs = JSON.parse(urlSubtitles);
-          setSubtitles(subs);
-        } catch (error) {
-          console.error("Error parsing subtitles from URL:", error);
-        }
-      }
-    }
+    applyEditorUrlParams({
+      params,
+      setVideoUrl,
+      setInputStartTime,
+      setInputEndTime,
+      setTimelineEndTime,
+      setSidebarTitle,
+      setSidebarDescription,
+      setLoadedSegments,
+      setCurrentSegments,
+      setZoomEffects,
+      setSubtitles,
+      setSavedDemoId,
+      setSelectedBackground,
+      setBackgroundType,
+      setTextOverlays,
+      setAspectRatio,
+      setBrowserFrameMode,
+      setBrowserFrameDrawShadow,
+      setBrowserFrameDrawBorder,
+      formatTimeForInput,
+    });
   }, [
     params,
     setVideoUrl,
