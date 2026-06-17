@@ -7,15 +7,28 @@ import { revalidatePath } from "next/cache";
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || !session.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
     const id = req.nextUrl.searchParams.get("id");
     if (id) {
-      const demo = await prisma.demo.findUnique({ where: { id, userId: user.id } });
-      return demo ? NextResponse.json({ success: true, demo }) : NextResponse.json({ error: "Demo not found" }, { status: 404 });
+      const demo = await prisma.demo.findUnique({
+        where: { id, userId: user.id },
+      });
+      return demo
+        ? NextResponse.json({ success: true, demo })
+        : NextResponse.json({ error: "Demo not found" }, { status: 404 });
     }
-    const demos = await prisma.demo.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" } });
+    const demos = await prisma.demo.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+    });
     return NextResponse.json({ success: true, demos });
   } catch (error) {
     console.error("Error fetching demos:", error);

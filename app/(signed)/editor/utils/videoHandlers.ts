@@ -76,8 +76,6 @@ export async function handleSaveDemo(
 ) {
   const {
     videoUrl,
-    inputStartTime,
-    inputEndTime,
     currentSegments,
     zoomEffects,
     subtitles,
@@ -104,9 +102,6 @@ export async function handleSaveDemo(
   try {
     setSavingDemo(true);
     toast.loading("Saving demo...");
-
-    const startTime = inputStartTime;
-    const endTime = inputEndTime;
 
     // If this is an existing demo, we should only update the existing row's state.
     // Never POST (which can 409) and never re-upload the raw video.
