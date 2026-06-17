@@ -21,7 +21,7 @@ import CustomVideoControls from "@/app/components/CustomVideoControls";
 
 import { useEditor } from "@/app/hooks/useEditor";
 import { useBlobStore } from "@/app/store/blobStore";
-import { useEditorState } from "./hooks/useEditorState";
+import { useEditorState, BrowserFrameMode } from "./hooks/useEditorState";
 import { useURLParams, useFormatTime } from "./hooks/useURLParams";
 import { useVideoDuration } from "./hooks/useVideoDuration";
 import { useFullscreen } from "./hooks/useFullscreen";
@@ -188,11 +188,11 @@ export default function EditorPage() {
 
   const restoreDemoEditing = (ed: {
     segments?: { start: string | number; end: string | number }[];
-    zoom?: unknown[];
+    zoom?: ZoomEffect[];
     background?: string | null;
     backgroundType?: string;
-    subtitles?: unknown[];
-    textOverlays?: unknown[];
+    subtitles?: SubtitleCue[];
+    textOverlays?: TextOverlayItem[];
     aspectRatio?: string;
     browserFrame?: {
       mode?: BrowserFrameMode;
@@ -209,7 +209,12 @@ export default function EditorPage() {
         .filter((s) => !isNaN(s.start) && !isNaN(s.end));
       if (numeric.length > 0) {
         setSegments(numeric);
-        setCurrentSegments(ed.segments);
+        setCurrentSegments(
+          ed.segments.map((s) => ({
+            start: String(s.start),
+            end: String(s.end),
+          }))
+        );
       }
     }
     if (ed.zoom) {
