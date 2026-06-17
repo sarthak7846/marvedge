@@ -433,14 +433,16 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
       <button
         type="button"
         onClick={() => onOpenSaveDemo?.()}
-        disabled={savingDemo}
-        className={`save-btn flex items-center justify-center gap-2 w-full h-[54px] font-semibold rounded-lg shadow transition text-sm ${
+        disabled={savingDemo || demoSaved}
+        className={`flex items-center justify-center gap-2 w-full h-[54px] font-semibold rounded-lg shadow transition text-sm ${
           savingDemo
             ? "bg-[#8A76FC] text-white opacity-70 cursor-not-allowed"
-            : "bg-[#8A76FC] hover:bg-[#7A66EC] text-white"
+            : demoSaved
+              ? "bg-[#A594F9] text-white cursor-not-allowed opacity-80"
+              : "bg-[#8A76FC] hover:bg-[#7A66EC] text-white"
         }`}
       >
-        {savingDemo ? "Saving..." : demoSaved ? "Save Changes" : "Save Demo"}
+        {savingDemo ? "Saving..." : demoSaved ? "Saved" : "Save Demo"}
       </button>
 
       <div className="relative">
