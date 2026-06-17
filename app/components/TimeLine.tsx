@@ -697,16 +697,18 @@ export default function TimelineRuler({
                 newStart = flippedStart;
                 newEnd = flippedEnd;
 
-                setDragState((d) =>
-                  d && d.mode === "edge"
-                    ? {
-                        ...d,
-                        side: "right",
-                        startValue: flippedEnd,
-                        startX: e.clientX,
-                      }
-                    : d
-                );
+                setTimeout(() => {
+                  setDragState((d) =>
+                    d && d.mode === "edge"
+                      ? {
+                          ...d,
+                          side: "right",
+                          startValue: flippedEnd,
+                          startX: e.clientX,
+                        }
+                      : d
+                  );
+                }, 0);
               }
             }
 
@@ -721,16 +723,18 @@ export default function TimelineRuler({
                 newStart = flippedStart;
                 newEnd = flippedEnd;
 
-                setDragState((d) =>
-                  d && d.mode === "edge"
-                    ? {
-                        ...d,
-                        side: "left",
-                        startValue: flippedStart,
-                        startX: e.clientX,
-                      }
-                    : d
-                );
+                setTimeout(() => {
+                  setDragState((d) =>
+                    d && d.mode === "edge"
+                      ? {
+                          ...d,
+                          side: "left",
+                          startValue: flippedStart,
+                          startX: e.clientX,
+                        }
+                      : d
+                  );
+                }, 0);
               }
             }
 

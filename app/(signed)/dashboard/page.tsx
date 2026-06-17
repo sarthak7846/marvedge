@@ -54,6 +54,10 @@ export default async function Page() {
       ? (demo.editing as {
           segments?: unknown;
           zoom?: unknown;
+          subtitles?: unknown;
+          textOverlays?: unknown;
+          background?: string | null;
+          backgroundType?: string;
           aspectRatio?: string;
           browserFrame?: unknown;
         })

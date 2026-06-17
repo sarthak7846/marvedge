@@ -2,28 +2,33 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
+import { revalidatePath } from "next/cache";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-
     if (!session || !session.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
-
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-
+    const id = req.nextUrl.searchParams.get("id");
+    if (id) {
+      const demo = await prisma.demo.findUnique({
+        where: { id, userId: user.id },
+      });
+      return demo
+        ? NextResponse.json({ success: true, demo })
+        : NextResponse.json({ error: "Demo not found" }, { status: 404 });
+    }
     const demos = await prisma.demo.findMany({
-      where: { userId: user.id }, // filter by logged-in user
+      where: { userId: user.id },
       orderBy: { createdAt: "desc" },
     });
-
     return NextResponse.json({ success: true, demos });
   } catch (error) {
     console.error("Error fetching demos:", error);
@@ -155,6 +160,13 @@ export async function PATCH(req: NextRequest) {
 
     if (result.count === 0) {
       return NextResponse.json({ error: "Demo not found" }, { status: 404 });
+    }
+
+    try {
+      revalidatePath("/dashboard");
+      revalidatePath("/demos");
+    } catch (e) {
+      console.warn("Revalidation failed:", e);
     }
 
     return NextResponse.json({ success: true, demo: { id } });

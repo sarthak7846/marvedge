@@ -21,7 +21,7 @@ import CustomVideoControls from "@/app/components/CustomVideoControls";
 
 import { useEditor } from "@/app/hooks/useEditor";
 import { useBlobStore } from "@/app/store/blobStore";
-import { useEditorState } from "./hooks/useEditorState";
+import { useEditorState, BrowserFrameMode } from "./hooks/useEditorState";
 import { useURLParams, useFormatTime } from "./hooks/useURLParams";
 import { useVideoDuration } from "./hooks/useVideoDuration";
 import { useFullscreen } from "./hooks/useFullscreen";
@@ -83,6 +83,7 @@ export default function EditorPage() {
   const isDark = mounted && (theme === "system" ? resolvedTheme : theme) === "dark";
 
   const savedDemosRef = useRef<Set<string>>(new Set());
+  const isEditorInitializedRef = useRef(false);
   // const defaultZoomSeededForVideoRef = useRef<string | null>(null);
   const zoomFocusStageRef = useRef<HTMLDivElement | null>(null);
 
@@ -184,6 +185,110 @@ export default function EditorPage() {
       setSavedDemoId(urlDemoId);
     }
   }, [setParams, setSavedDemoId]);
+
+  const restoreDemoEditing = (ed: {
+    segments?: { start: string | number; end: string | number }[];
+    zoom?: ZoomEffect[];
+    background?: string | null;
+    backgroundType?: string;
+    subtitles?: SubtitleCue[];
+    textOverlays?: TextOverlayItem[];
+    aspectRatio?: string;
+    browserFrame?: {
+      mode?: BrowserFrameMode;
+      drawShadow?: boolean;
+      drawBorder?: boolean;
+    };
+  }) => {
+    if (ed.segments) {
+      const numeric = ed.segments
+        .map((s) => ({
+          start: typeof s.start === "string" ? parseFloat(s.start) : Number(s.start),
+          end: typeof s.end === "string" ? parseFloat(s.end) : Number(s.end),
+        }))
+        .filter((s) => !isNaN(s.start) && !isNaN(s.end));
+      if (numeric.length > 0) {
+        setSegments(numeric);
+        setCurrentSegments(
+          ed.segments.map((s) => ({
+            start: String(s.start),
+            end: String(s.end),
+          }))
+        );
+      }
+    }
+    if (ed.zoom) {
+      setZoomSegments(ed.zoom);
+    }
+    if (ed.background) {
+      setSelectedBackground(ed.background);
+    }
+    if (ed.backgroundType) {
+      setBackgroundType(ed.backgroundType);
+    }
+    if (ed.subtitles) {
+      setSubtitleCues(ed.subtitles);
+    }
+    if (ed.textOverlays) {
+      setTextOverlays(ed.textOverlays);
+    }
+    if (ed.aspectRatio) {
+      setAspectRatio(ed.aspectRatio);
+    }
+    if (ed.browserFrame) {
+      if (ed.browserFrame.mode) {
+        setBrowserFrameMode(ed.browserFrame.mode);
+      }
+      if (typeof ed.browserFrame.drawShadow === "boolean") {
+        setBrowserFrameDrawShadow(ed.browserFrame.drawShadow);
+      }
+      if (typeof ed.browserFrame.drawBorder === "boolean") {
+        setBrowserFrameDrawBorder(ed.browserFrame.drawBorder);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const demoId = editorState.savedDemoId || params?.get("demoId");
+    if (!demoId) {
+      const timer = setTimeout(() => {
+        isEditorInitializedRef.current = true;
+      }, 2000);
+      return () => {
+        clearTimeout(timer);
+      };
+    }
+    let isMounted = true;
+    axios
+      .get(`/api/demo?id=${demoId}`)
+      .then((res) => {
+        if (!isMounted) {
+          return;
+        }
+        const demo = res.data?.demo;
+        if (!demo) {
+          return;
+        }
+        if (demo.title) {
+          setSidebarTitle(demo.title);
+        }
+        if (demo.description) {
+          setSidebarDescription(demo.description || "");
+        }
+        if (demo.editing) {
+          restoreDemoEditing(demo.editing);
+        }
+        setTimeout(() => {
+          if (isMounted) {
+            isEditorInitializedRef.current = true;
+          }
+        }, 1500);
+      })
+      .catch(console.error);
+    return () => {
+      isMounted = false;
+    };
+  }, [editorState.savedDemoId, params]);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -874,6 +979,25 @@ export default function EditorPage() {
       autosaveTimerRef.current = null;
     }
 
+    if (isEditorInitializedRef.current) {
+      toast("You made an edit. It will be autosaved.", {
+        id: "autosave-toast",
+        duration: 3000,
+        className: "toast-autosave-card",
+        style: {
+          background: isDark ? "#0a081a" : "#ffffff",
+          color: "#36b37e",
+          border: "1px solid #36b37e",
+          borderRadius: "8px",
+          padding: "10px 18px",
+          fontSize: "14px",
+          fontWeight: "600",
+          whiteSpace: "nowrap",
+          boxShadow: isDark ? "0 4px 12px rgba(0, 0, 0, 0.5)" : "0 4px 12px rgba(0, 0, 0, 0.05)",
+        },
+      });
+    }
+
     autosaveTimerRef.current = setTimeout(() => {
       void flushAutosave();
     }, 1200);
@@ -899,6 +1023,7 @@ export default function EditorPage() {
     sidebarTitle,
     sidebarDescription,
     flushAutosave,
+    isDark,
   ]);
 
   React.useEffect(() => {

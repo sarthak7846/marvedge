@@ -76,8 +76,6 @@ export async function handleSaveDemo(
 ) {
   const {
     videoUrl,
-    inputStartTime,
-    inputEndTime,
     currentSegments,
     zoomEffects,
     subtitles,
@@ -105,9 +103,6 @@ export async function handleSaveDemo(
     setSavingDemo(true);
     toast.loading("Saving demo...");
 
-    const startTime = inputStartTime;
-    const endTime = inputEndTime;
-
     // If this is an existing demo, we should only update the existing row's state.
     // Never POST (which can 409) and never re-upload the raw video.
     const urlDemoId =
@@ -115,6 +110,13 @@ export async function handleSaveDemo(
         ? new URLSearchParams(window.location.search).get("demoId")
         : null;
     const existingDemoId = savedDemoId ?? urlDemoId ?? null;
+
+    if (existingDemoId) {
+      toast.dismiss();
+      toast.error("This demo has already been saved!");
+      setSavingDemo(false);
+      return;
+    }
 
     // First, upload source video to GCS if it's a blob URL
     let sourceVideoUrl = videoUrl;
@@ -144,15 +146,7 @@ export async function handleSaveDemo(
     }
 
     // Use current segments from the timeline
-    const segmentsToSave =
-      currentSegments.length > 0
-        ? currentSegments
-        : [
-            {
-              start: startTime,
-              end: endTime,
-            },
-          ];
+    const segmentsToSave = currentSegments;
 
     // Call the API to save demo with editing object
     const editingToSave = {
