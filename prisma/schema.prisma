@@ -101,6 +101,8 @@ model Demo {
   exportedVideo ExportedVideo?
   videoJobs     VideoJob[]
   views         View[]
+  ctas          Cta[]
+  ctaClicks     CtaClick[]
 }
 
 model Tutorial {
@@ -179,4 +181,36 @@ model Review {
   content   String
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+}
+
+model Cta {
+  id        String     @id @default(cuid())
+  demoId    String
+  label     String
+  url       String
+  placement String?
+  order     Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  demo      Demo       @relation(fields: [demoId], references: [id], onDelete: Cascade)
+  clicks    CtaClick[]
+
+  @@index([demoId])
+}
+
+model CtaClick {
+  id        String   @id @default(cuid())
+  ctaId     String
+  demoId    String
+  label     String
+  pageType  String   @default("demo")
+  sessionId String?
+  userId    String?
+  referrer  String?
+  timestamp DateTime @default(now())
+  cta       Cta      @relation(fields: [ctaId], references: [id], onDelete: Cascade)
+  demo      Demo     @relation(fields: [demoId], references: [id])
+
+  @@index([demoId, timestamp])
+  @@index([ctaId])
 }
