@@ -77,21 +77,21 @@ const SignUp = () => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full min-h-screen font-sans bg-[#F1ECFF]">
+    <div className="flex flex-col md:flex-row h-full min-h-screen font-sans bg-[#F1ECFF] dark:bg-[#03030b]">
       <div
-        className="md:hidden absolute top-0 left-0 w-full h-20 bg-gradient-to-b from-[#313053] to-[#261753] z-[1000] flex justify-center items-center shadow-lg"
+        className="md:hidden absolute top-0 left-0 w-full h-20 bg-gradient-to-b from-[#313053] to-[#261753] dark:from-[#070710] dark:to-[#03030b] z-[1000] flex justify-center items-center shadow-lg"
         style={{
           borderBottomLeftRadius: "50% 20%",
           borderBottomRightRadius: "50% 20%",
         }}
       >
-        <div className="flex bg-[#313053]/80 backdrop-blur-sm rounded-full p-1.5 shadow-inner">
+        <div className="flex bg-[#313053]/80 dark:bg-[#070710]/80 backdrop-blur-sm rounded-full p-1.5 shadow-inner">
           <button
             onClick={() => router.push("/auth/signin")}
             className={`px-6 py-2 rounded-full transition-all duration-300 transform hover:scale-105 cursor-pointer ${
               pathname === "/auth/signin"
-                ? "bg-gradient-to-r from-[#615fa1] to-[#313053] text-white shadow-md"
-                : "text-gray-300 hover:bg-[#615fa1] hover:text-white"
+                ? "bg-gradient-to-r from-[#615fa1] to-[#313053] dark:from-[#6e43ff] dark:to-[#8f5fff] text-white shadow-md"
+                : "text-gray-300 hover:bg-[#615fa1] dark:hover:bg-[#6e43ff] hover:text-white"
             }`}
           >
             Sign In
@@ -100,8 +100,8 @@ const SignUp = () => {
             onClick={() => router.push("/auth/signup")}
             className={`px-6 py-2 rounded-full transition-all duration-300 transform hover:scale-105 cursor-pointer ${
               pathname === "/auth/signup"
-                ? "bg-gradient-to-r from-[#615fa1] to-[#313053] text-white shadow-md"
-                : "text-gray-300 hover:bg-[#615fa1] hover:text-white"
+                ? "bg-gradient-to-r from-[#615fa1] to-[#313053] dark:from-[#6e43ff] dark:to-[#8f5fff] text-white shadow-md"
+                : "text-gray-300 hover:bg-[#615fa1] dark:hover:bg-[#6e43ff] hover:text-white"
             }`}
           >
             Sign Up
@@ -109,9 +109,9 @@ const SignUp = () => {
         </div>
       </div>
 
-      <div className="hidden md:flex md:w-1/2 relative justify-center items-center overflow-hidden rounded-r-[75px] bg-[#B09EE4]">
+      <div className="hidden md:flex md:w-1/2 relative justify-center items-center overflow-hidden rounded-r-[75px] bg-[#B09EE4] dark:bg-[#6d42ff]">
         <div
-          className={`absolute inset-0 bg-[#261753] rounded-r-[75px] z-0 transition-all duration-700 ease-out ${
+          className={`absolute inset-0 bg-[#261753] dark:bg-gradient-to-b dark:from-[#0a061d] dark:to-[#080513] rounded-r-[75px] z-0 transition-all duration-700 ease-out ${
             animatePanel ? "mr-[20px]" : "mr-[100%]"
           }`}
         />
@@ -129,16 +129,16 @@ const SignUp = () => {
           className="absolute top-4 sm:top-6 left-6 sm:left-10 flex items-center gap-2 sm:gap-3 z-10 cursor-pointer"
         >
           <Image src="/icons/logo.png" alt="Logo" width={28} height={28} />
-          <span className="text-base sm:text-lg font-extrabold tracking-wider text-[#B09EE4]">
+          <span className="text-base sm:text-lg font-extrabold tracking-wider text-[#B09EE4] dark:text-white">
             MARVEDGE
           </span>
         </button>
 
-        <div className="absolute top-1/4 right-1/4 w-3 h-3 bg-white/20 rounded-full animate-pulse hover:scale-150 transition-transform duration-300"></div>
-        <div className="absolute bottom-1/3 left-1/4 w-4 h-4 bg-white/15 rounded-full animate-pulse delay-1000 hover:scale-150 transition-transform duration-300"></div>
-        <div className="absolute top-1/2 left-1/3 w-2 h-2 bg-white/25 rounded-full animate-pulse delay-500 hover:scale-150 transition-transform duration-300"></div>
-        <div className="absolute top-1/5 left-1/5 w-2.5 h-2.5 bg-white/20 rounded-full animate-pulse delay-200 hover:scale-150 transition-transform duration-300"></div>
-        <div className="absolute bottom-1/5 right-1/3 w-3.5 h-3.5 bg-white/15 rounded-full animate-pulse delay-1200 hover:scale-150 transition-transform duration-300"></div>
+        <div className="absolute top-1/4 right-1/4 w-3 h-3 bg-white/20 dark:bg-[#9d6cff] dark:shadow-[0_0_15px_#9d6cff] rounded-full animate-pulse hover:scale-150 transition-transform duration-300"></div>
+        <div className="absolute bottom-1/3 left-1/4 w-4 h-4 bg-white/15 dark:bg-[#9d6cff] dark:shadow-[0_0_15px_#9d6cff] rounded-full animate-pulse delay-1000 hover:scale-150 transition-transform duration-300"></div>
+        <div className="absolute top-1/2 left-1/3 w-2 h-2 bg-white/25 dark:bg-[#9d6cff] dark:shadow-[0_0_15px_#9d6cff] rounded-full animate-pulse delay-500 hover:scale-150 transition-transform duration-300"></div>
+        <div className="absolute top-1/5 left-1/5 w-2.5 h-2.5 bg-white/20 dark:bg-[#9d6cff] dark:shadow-[0_0_15px_#9d6cff] rounded-full animate-pulse delay-200 hover:scale-150 transition-transform duration-300"></div>
+        <div className="absolute bottom-1/5 right-1/3 w-3.5 h-3.5 bg-white/15 dark:bg-[#9d6cff] dark:shadow-[0_0_15px_#9d6cff] rounded-full animate-pulse delay-1200 hover:scale-150 transition-transform duration-300"></div>
       </div>
 
       <div
@@ -152,13 +152,15 @@ const SignUp = () => {
           autoComplete="on"
         >
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-black mb-2">Create your Account</h1>
-            <p className="text-sm text-gray-600 font-semibold">
+            <h1 className="text-2xl sm:text-3xl font-bold text-black dark:text-white mb-2">
+              Create your Account
+            </h1>
+            <p className="text-sm text-gray-600 dark:text-[#9d9db5] font-semibold">
               Already have an account?{" "}
               <button
                 type="button"
                 onClick={() => router.push("/auth/signin")}
-                className="text-[#6356D7] hover:underline font-semibold cursor-pointer"
+                className="text-[#6356D7] dark:text-[#8b5cff] hover:underline font-semibold cursor-pointer"
               >
                 Sign In here.
               </button>
@@ -172,7 +174,7 @@ const SignUp = () => {
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
-            className="w-full p-3 border-2 border-gray-500 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF]"
+            className="w-full p-3 border-2 border-gray-500 dark:border-[#3d2a73] dark:bg-transparent dark:text-white dark:placeholder-[#7f7f96] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] dark:focus:ring-[#8f5fff] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF] dark:hover:border-[#6e43ff]"
           />
 
           <input
@@ -183,7 +185,7 @@ const SignUp = () => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full p-3 border-2 border-gray-500 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF]"
+            className="w-full p-3 border-2 border-gray-500 dark:border-[#3d2a73] dark:bg-transparent dark:text-white dark:placeholder-[#7f7f96] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] dark:focus:ring-[#8f5fff] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF] dark:hover:border-[#6e43ff]"
           />
 
           <div className="relative">
@@ -194,7 +196,7 @@ const SignUp = () => {
               placeholder="Enter Password"
               ref={passwordRef}
               required
-              className="w-full p-3 border-2 border-gray-500 rounded-md text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF]"
+              className="w-full p-3 border-2 border-gray-500 dark:border-[#3d2a73] dark:bg-transparent dark:text-white dark:placeholder-[#7f7f96] rounded-md text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] dark:focus:ring-[#8f5fff] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF] dark:hover:border-[#6e43ff]"
             />
             <button
               type="button"
@@ -218,7 +220,7 @@ const SignUp = () => {
               placeholder="Enter Confirm Password"
               ref={confirmPasswordRef}
               required
-              className="w-full p-3 border-2 border-gray-500 rounded-md text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF]"
+              className="w-full p-3 border-2 border-gray-500 dark:border-[#3d2a73] dark:bg-transparent dark:text-white dark:placeholder-[#7f7f96] rounded-md text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] dark:focus:ring-[#8f5fff] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF] dark:hover:border-[#6e43ff]"
             />
             <button
               type="button"
@@ -233,30 +235,33 @@ const SignUp = () => {
               />
             </button>
           </div>
-          <label className="flex items-center space-x-2 text-sm">
-            <input type="checkbox" className="accent-[#6356D7]" />
-            <span className="font-semibold cursor-pointer">Remember Me</span>
+          <label className="flex items-center space-x-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              className="accent-[#6356D7] dark:accent-[#8f5fff] w-3.5 h-3.5 sm:w-4 sm:h-4"
+            />
+            <span className="font-semibold cursor-pointer dark:text-white">Remember Me</span>
           </label>
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 bg-[#6356D7] text-white rounded-md hover:bg-[#7E5FFF] font-semibold transition-all text-sm shadow-md cursor-pointer"
+            className="w-full py-3 bg-[#6356D7] dark:bg-gradient-to-r dark:from-[#6e43ff] dark:to-[#8f5fff] dark:shadow-[0_0_20px_rgba(120,70,255,0.4)] text-white rounded-md hover:bg-[#7E5FFF] font-semibold transition-all text-sm shadow-md cursor-pointer"
           >
             {isLoading ? "Creating Account..." : "Sign Up"}
           </button>
 
-          <div className="flex items-center gap-4 text-sm text-gray-500">
-            <div className="flex-grow border-t" />
-            <span className="font-semibold">or sign up with</span>
-            <div className="flex-grow border-t" />
+          <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-[#9f9fb6]">
+            <div className="flex-grow border-t dark:border-[#2b2b38]" />
+            <span className="font-semibold dark:text-[#9f9fb6]">or sign up with</span>
+            <div className="flex-grow border-t dark:border-[#2b2b38]" />
           </div>
 
           <div className="flex justify-center">
             <button
               type="button"
               onClick={() => signIn("google")}
-              className="h-[45px] w-[120px] rounded-md border border-[#D5C9FF] bg-[#F1ECFF] shadow-md hover:shadow-lg transition-all duration-300 active:scale-95 hover:scale-105 flex items-center justify-center cursor-pointer"
+              className="h-[45px] w-[120px] rounded-md border border-[#D5C9FF] dark:border-[#2f2f44] bg-[#F1ECFF] dark:bg-[#070710] dark:text-white shadow-md hover:shadow-lg transition-all duration-300 active:scale-95 hover:scale-105 flex items-center justify-center cursor-pointer"
               title="Sign up with Google"
             >
               <Image src="/icons/google.png" alt="Google" width={25} height={25} />

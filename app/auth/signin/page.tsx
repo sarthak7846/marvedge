@@ -125,21 +125,21 @@ const SignIn = () => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen w-full font-sans bg-[#F1ECFF]">
+    <div className="flex flex-col md:flex-row min-h-screen w-full font-sans bg-[#F1ECFF] dark:bg-[#03030b]">
       <div
-        className="md:hidden absolute top-0 left-0 w-full h-20 bg-gradient-to-b from-[#313053] to-[#261753] z-[1000] flex justify-center items-center shadow-lg"
+        className="md:hidden absolute top-0 left-0 w-full h-20 bg-gradient-to-b from-[#313053] to-[#261753] dark:from-[#070710] dark:to-[#03030b] z-[1000] flex justify-center items-center shadow-lg"
         style={{
           borderBottomLeftRadius: "50% 20%",
           borderBottomRightRadius: "50% 20%",
         }}
       >
-        <div className="flex bg-[#313053]/80 backdrop-blur-sm rounded-full p-1.5 shadow-inner">
+        <div className="flex bg-[#313053]/80 dark:bg-[#070710]/80 backdrop-blur-sm rounded-full p-1.5 shadow-inner">
           <button
             onClick={() => router.push("/auth/signin")}
             className={`px-6 py-2 rounded-full transition-all duration-300 transform hover:scale-105 ${
               pathname === "/auth/signin"
-                ? "bg-gradient-to-r from-[#615fa1] to-[#313053] text-white shadow-md"
-                : "text-gray-300 hover:bg-[#615fa1] hover:text-white"
+                ? "bg-gradient-to-r from-[#615fa1] to-[#313053] dark:from-[#6e43ff] dark:to-[#8f5fff] text-white shadow-md"
+                : "text-gray-300 hover:bg-[#615fa1] dark:hover:bg-[#6e43ff] hover:text-white"
             }`}
           >
             Sign In
@@ -148,8 +148,8 @@ const SignIn = () => {
             onClick={() => router.push("/auth/signup")}
             className={`px-6 py-2 rounded-full transition-all duration-300 transform hover:scale-105 ${
               pathname === "/auth/signup"
-                ? "bg-gradient-to-r from-[#615fa1] to-[#313053] text-white shadow-md"
-                : "text-gray-300 hover:bg-[#615fa1] hover:text-white"
+                ? "bg-gradient-to-r from-[#615fa1] to-[#313053] dark:from-[#6e43ff] dark:to-[#8f5fff] text-white shadow-md"
+                : "text-gray-300 hover:bg-[#615fa1] dark:hover:bg-[#6e43ff] hover:text-white"
             }`}
           >
             Sign Up
@@ -168,15 +168,15 @@ const SignIn = () => {
           autoComplete="on"
         >
           <div className="text-center md:text-left">
-            <h1 className="text-2xl sm:text-3xl font-bold text-black mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-black dark:text-white mb-2">
               Sign In to your Account
             </h1>
-            <p className="text-xs sm:text-sm text-gray-600 font-semibold">
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-[#9d9db5] font-semibold">
               Don&apos;t have an account?{" "}
               <button
                 type="button"
                 onClick={() => router.push("/auth/signup")}
-                className="text-[#6356D7] hover:underline font-semibold cursor-pointer"
+                className="text-[#6356D7] dark:text-[#8b5cff] hover:underline font-semibold cursor-pointer"
               >
                 Sign Up here.
               </button>
@@ -188,7 +188,7 @@ const SignIn = () => {
             ref={emailRef}
             name="email"
             autoComplete="username"
-            className="w-full p-2.5 sm:p-3 border-2 border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] text-sm transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF]"
+            className="w-full p-2.5 sm:p-3 border-2 border-gray-500 dark:border-[#3d2a73] dark:bg-transparent dark:text-white dark:placeholder-[#7f7f96] rounded-md focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] dark:focus:ring-[#8f5fff] text-sm transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF] dark:hover:border-[#6e43ff]"
             required
           />
           <div className="relative">
@@ -198,7 +198,7 @@ const SignIn = () => {
               ref={passwordRef}
               name="password"
               autoComplete="current-password"
-              className="w-full p-2.5 sm:p-3 border-2 border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] text-sm pr-10 transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF]"
+              className="w-full p-2.5 sm:p-3 border-2 border-gray-500 dark:border-[#3d2a73] dark:bg-transparent dark:text-white dark:placeholder-[#7f7f96] rounded-md focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] dark:focus:ring-[#8f5fff] text-sm pr-10 transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF] dark:hover:border-[#6e43ff]"
               required
             />
             <button
@@ -217,13 +217,16 @@ const SignIn = () => {
           </div>
           <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center text-xs sm:text-sm">
             <label className="flex items-center space-x-1 mb-2 sm:mb-0 cursor-pointer">
-              <input type="checkbox" className="accent-[#6356D7] w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="font-semibold">Remember Me</span>
+              <input
+                type="checkbox"
+                className="accent-[#6356D7] dark:accent-[#8f5fff] w-3.5 h-3.5 sm:w-4 sm:h-4"
+              />
+              <span className="font-semibold dark:text-white">Remember Me</span>
             </label>
             <button
               type="button"
               onClick={() => router.push("/auth/forgot-password")}
-              className="text-[#6356D7] hover:underline font-bold cursor-pointer"
+              className="text-[#6356D7] dark:text-[#8b5cff] hover:underline font-bold cursor-pointer"
             >
               Forgot password?
             </button>
@@ -231,20 +234,20 @@ const SignIn = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2.5 sm:py-3 cursor-pointer bg-[#6356D7] text-white rounded-md hover:bg-[#7E5FFF] font-semibold transition-all text-sm shadow-md"
+            className="w-full py-2.5 sm:py-3 cursor-pointer bg-[#6356D7] dark:bg-gradient-to-r dark:from-[#6e43ff] dark:to-[#8f5fff] dark:shadow-[0_0_20px_rgba(120,70,255,0.4)] text-white rounded-md hover:bg-[#7E5FFF] font-semibold transition-all text-sm shadow-md"
           >
             {isLoading ? "Signing In..." : "Sign In"}
           </button>
           <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500">
-            <div className="flex-grow border-t" />
-            <span className="font-semibold">or sign in with</span>
-            <div className="flex-grow border-t" />
+            <div className="flex-grow border-t dark:border-[#2b2b38]" />
+            <span className="font-semibold dark:text-[#9f9fb6]">or sign in with</span>
+            <div className="flex-grow border-t dark:border-[#2b2b38]" />
           </div>
           <div className="flex justify-center">
             <button
               type="button"
               onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-              className="h-10 sm:h-[45px] w-[100px] sm:w-[120px] rounded-md border border-[#D5C9FF] bg-[#F1ECFF] shadow-md hover:shadow-lg transition-all duration-300 active:scale-95 hover:scale-105 flex items-center justify-center cursor-pointer"
+              className="h-10 sm:h-[45px] w-[100px] sm:w-[120px] rounded-md border border-[#D5C9FF] dark:border-[#2f2f44] bg-[#F1ECFF] dark:bg-[#070710] shadow-md hover:shadow-lg transition-all duration-300 active:scale-95 hover:scale-105 flex items-center justify-center cursor-pointer"
               title="Sign in with Google"
             >
               <Image
@@ -258,9 +261,9 @@ const SignIn = () => {
           </div>
         </form>
       </div>
-      <div className="hidden md:flex md:w-1/2 relative justify-center items-center overflow-hidden rounded-l-[75px] bg-[#B09EE4]">
+      <div className="hidden md:flex md:w-1/2 relative justify-center items-center overflow-hidden rounded-l-[75px] bg-[#B09EE4] dark:bg-[#6d42ff]">
         <div
-          className={`absolute inset-0 bg-[#261753] rounded-l-[75px] z-0 transition-all duration-700 ease-out ${
+          className={`absolute inset-0 bg-[#261753] dark:bg-gradient-to-b dark:from-[#0a061d] dark:to-[#080513] rounded-l-[75px] z-0 transition-all duration-700 ease-out ${
             animatePanel ? "ml-[20px]" : "ml-[100%]"
           }`}
         />
@@ -279,16 +282,16 @@ const SignIn = () => {
         >
           <Image src="/icons/logo.png" alt="Logo" width={28} height={28} />
 
-          <span className="text-base sm:text-lg font-extrabold tracking-wider text-[#B09EE4]">
+          <span className="text-base sm:text-lg font-extrabold tracking-wider text-[#B09EE4] dark:text-white">
             MARVEDGE
           </span>
         </button>
 
-        <div className="absolute top-1/4 right-1/4 w-3 h-3 bg-white/20 rounded-full animate-pulse hover:scale-150 transition-transform duration-300"></div>
-        <div className="absolute bottom-1/3 left-1/4 w-4 h-4 bg-white/15 rounded-full animate-pulse delay-1000 hover:scale-150 transition-transform duration-300"></div>
-        <div className="absolute top-1/2 left-1/3 w-2 h-2 bg-white/25 rounded-full animate-pulse delay-500 hover:scale-150 transition-transform duration-300"></div>
-        <div className="absolute top-1/5 left-1/5 w-2.5 h-2.5 bg-white/20 rounded-full animate-pulse delay-200 hover:scale-150 transition-transform duration-300"></div>
-        <div className="absolute bottom-1/5 right-1/3 w-3.5 h-3.5 bg-white/15 rounded-full animate-pulse delay-1200 hover:scale-150 transition-transform duration-300"></div>
+        <div className="absolute top-1/4 right-1/4 w-3 h-3 bg-white/20 dark:bg-[#9d6cff] dark:shadow-[0_0_15px_#9d6cff] rounded-full animate-pulse hover:scale-150 transition-transform duration-300"></div>
+        <div className="absolute bottom-1/3 left-1/4 w-4 h-4 bg-white/15 dark:bg-[#9d6cff] dark:shadow-[0_0_15px_#9d6cff] rounded-full animate-pulse delay-1000 hover:scale-150 transition-transform duration-300"></div>
+        <div className="absolute top-1/2 left-1/3 w-2 h-2 bg-white/25 dark:bg-[#9d6cff] dark:shadow-[0_0_15px_#9d6cff] rounded-full animate-pulse delay-500 hover:scale-150 transition-transform duration-300"></div>
+        <div className="absolute top-1/5 left-1/5 w-2.5 h-2.5 bg-white/20 dark:bg-[#9d6cff] dark:shadow-[0_0_15px_#9d6cff] rounded-full animate-pulse delay-200 hover:scale-150 transition-transform duration-300"></div>
+        <div className="absolute bottom-1/5 right-1/3 w-3.5 h-3.5 bg-white/15 dark:bg-[#9d6cff] dark:shadow-[0_0_15px_#9d6cff] rounded-full animate-pulse delay-1200 hover:scale-150 transition-transform duration-300"></div>
       </div>
     </div>
   );

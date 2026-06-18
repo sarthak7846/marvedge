@@ -240,16 +240,18 @@ const Hero: React.FC = () => {
             alt="Interactive demo showcase"
             width={1200}
             height={600}
-            className="w-full h-auto object-cover dark:hidden"
+            className="w-full h-auto dark:hidden"
             priority
+            unoptimized
           />
           <Image
             src="/images/landing_image_dark.png"
             alt="Interactive demo showcase dark"
             width={1200}
             height={600}
-            className="w-full h-auto object-cover hidden dark:block"
+            className="w-full h-auto hidden dark:block"
             priority
+            unoptimized
           />
         </motion.div>
       </div>
