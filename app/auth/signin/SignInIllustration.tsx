@@ -1,0 +1,45 @@
+"use client";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import AuthPulseDots from "@/app/components/AuthPulseDots";
+
+type SignInIllustrationProps = {
+  animatePanel: boolean;
+};
+
+const SignInIllustration = ({ animatePanel }: SignInIllustrationProps) => {
+  const router = useRouter();
+
+  return (
+    <div className="hidden md:flex md:w-1/2 relative justify-center items-center overflow-hidden rounded-l-[75px] bg-[#B09EE4]">
+      <div
+        className={`absolute inset-0 bg-[#261753] rounded-l-[75px] z-0 transition-all duration-700 ease-out ${
+          animatePanel ? "ml-[20px]" : "ml-[100%]"
+        }`}
+      />
+      <div className="relative z-10 px-6 sm:px-8">
+        <Image
+          src="/icons/login-vector.svg"
+          alt="Login Illustration"
+          width={400}
+          height={400}
+          className="max-w-full h-auto"
+        />
+      </div>
+      <button
+        onClick={() => router.push("/")}
+        className="absolute top-4 sm:top-6 right-6 sm:right-10 flex items-center gap-2 sm:gap-3 z-10 cursor-pointer"
+      >
+        <Image src="/icons/logo.png" alt="Logo" width={28} height={28} />
+
+        <span className="text-base sm:text-lg font-extrabold tracking-wider text-[#B09EE4]">
+          MARVEDGE
+        </span>
+      </button>
+
+      <AuthPulseDots />
+    </div>
+  );
+};
+
+export default SignInIllustration;

@@ -6,16 +6,220 @@ import { motion, useInView, useScroll, useTransform, easeOut } from "framer-moti
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
+const textSegments = [
+  { text: "Turn ", color: "text-[#494369]" },
+  { text: "Clicks", color: "text-[#261753]" },
+  { text: " Into Customers with", color: "text-[#494369]" },
+  { text: "Interactive Demos", color: "text-[#8A76FC]/70" },
+];
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const letterVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.2 } },
+};
+
+const fadeInUp = {
+  hidden: { opacity: 0, y: 60, rotateX: -15 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    rotateX: 0,
+    transition: { duration: 0.8, ease: easeOut },
+  },
+};
+
+const fadeInLeft = {
+  hidden: { opacity: 0, x: -60, rotateY: -15 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    rotateY: 0,
+    transition: { duration: 0.8, ease: easeOut },
+  },
+};
+
+const HeroBlobs: React.FC = () => (
+  <>
+    <motion.div
+      className="absolute bottom-40 left-1/4 w-8 sm:w-12 h-8 sm:h-12 bg-green-200 rounded-full opacity-20"
+      animate={{
+        scale: [1, 1.3, 1],
+        x: [0, 40, 0],
+        rotate: [0, 90, 180],
+      }}
+      transition={{
+        duration: 7,
+        repeat: Infinity,
+        ease: "easeInOut",
+      }}
+    />
+
+    <motion.div
+      className="absolute top-[55%] left-[22%] w-48 sm:w-[200px] h-48 sm:h-[200px] rounded-full pointer-events-none"
+      style={{
+        background: "radial-gradient(circle, #8A76FC 0%, transparent 45%)",
+        filter: "blur(60px)",
+        transform: "translate(-50%, -50%)",
+        opacity: 0.57,
+      }}
+      animate={{
+        scale: [1, 1.15, 1],
+        y: [0, 15, 0],
+      }}
+      transition={{
+        duration: 6,
+        repeat: Infinity,
+        ease: "easeInOut",
+      }}
+    />
+  </>
+);
+
+const HeroEllipses: React.FC = () => (
+  <>
+    <div className="absolute top-[-20%] left-1/2 transform -translate-x-1/2 w-full max-w-4xl pointer-events-none z-0">
+      <Image
+        src="/Ellipse 29.png"
+        alt="Background ellipse center"
+        width={600}
+        height={600}
+        className="w-full h-auto"
+      />
+    </div>
+
+    <div className="absolute top-[-10%] left-[-15%] w-full max-w-4xl pointer-events-none z-0">
+      <Image
+        src="/Ellipse 29.png"
+        alt="Background ellipse left"
+        width={600}
+        height={600}
+        className="w-full h-auto"
+      />
+    </div>
+
+    <div className="absolute top-[-30%] right-[-15%] w-full max-w-4xl pointer-events-none z-0">
+      <Image
+        src="/Ellipse 29.png"
+        alt="Background ellipse right"
+        width={600}
+        height={600}
+        className="w-full h-auto"
+      />
+    </div>
+  </>
+);
+
+const HeroHeading: React.FC<{ isInView: boolean }> = ({ isInView }) => (
+  <motion.h1
+    className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold leading-tight"
+    style={{
+      fontFamily: "var(--font-raleway)",
+      fontWeight: 900,
+      lineHeight: "1.2",
+      letterSpacing: "0%",
+    }}
+    variants={containerVariants}
+    initial="hidden"
+    animate={isInView ? "visible" : "hidden"}
+    aria-label="Hero heading"
+  >
+    {textSegments.map((segment, segmentIndex) => (
+      <span key={segmentIndex} className={segment.color}>
+        {segment.text.split("").map((char, charIndex) => (
+          <motion.span key={`${segmentIndex}-${charIndex}`} variants={letterVariants}>
+            {char === " " ? "\u00A0" : char}
+          </motion.span>
+        ))}
+        {segmentIndex === 2 ? <br /> : null}
+      </span>
+    ))}
+  </motion.h1>
+);
+
+const HeroActions: React.FC<{
+  isInView: boolean;
+  actionButtonText: string;
+  onActionClick: () => void;
+  onExploreClick: () => void;
+}> = ({ isInView, actionButtonText, onActionClick, onExploreClick }) => (
+  <motion.div
+    className="mt-4 sm:mt-10 flex flex-col sm:flex-row gap-4 sm:gap-5 justify-center items-center"
+    variants={fadeInUp}
+    initial="hidden"
+    animate={isInView ? "visible" : "hidden"}
+  >
+    <motion.button
+      onClick={onActionClick}
+      className="flex items-center justify-center cursor-pointer gap-2 bg-[#8A76FC] hover:bg-[#7563E8] text-white px-8 sm:px-12 py-3 sm:py-4 rounded-lg font-semibold text-base sm:text-lg transition whitespace-nowrap"
+      style={{ fontFamily: "var(--font-raleway)", fontWeight: 500 }}
+      whileHover={{ scale: 1.05, y: -2 }}
+      whileTap={{ scale: 0.95 }}
+    >
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 20 20"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path d="M4 2L16 10L4 18V2Z" fill="white" />
+      </svg>
+      {actionButtonText}
+    </motion.button>
+    <motion.button
+      onClick={onExploreClick}
+      className="flex items-center justify-center cursor-pointer gap-2 border-2 border-gray-300 bg-white shadow-md px-8 sm:px-12 py-3 sm:py-4 rounded-lg text-[#261753] text-base sm:text-lg font-semibold hover:shadow-lg transition whitespace-nowrap"
+      style={{ fontFamily: "var(--font-raleway)", fontWeight: 500 }}
+      whileHover={{ scale: 1.05, y: -2 }}
+      whileTap={{ scale: 0.95 }}
+      transition={{ duration: 0.1 }}
+    >
+      <Image src="/ri_gemini-fill.png" alt="Explore Examples" width={20} height={20} />
+      Book a Demo
+    </motion.button>
+  </motion.div>
+);
+
+const HeroImage: React.FC<{ isInView: boolean }> = ({ isInView }) => (
+  <motion.div
+    className="w-full mt-2 sm:mt-3 md:mt-4 rounded-4xl overflow-hidden"
+    variants={fadeInUp}
+    initial="hidden"
+    animate={isInView ? "visible" : "hidden"}
+    aria-label="Landing page hero image"
+  >
+    <Image
+      src="/images/landing_image.png"
+      alt="Interactive demo showcase"
+      width={1200}
+      height={600}
+      className="w-full h-auto object-cover dark:hidden"
+      priority
+    />
+    <Image
+      src="/images/landing_image_dark.png"
+      alt="Interactive demo showcase dark"
+      width={1200}
+      height={600}
+      className="w-full h-auto object-cover hidden dark:block"
+      priority
+    />
+  </motion.div>
+);
+
 const Hero: React.FC = () => {
   const router = useRouter();
   const { status } = useSession();
-
-  const textSegments = [
-    { text: "Turn ", color: "text-[#494369]" },
-    { text: "Clicks", color: "text-[#261753]" },
-    { text: " Into Customers with", color: "text-[#494369]" },
-    { text: "Interactive Demos", color: "text-[#8A76FC]/70" },
-  ];
 
   const handleActionButtonClick = () => {
     if (status === "authenticated") {
@@ -43,110 +247,16 @@ const Hero: React.FC = () => {
 
   const y1 = useTransform(scrollYProgress, [0, 1], [0, -100]);
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  };
-
-  const letterVariants = {
-    hidden: { opacity: 0, y: 10 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.2 } },
-  };
-
-  const fadeInUp = {
-    hidden: { opacity: 0, y: 60, rotateX: -15 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      rotateX: 0,
-      transition: { duration: 0.8, ease: easeOut },
-    },
-  };
-
-  const fadeInLeft = {
-    hidden: { opacity: 0, x: -60, rotateY: -15 },
-    visible: {
-      opacity: 1,
-      x: 0,
-      rotateY: 0,
-      transition: { duration: 0.8, ease: easeOut },
-    },
-  };
-
   return (
     <section
       ref={ref}
       className="min-h-screen pt-48 sm:pt-32 md:pt-32 lg:pt-[170px] pb-4 bg-white relative overflow-hidden z-0"
       style={{ zIndex: 0 }}
     >
-      <motion.div
-        className="absolute bottom-40 left-1/4 w-8 sm:w-12 h-8 sm:h-12 bg-green-200 rounded-full opacity-20"
-        animate={{
-          scale: [1, 1.3, 1],
-          x: [0, 40, 0],
-          rotate: [0, 90, 180],
-        }}
-        transition={{
-          duration: 7,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-      />
-
-      <motion.div
-        className="absolute top-[55%] left-[22%] w-48 sm:w-[200px] h-48 sm:h-[200px] rounded-full pointer-events-none"
-        style={{
-          background: "radial-gradient(circle, #8A76FC 0%, transparent 45%)",
-          filter: "blur(60px)",
-          transform: "translate(-50%, -50%)",
-          opacity: 0.57,
-        }}
-        animate={{
-          scale: [1, 1.15, 1],
-          y: [0, 15, 0],
-        }}
-        transition={{
-          duration: 6,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-      />
+      <HeroBlobs />
 
       <div className="w-full px-3 sm:px-4 md:px-6 lg:max-w-6xl lg:mx-auto flex flex-col items-center text-center relative">
-        <div className="absolute top-[-20%] left-1/2 transform -translate-x-1/2 w-full max-w-4xl pointer-events-none z-0">
-          <Image
-            src="/Ellipse 29.png"
-            alt="Background ellipse center"
-            width={600}
-            height={600}
-            className="w-full h-auto"
-          />
-        </div>
-
-        <div className="absolute top-[-10%] left-[-15%] w-full max-w-4xl pointer-events-none z-0">
-          <Image
-            src="/Ellipse 29.png"
-            alt="Background ellipse left"
-            width={600}
-            height={600}
-            className="w-full h-auto"
-          />
-        </div>
-
-        <div className="absolute top-[-30%] right-[-15%] w-full max-w-4xl pointer-events-none z-0">
-          <Image
-            src="/Ellipse 29.png"
-            alt="Background ellipse right"
-            width={600}
-            height={600}
-            className="w-full h-auto"
-          />
-        </div>
+        <HeroEllipses />
 
         <motion.div
           className="w-full relative z-10"
@@ -155,30 +265,7 @@ const Hero: React.FC = () => {
           animate={isInView ? "visible" : "hidden"}
           style={{ y: y1 }}
         >
-          <motion.h1
-            className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold leading-tight"
-            style={{
-              fontFamily: "var(--font-raleway)",
-              fontWeight: 900,
-              lineHeight: "1.2",
-              letterSpacing: "0%",
-            }}
-            variants={containerVariants}
-            initial="hidden"
-            animate={isInView ? "visible" : "hidden"}
-            aria-label="Hero heading"
-          >
-            {textSegments.map((segment, segmentIndex) => (
-              <span key={segmentIndex} className={segment.color}>
-                {segment.text.split("").map((char, charIndex) => (
-                  <motion.span key={`${segmentIndex}-${charIndex}`} variants={letterVariants}>
-                    {char === " " ? "\u00A0" : char}
-                  </motion.span>
-                ))}
-                {segmentIndex === 2 ? <br /> : null}
-              </span>
-            ))}
-          </motion.h1>
+          <HeroHeading isInView={isInView} />
           <motion.p
             className="mt-1 sm:mt-1 text-gray-600 text-base sm:text-lg max-w-2xl mx-auto"
             style={{ fontFamily: "var(--font-raleway)", fontWeight: 400 }}
@@ -190,70 +277,15 @@ const Hero: React.FC = () => {
             convert.
           </motion.p>
 
-          <motion.div
-            className="mt-4 sm:mt-10 flex flex-col sm:flex-row gap-4 sm:gap-5 justify-center items-center"
-            variants={fadeInUp}
-            initial="hidden"
-            animate={isInView ? "visible" : "hidden"}
-          >
-            <motion.button
-              onClick={handleActionButtonClick}
-              className="flex items-center justify-center cursor-pointer gap-2 bg-[#8A76FC] hover:bg-[#7563E8] text-white px-8 sm:px-12 py-3 sm:py-4 rounded-lg font-semibold text-base sm:text-lg transition whitespace-nowrap"
-              style={{ fontFamily: "var(--font-raleway)", fontWeight: 500 }}
-              whileHover={{ scale: 1.05, y: -2 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 20 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path d="M4 2L16 10L4 18V2Z" fill="white" />
-              </svg>
-              {actionButtonText}
-            </motion.button>
-            <motion.button
-              onClick={handleExploreExamplesClick}
-              className="flex items-center justify-center cursor-pointer gap-2 border-2 border-gray-300 bg-white shadow-md px-8 sm:px-12 py-3 sm:py-4 rounded-lg text-[#261753] text-base sm:text-lg font-semibold hover:shadow-lg transition whitespace-nowrap"
-              style={{ fontFamily: "var(--font-raleway)", fontWeight: 500 }}
-              whileHover={{ scale: 1.05, y: -2 }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ duration: 0.1 }}
-            >
-              <Image src="/ri_gemini-fill.png" alt="Explore Examples" width={20} height={20} />
-              Book a Demo
-            </motion.button>
-          </motion.div>
+          <HeroActions
+            isInView={isInView}
+            actionButtonText={actionButtonText}
+            onActionClick={handleActionButtonClick}
+            onExploreClick={handleExploreExamplesClick}
+          />
         </motion.div>
 
-        <motion.div
-          className="w-full mt-2 sm:mt-3 md:mt-4 rounded-4xl overflow-hidden"
-          variants={fadeInUp}
-          initial="hidden"
-          animate={isInView ? "visible" : "hidden"}
-          aria-label="Landing page hero image"
-        >
-          <Image
-            src="/images/landing_image.png"
-            alt="Interactive demo showcase"
-            width={1200}
-            height={600}
-            className="w-full h-auto dark:hidden"
-            priority
-            unoptimized
-          />
-          <Image
-            src="/images/landing_image_dark.png"
-            alt="Interactive demo showcase dark"
-            width={1200}
-            height={600}
-            className="w-full h-auto hidden dark:block"
-            priority
-            unoptimized
-          />
-        </motion.div>
+        <HeroImage isInView={isInView} />
       </div>
     </section>
   );

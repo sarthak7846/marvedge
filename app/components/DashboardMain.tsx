@@ -20,6 +20,10 @@ interface Demo {
   editing?: {
     segments?: unknown;
     zoom?: unknown;
+    subtitles?: unknown;
+    textOverlays?: unknown;
+    background?: string | null;
+    backgroundType?: string;
     aspectRatio?: string;
     browserFrame?: unknown;
   };
@@ -56,6 +60,7 @@ const DashboardMain = ({
       ...(demo.endTime && { endTime: demo.endTime }),
       title: demo.title || "",
       description: demo.description || "",
+      demoId: demo.id,
     });
 
     if (demo.editing) {
@@ -64,6 +69,18 @@ const DashboardMain = ({
       }
       if (demo.editing.zoom) {
         params.append("zoom", JSON.stringify(demo.editing.zoom));
+      }
+      if (demo.editing.subtitles) {
+        params.append("subtitles", JSON.stringify(demo.editing.subtitles));
+      }
+      if (demo.editing.textOverlays) {
+        params.append("textOverlays", JSON.stringify(demo.editing.textOverlays));
+      }
+      if (typeof demo.editing.background !== "undefined" && demo.editing.background !== null) {
+        params.append("background", String(demo.editing.background));
+      }
+      if (demo.editing.backgroundType) {
+        params.append("backgroundType", demo.editing.backgroundType);
       }
       if (demo.editing.aspectRatio) {
         params.append("aspectRatio", demo.editing.aspectRatio);

@@ -267,6 +267,120 @@ const WaitlistSection: React.FC = () => {
   );
 };
 
+const FooterBrandContent: React.FC<{ isInView: boolean }> = ({ isInView }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 60 }}
+    animate={{
+      opacity: isInView ? 1 : 0,
+      y: isInView ? 0 : 60,
+    }}
+    transition={{
+      duration: 0.8,
+      ease: easeOut,
+      delay: 0.2,
+    }}
+  >
+    <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
+      <div className="footer-logo-box flex items-center justify-center w-14 h-14 rounded-[15px] border border-[rgba(139,92,255,0.28)] bg-[rgba(14,16,36,0.7)] shrink-0">
+        <Image
+          src="/images/Logo.png"
+          alt="Marvedge Logo"
+          width={28}
+          height={28}
+          className="w-7 h-7 object-contain dark:hidden"
+        />
+        <Image
+          src="/images/logo_dark.png"
+          alt="Marvedge Logo dark"
+          width={28}
+          height={28}
+          className="w-7 h-7 object-contain hidden dark:block"
+        />
+      </div>
+      <h2
+        className="brand text-white text-lg sm:text-xl md:text-2xl font-semibold flex items-center gap-1.5"
+        style={{ fontFamily: "var(--font-raleway)" }}
+      >
+        MAR <strong className="text-white">VEDGE</strong>
+      </h2>
+    </div>
+    <p
+      className="text-gray-300 text-xs sm:text-sm md:text-base max-w-xs sm:max-w-sm"
+      style={{ fontFamily: "var(--font-raleway)" }}
+    >
+      Transform your product URLs into compelling demo videos with the power of AI. Boost
+      conversations and save time with automated video creation.
+    </p>
+  </motion.div>
+);
+
+const FooterSocials: React.FC<{ isInView: boolean }> = ({ isInView }) => (
+  <motion.div
+    className="sm:shrink-0 sm:ml-auto  flex justify-end shrink-0"
+    initial={{ opacity: 0, y: 60 }}
+    animate={{
+      opacity: isInView ? 1 : 0,
+      y: isInView ? 0 : 60,
+    }}
+    transition={{
+      duration: 0.8,
+      ease: easeOut,
+      delay: 0.6,
+    }}
+  >
+    <motion.div
+      className="flex gap-4 sm:gap-5 md:gap-6"
+      initial={{ opacity: 0, y: 30 }}
+      animate={{
+        opacity: isInView ? 1 : 0,
+        y: isInView ? 0 : 30,
+      }}
+      transition={{
+        duration: 0.8,
+        ease: easeOut,
+        delay: 0.7,
+      }}
+    >
+      {socialIcons.map((icon, index) => (
+        <SocialIcon key={index} image={icon.image} url={icon.url} label={icon.label} />
+      ))}
+    </motion.div>
+  </motion.div>
+);
+
+const FooterCopyright: React.FC<{ isInView: boolean }> = ({ isInView }) => (
+  <motion.footer
+    className="copyright w-full max-w-7xl mx-auto flex flex-col items-center pt-6 pb-8 px-3 sm:px-4 border-t border-[rgba(165,139,255,0.12)] relative z-10 mt-8"
+    initial={{ opacity: 0, y: 60 }}
+    animate={{
+      opacity: isInView ? 1 : 0,
+      y: isInView ? 0 : 60,
+    }}
+    transition={{
+      duration: 0.8,
+      ease: easeOut,
+      delay: 0.8,
+    }}
+  >
+    <motion.p
+      className="text-gray-400 text-xs sm:text-sm font-semibold text-center opacity-70"
+      style={{ fontFamily: "var(--font-raleway)" }}
+      initial={{ opacity: 0, y: 30 }}
+      animate={{
+        opacity: isInView ? 1 : 0,
+        y: isInView ? 0 : 30,
+      }}
+      transition={{
+        duration: 0.8,
+        ease: easeOut,
+        delay: 1.0,
+      }}
+    >
+      Copyright © 2025. All rights reserved. Created with purple heart for better conversation.
+    </motion.p>
+  </motion.footer>
+);
+
 const Footer: React.FC = () => {
   const sectionRef = useRef(null);
   const pathname = usePathname();
@@ -301,50 +415,7 @@ const Footer: React.FC = () => {
             }}
             style={{ y }}
           >
-            <motion.div
-              initial={{ opacity: 0, y: 60 }}
-              animate={{
-                opacity: isInView ? 1 : 0,
-                y: isInView ? 0 : 60,
-              }}
-              transition={{
-                duration: 0.8,
-                ease: easeOut,
-                delay: 0.2,
-              }}
-            >
-              <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
-                <div className="footer-logo-box flex items-center justify-center w-14 h-14 rounded-[15px] border border-[rgba(139,92,255,0.28)] bg-[rgba(14,16,36,0.7)] shrink-0">
-                  <Image
-                    src="/images/Logo.png"
-                    alt="Marvedge Logo"
-                    width={28}
-                    height={28}
-                    className="w-7 h-7 object-contain dark:hidden"
-                  />
-                  <Image
-                    src="/images/logo_dark.png"
-                    alt="Marvedge Logo dark"
-                    width={28}
-                    height={28}
-                    className="w-7 h-7 object-contain hidden dark:block"
-                  />
-                </div>
-                <h2
-                  className="brand text-white text-lg sm:text-xl md:text-2xl font-semibold"
-                  style={{ fontFamily: "var(--font-raleway)" }}
-                >
-                  MAR<strong className="text-white">VEDGE</strong>
-                </h2>
-              </div>
-              <p
-                className="text-gray-300 text-xs sm:text-sm md:text-base max-w-xs sm:max-w-sm"
-                style={{ fontFamily: "var(--font-raleway)" }}
-              >
-                Transform your product URLs into compelling demo videos with the power of AI. Boost
-                conversations and save time with automated video creation.
-              </p>
-            </motion.div>
+            <FooterBrandContent isInView={isInView} />
           </motion.div>
 
           <motion.div
@@ -366,70 +437,10 @@ const Footer: React.FC = () => {
             ))}
           </motion.div>
 
-          <motion.div
-            className="sm:shrink-0 sm:ml-auto  flex justify-end shrink-0"
-            initial={{ opacity: 0, y: 60 }}
-            animate={{
-              opacity: isInView ? 1 : 0,
-              y: isInView ? 0 : 60,
-            }}
-            transition={{
-              duration: 0.8,
-              ease: easeOut,
-              delay: 0.6,
-            }}
-          >
-            <motion.div
-              className="flex gap-4 sm:gap-5 md:gap-6"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{
-                opacity: isInView ? 1 : 0,
-                y: isInView ? 0 : 30,
-              }}
-              transition={{
-                duration: 0.8,
-                ease: easeOut,
-                delay: 0.7,
-              }}
-            >
-              {socialIcons.map((icon, index) => (
-                <SocialIcon key={index} image={icon.image} url={icon.url} label={icon.label} />
-              ))}
-            </motion.div>
-          </motion.div>
+          <FooterSocials isInView={isInView} />
         </section>
 
-        <motion.footer
-          className="copyright w-full max-w-7xl mx-auto flex flex-col items-center pt-6 pb-8 px-3 sm:px-4 border-t border-[rgba(165,139,255,0.12)] relative z-10 mt-8"
-          initial={{ opacity: 0, y: 60 }}
-          animate={{
-            opacity: isInView ? 1 : 0,
-            y: isInView ? 0 : 60,
-          }}
-          transition={{
-            duration: 0.8,
-            ease: easeOut,
-            delay: 0.8,
-          }}
-        >
-          <motion.p
-            className="text-gray-400 text-xs sm:text-sm font-semibold text-center opacity-70"
-            style={{ fontFamily: "var(--font-raleway)" }}
-            initial={{ opacity: 0, y: 30 }}
-            animate={{
-              opacity: isInView ? 1 : 0,
-              y: isInView ? 0 : 30,
-            }}
-            transition={{
-              duration: 0.8,
-              ease: easeOut,
-              delay: 1.0,
-            }}
-          >
-            Copyright © 2025. All rights reserved. Created with purple heart for better
-            conversation.
-          </motion.p>
-        </motion.footer>
+        <FooterCopyright isInView={isInView} />
         <ToastContainer position="top-center" autoClose={3000} />
       </div>
     </>
