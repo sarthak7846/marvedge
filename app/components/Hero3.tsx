@@ -6,23 +6,26 @@ import { Check } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 
-const Hero3: React.FC = () => {
-  const sectionRef = useRef(null);
-  // Set `once: true` to trigger only once when section enters viewport
-  const isInView = useInView(sectionRef, { once: true, margin: "-100px" });
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start end", "end start"],
-  });
+const featureItems = [
+  {
+    label: "Reducing time-to-value for prospects and users",
+    icon: "check",
+  },
+  {
+    label: "Professional voiceover and background music",
+    icon: "briefcase",
+  },
+  {
+    label: "Compelling video editing workspace integration",
+    icon: "music",
+  },
+];
+
+const useBookDemoForm = () => {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [company, setCompany] = useState(""); // Added state for company
   const [url, setUrl] = useState(""); // Added state for product URL
-
-  const y1 = useTransform(scrollYProgress, [0, 1], [0, -50]);
-  const y2 = useTransform(scrollYProgress, [0, 1], [0, 50]);
-  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [1, 1.02, 1]);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -64,6 +67,218 @@ const Hero3: React.FC = () => {
     }
   };
 
+  return {
+    email,
+    setEmail,
+    name,
+    setName,
+    company,
+    setCompany,
+    url,
+    setUrl,
+    isSubmitting,
+    handleSubmit,
+  };
+};
+
+const BookDemoInfo: React.FC<{ isInView: boolean }> = ({ isInView }) => (
+  <>
+    <motion.h1
+      className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-gray-900 mb-4 sm:mb-6 leading-tight"
+      initial={{ opacity: 0, y: 60, rotateX: -15 }}
+      animate={{
+        opacity: isInView ? 1 : 0,
+        y: isInView ? 0 : 60,
+        rotateX: isInView ? 0 : -15,
+      }}
+      transition={{
+        duration: 0.8,
+        ease: easeOut,
+      }}
+      style={{ fontWeight: 700 }}
+    >
+      <span className="text-[#494369]">Ready to Transform Your</span>{" "}
+      <span className="text-[#8A76FC]/70">Product Demos?</span>
+    </motion.h1>
+    <motion.p
+      className="text-sm sm:text-base md:text-lg text-gray-700 mb-6 sm:mb-8"
+      initial={{ opacity: 0, y: 60 }}
+      animate={{
+        opacity: isInView ? 1 : 0,
+        y: isInView ? 0 : 60,
+      }}
+      transition={{
+        duration: 0.8,
+        ease: easeOut,
+        delay: 0.2,
+      }}
+    >
+      An edge that you will get and let your product <br className="hidden sm:block" /> speak for
+      itself.
+    </motion.p>
+    <motion.ul
+      className="text-gray-700 space-y-4 sm:space-y-6 text-sm sm:text-base md:text-lg"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: isInView ? 1 : 0 }}
+      transition={{
+        duration: 0.8,
+        ease: easeOut,
+        delay: 0.4,
+      }}
+    >
+      {featureItems.map((item, index) => (
+        <motion.li
+          key={index}
+          className="flex items-start"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{
+            opacity: isInView ? 1 : 0,
+            x: isInView ? 0 : -20,
+          }}
+          transition={{
+            duration: 0.5,
+            ease: easeOut,
+            delay: 0.6 + index * 0.1,
+          }}
+          whileHover={{ x: 5, scale: 1.02 }}
+        >
+          <span className="mr-3 shrink-0 flex items-center justify-center">
+            {item.icon === "check" && <Check color="#8C5BFF" size={24} strokeWidth={3} />}
+            {item.icon === "briefcase" && (
+              <Image src="/solar_card-broken.png" alt="voiceover" width={24} height={24} />
+            )}
+            {item.icon === "music" && (
+              <Image src="/iconamoon_headphone.png" alt="editing" width={24} height={24} />
+            )}
+          </span>
+          {item.label}
+        </motion.li>
+      ))}
+    </motion.ul>
+  </>
+);
+
+const DemoInput: React.FC<{
+  type: string;
+  placeholder: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  isInView: boolean;
+  delay: number;
+}> = ({ type, placeholder, value, onChange, isInView, delay }) => (
+  <motion.input
+    type={type}
+    placeholder={placeholder}
+    value={value}
+    onChange={onChange}
+    className="w-full py-3 sm:py-4 px-4 sm:px-5 rounded-lg bg-[#DCC8FF] text-gray-700 text-sm sm:text-base placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
+    style={{ fontFamily: "var(--font-raleway)", fontWeight: 400 }}
+    whileFocus={{
+      scale: 1.02,
+      boxShadow: "0 0 20px rgba(255, 255, 255, 0.2)",
+    }}
+    initial={{ opacity: 0, y: 20 }}
+    animate={{
+      opacity: isInView ? 1 : 0,
+      y: isInView ? 0 : 20,
+    }}
+    transition={{
+      duration: 0.5,
+      ease: easeOut,
+      delay,
+    }}
+  />
+);
+
+const BookDemoForm: React.FC<{ isInView: boolean }> = ({ isInView }) => {
+  const {
+    email,
+    setEmail,
+    name,
+    setName,
+    company,
+    setCompany,
+    url,
+    setUrl,
+    isSubmitting,
+    handleSubmit,
+  } = useBookDemoForm();
+
+  return (
+    <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
+      <DemoInput
+        type="email"
+        placeholder="Enter your Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        isInView={isInView}
+        delay={0.5}
+      />
+      <DemoInput
+        type="text"
+        placeholder="Full Name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        isInView={isInView}
+        delay={0.6}
+      />
+      <DemoInput
+        type="text"
+        placeholder="Company"
+        value={company}
+        onChange={(e) => setCompany(e.target.value)}
+        isInView={isInView}
+        delay={0.7}
+      />
+      <DemoInput
+        type="text"
+        placeholder="Product URL (Optional)"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        isInView={isInView}
+        delay={0.8}
+      />
+      <motion.button
+        type="submit"
+        disabled={isSubmitting}
+        className="w-full cursor-pointer py-3 sm:py-4 bg-white text-[#8370F0] font-semibold rounded-lg flex items-center justify-center gap-2 text-sm sm:text-base hover:bg-purple-100 transition"
+        whileHover={{
+          scale: 1.05,
+          boxShadow: "0 10px 25px rgba(0, 0, 0, 0.1)",
+          y: -2,
+        }}
+        whileTap={{ scale: 0.95 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{
+          opacity: isInView ? 1 : 0,
+          y: isInView ? 0 : 20,
+        }}
+        transition={{
+          duration: 0.5,
+          ease: easeOut,
+          delay: 0.9,
+        }}
+      >
+        <Image src="/Group 55.png" alt="Start Free Trial" width={20} height={20} />
+        {isSubmitting ? "Sending..." : "Book a Demo"}
+      </motion.button>
+    </form>
+  );
+};
+
+const Hero3: React.FC = () => {
+  const sectionRef = useRef(null);
+  // Set `once: true` to trigger only once when section enters viewport
+  const isInView = useInView(sectionRef, { once: true, margin: "-100px" });
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start end", "end start"],
+  });
+
+  const y1 = useTransform(scrollYProgress, [0, 1], [0, -50]);
+  const y2 = useTransform(scrollYProgress, [0, 1], [0, 50]);
+  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [1, 1.02, 1]);
+
   return (
     <div
       id="book-demo"
@@ -86,91 +301,7 @@ const Hero3: React.FC = () => {
             }}
             style={{ y: y1, fontFamily: "var(--font-raleway)" }}
           >
-            <motion.h1
-              className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-gray-900 mb-4 sm:mb-6 leading-tight"
-              initial={{ opacity: 0, y: 60, rotateX: -15 }}
-              animate={{
-                opacity: isInView ? 1 : 0,
-                y: isInView ? 0 : 60,
-                rotateX: isInView ? 0 : -15,
-              }}
-              transition={{
-                duration: 0.8,
-                ease: easeOut,
-              }}
-              style={{ fontWeight: 700 }}
-            >
-              <span className="text-[#494369]">Ready to Transform Your</span>{" "}
-              <span className="text-[#8A76FC]/70">Product Demos?</span>
-            </motion.h1>
-            <motion.p
-              className="text-sm sm:text-base md:text-lg text-gray-700 mb-6 sm:mb-8"
-              initial={{ opacity: 0, y: 60 }}
-              animate={{
-                opacity: isInView ? 1 : 0,
-                y: isInView ? 0 : 60,
-              }}
-              transition={{
-                duration: 0.8,
-                ease: easeOut,
-                delay: 0.2,
-              }}
-            >
-              An edge that you will get and let your product <br className="hidden sm:block" />{" "}
-              speak for itself.
-            </motion.p>
-            <motion.ul
-              className="text-gray-700 space-y-4 sm:space-y-6 text-sm sm:text-base md:text-lg"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: isInView ? 1 : 0 }}
-              transition={{
-                duration: 0.8,
-                ease: easeOut,
-                delay: 0.4,
-              }}
-            >
-              {[
-                {
-                  label: "Reducing time-to-value for prospects and users",
-                  icon: "check",
-                },
-                {
-                  label: "Professional voiceover and background music",
-                  icon: "briefcase",
-                },
-                {
-                  label: "Compelling video editing workspace integration",
-                  icon: "music",
-                },
-              ].map((item, index) => (
-                <motion.li
-                  key={index}
-                  className="flex items-start"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{
-                    opacity: isInView ? 1 : 0,
-                    x: isInView ? 0 : -20,
-                  }}
-                  transition={{
-                    duration: 0.5,
-                    ease: easeOut,
-                    delay: 0.6 + index * 0.1,
-                  }}
-                  whileHover={{ x: 5, scale: 1.02 }}
-                >
-                  <span className="mr-3 shrink-0 flex items-center justify-center">
-                    {item.icon === "check" && <Check color="#8C5BFF" size={24} strokeWidth={3} />}
-                    {item.icon === "briefcase" && (
-                      <Image src="/solar_card-broken.png" alt="voiceover" width={24} height={24} />
-                    )}
-                    {item.icon === "music" && (
-                      <Image src="/iconamoon_headphone.png" alt="editing" width={24} height={24} />
-                    )}
-                  </span>
-                  {item.label}
-                </motion.li>
-              ))}
-            </motion.ul>
+            <BookDemoInfo isInView={isInView} />
           </motion.div>
           <motion.div
             className="mt-6 md:mt-0 w-full max-w-md p-4 sm:p-6 md:p-8 rounded-2xl shadow-lg sm:shadow-xl relative z-10 shrink-0"
@@ -195,120 +326,7 @@ const Hero3: React.FC = () => {
               y: -5,
             }}
           >
-            <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
-              <motion.input
-                type="email"
-                placeholder="Enter your Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full py-3 sm:py-4 px-4 sm:px-5 rounded-lg bg-[#DCC8FF] text-gray-700 text-sm sm:text-base placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
-                style={{ fontFamily: "var(--font-raleway)", fontWeight: 400 }}
-                whileFocus={{
-                  scale: 1.02,
-                  boxShadow: "0 0 20px rgba(255, 255, 255, 0.2)",
-                }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{
-                  opacity: isInView ? 1 : 0,
-                  y: isInView ? 0 : 20,
-                }}
-                transition={{
-                  duration: 0.5,
-                  ease: easeOut,
-                  delay: 0.5,
-                }}
-              />
-              <motion.input
-                type="text"
-                placeholder="Full Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full py-3 sm:py-4 px-4 sm:px-5 rounded-lg bg-[#DCC8FF] text-gray-700 text-sm sm:text-base placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
-                style={{ fontFamily: "var(--font-raleway)", fontWeight: 400 }}
-                whileFocus={{
-                  scale: 1.02,
-                  boxShadow: "0 0 20px rgba(255, 255, 255, 0.2)",
-                }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{
-                  opacity: isInView ? 1 : 0,
-                  y: isInView ? 0 : 20,
-                }}
-                transition={{
-                  duration: 0.5,
-                  ease: easeOut,
-                  delay: 0.6,
-                }}
-              />
-              <motion.input
-                type="text"
-                placeholder="Company"
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                className="w-full py-3 sm:py-4 px-4 sm:px-5 rounded-lg bg-[#DCC8FF] text-gray-700 text-sm sm:text-base placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
-                style={{ fontFamily: "var(--font-raleway)", fontWeight: 400 }}
-                whileFocus={{
-                  scale: 1.02,
-                  boxShadow: "0 0 20px rgba(255, 255, 255, 0.2)",
-                }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{
-                  opacity: isInView ? 1 : 0,
-                  y: isInView ? 0 : 20,
-                }}
-                transition={{
-                  duration: 0.5,
-                  ease: easeOut,
-                  delay: 0.7,
-                }}
-              />
-              <motion.input
-                type="text"
-                placeholder="Product URL (Optional)"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                className="w-full py-3 sm:py-4 px-4 sm:px-5 rounded-lg bg-[#DCC8FF] text-gray-700 text-sm sm:text-base placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
-                style={{ fontFamily: "var(--font-raleway)", fontWeight: 400 }}
-                whileFocus={{
-                  scale: 1.02,
-                  boxShadow: "0 0 20px rgba(255, 255, 255, 0.2)",
-                }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{
-                  opacity: isInView ? 1 : 0,
-                  y: isInView ? 0 : 20,
-                }}
-                transition={{
-                  duration: 0.5,
-                  ease: easeOut,
-                  delay: 0.8,
-                }}
-              />
-              <motion.button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full cursor-pointer py-3 sm:py-4 bg-white text-[#8370F0] font-semibold rounded-lg flex items-center justify-center gap-2 text-sm sm:text-base hover:bg-purple-100 transition"
-                whileHover={{
-                  scale: 1.05,
-                  boxShadow: "0 10px 25px rgba(0, 0, 0, 0.1)",
-                  y: -2,
-                }}
-                whileTap={{ scale: 0.95 }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{
-                  opacity: isInView ? 1 : 0,
-                  y: isInView ? 0 : 20,
-                }}
-                transition={{
-                  duration: 0.5,
-                  ease: easeOut,
-                  delay: 0.9,
-                }}
-              >
-                <Image src="/Group 55.png" alt="Start Free Trial" width={20} height={20} />
-                {isSubmitting ? "Sending..." : "Book a Demo"}
-              </motion.button>
-            </form>
+            <BookDemoForm isInView={isInView} />
           </motion.div>
         </div>
       </div>
