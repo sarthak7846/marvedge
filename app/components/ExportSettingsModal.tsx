@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { ChevronUp, ChevronDown } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
+import ExportQualityFrameRate from "./ExportQualityFrameRate";
+import ExportCompression from "./ExportCompression";
 
 export interface ExportSettings {
   quality: "720p" | "1080p";
@@ -19,6 +20,49 @@ interface ExportSettingsModalProps {
   onClose: () => void;
   onConfirm: (settings: ExportSettings) => void;
   durationInSeconds: number; // to estimate file size
+}
+
+const EXEMPT_EMAILS = [
+  "aryaanandpathak30@gmail.com",
+  "sarthakbehera10@gmail.com",
+  "ashishmishra19122000@gmail.com",
+  "sandipsubham.32@gmail.com",
+  "kanupriya2052017@gmail.com",
+  "rathourrahul21@gmail.com",
+  "ajitkumarshankhwar25@gmail.com",
+  "somyanayak281@gmail.com",
+  "manushichillar412@gmail.com",
+];
+
+// Basic heuristic for file size estimation based on duration and settings
+function estimateFileSize(settings: ExportSettings, durationInSeconds: number) {
+  let baseMultiplier = 1.0;
+  if (settings.quality === "1080p") {
+    baseMultiplier *= 1.5;
+  }
+  if (settings.fps === "24 FPS") {
+    baseMultiplier *= 0.9;
+  }
+  if (settings.fps === "60 FPS") {
+    baseMultiplier *= 1.2;
+  }
+
+  if (settings.compression === "Ultra") {
+    baseMultiplier *= 2.5;
+  } else if (settings.compression === "High") {
+    baseMultiplier *= 1.8;
+  } else if (settings.compression === "Medium") {
+    baseMultiplier *= 1.3;
+  }
+
+  // Roughly 0.5MB per second at 720p 30fps Web compression as a total guess baseline
+  let sizeInMb = durationInSeconds * 0.25 * baseMultiplier;
+
+  if (sizeInMb < 1) {
+    sizeInMb = 1;
+  } // minimum
+
+  return `${Math.round(sizeInMb)}MB`;
 }
 
 export default function ExportSettingsModal({
@@ -65,53 +109,14 @@ export default function ExportSettingsModal({
     }
   }, [isOpen, defaultSettings]);
 
-  const EXEMPT_EMAILS = [
-    "aryaanandpathak30@gmail.com",
-    "sarthakbehera10@gmail.com",
-    "ashishmishra19122000@gmail.com",
-    "sandipsubham.32@gmail.com",
-    "kanupriya2052017@gmail.com",
-    "rathourrahul21@gmail.com",
-    "ajitkumarshankhwar25@gmail.com",
-    "somyanayak281@gmail.com",
-    "manushichillar412@gmail.com",
-  ];
-
   const isExempt =
     (session?.user?.email && EXEMPT_EMAILS.includes(session.user.email)) ||
     userPlan === "PRO" ||
     userPlan === "ENTERPRISE";
   const limitReached = !isExempt && exportCount !== null && exportCount >= 3;
 
-  // Basic heuristic for file size estimation based on duration and settings
   useEffect(() => {
-    let baseMultiplier = 1.0;
-    if (settings.quality === "1080p") {
-      baseMultiplier *= 1.5;
-    }
-    if (settings.fps === "24 FPS") {
-      baseMultiplier *= 0.9;
-    }
-    if (settings.fps === "60 FPS") {
-      baseMultiplier *= 1.2;
-    }
-
-    if (settings.compression === "Ultra") {
-      baseMultiplier *= 2.5;
-    } else if (settings.compression === "High") {
-      baseMultiplier *= 1.8;
-    } else if (settings.compression === "Medium") {
-      baseMultiplier *= 1.3;
-    }
-
-    // Roughly 0.5MB per second at 720p 30fps Web compression as a total guess baseline
-    let sizeInMb = durationInSeconds * 0.25 * baseMultiplier;
-
-    if (sizeInMb < 1) {
-      sizeInMb = 1;
-    } // minimum
-
-    setEstimatedSize(`${Math.round(sizeInMb)}MB`);
+    setEstimatedSize(estimateFileSize(settings, durationInSeconds));
   }, [settings, durationInSeconds]);
 
   if (!isOpen) {
@@ -135,97 +140,10 @@ export default function ExportSettingsModal({
         </div>
 
         {/* Quality & Frame Rate */}
-        <div className="flex gap-4 mb-5">
-          {/* Quality */}
-          <div className="flex-1">
-            <label className="block text-[#8A76FC] text-[15px] mb-2">Quality</label>
-            <div className="flex bg-[#EAE5FB] rounded-xl p-1 relative h-[42px]">
-              <div
-                className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#8A76FC] rounded-lg transition-transform duration-300 ease-in-out"
-                style={{
-                  transform: settings.quality === "1080p" ? "translateX(100%)" : "translateX(0)",
-                }}
-              />
-              <button
-                className={`flex-1 relative z-10 text-sm font-medium transition-colors ${
-                  settings.quality === "720p" ? "text-white" : "text-[#8A76FC]"
-                }`}
-                onClick={() => setSettings({ ...settings, quality: "720p" })}
-              >
-                720p
-              </button>
-              <button
-                className={`flex-1 relative z-10 text-sm font-medium transition-colors ${
-                  settings.quality === "1080p" ? "text-white" : "text-[#8A76FC]"
-                }`}
-                onClick={() => setSettings({ ...settings, quality: "1080p" })}
-              >
-                1080p
-              </button>
-            </div>
-          </div>
-
-          {/* Frame Rate */}
-          <div className="flex-1">
-            <label className="block text-[#8A76FC] text-[15px] mb-2">Frame rate</label>
-            <div
-              className="flex bg-[#EAE5FB] rounded-xl px-3 h-[42px] items-center justify-between cursor-pointer"
-              onClick={() =>
-                setSettings({
-                  ...settings,
-                  fps:
-                    settings.fps === "24 FPS"
-                      ? "30 FPS"
-                      : settings.fps === "30 FPS"
-                        ? "60 FPS"
-                        : "24 FPS",
-                })
-              }
-            >
-              <span className="text-[#8A76FC] text-sm font-medium">{settings.fps}</span>
-              <div className="flex flex-col text-[#8A76FC] opacity-50">
-                <ChevronUp size={14} className="-mb-1" />
-                <ChevronDown size={14} />
-              </div>
-            </div>
-          </div>
-        </div>
+        <ExportQualityFrameRate settings={settings} setSettings={setSettings} />
 
         {/* Compression */}
-        <div className="mb-5">
-          <label className="block text-[#8A76FC] text-[15px] mb-2">Compression</label>
-          <div className="flex bg-[#EAE5FB] rounded-xl p-1 relative h-[42px]">
-            <div
-              className="absolute top-1 bottom-1 w-[calc(25%-6px)] bg-[#8A76FC] rounded-lg transition-transform duration-300 ease-in-out"
-              style={{
-                transform:
-                  settings.compression === "Web"
-                    ? "translateX(0)"
-                    : settings.compression === "Medium"
-                      ? "translateX(105%)"
-                      : settings.compression === "High"
-                        ? "translateX(210%)"
-                        : "translateX(315%)",
-              }}
-            />
-            {["Web", "Medium", "High", "Ultra"].map((comp) => (
-              <button
-                key={comp}
-                className={`flex-1 relative z-10 text-sm font-medium transition-colors ${
-                  settings.compression === comp ? "text-white" : "text-[#8A76FC]"
-                }`}
-                onClick={() =>
-                  setSettings({
-                    ...settings,
-                    compression: comp as ExportSettings["compression"],
-                  })
-                }
-              >
-                {comp}
-              </button>
-            ))}
-          </div>
-        </div>
+        <ExportCompression settings={settings} setSettings={setSettings} />
 
         {/* License Info Box */}
         {limitReached ? (
