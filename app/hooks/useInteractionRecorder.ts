@@ -1,5 +1,12 @@
 "use client";
-import { useRef, useState, useCallback } from "react";
+import {
+  useRef,
+  useState,
+  useCallback,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 import html2canvas from "html2canvas";
 
 export interface CursorPosition {
@@ -32,6 +39,152 @@ export interface RecordingSession {
   startTime: number;
 }
 
+// Capture the visible viewport with html2canvas, falling back to a placeholder
+// canvas when html2canvas fails so callers always receive a usable image.
+const captureScreenshot = async (): Promise<string | null> => {
+  try {
+    console.log("Starting capture...");
+    const element = document.documentElement;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    const canvas = await html2canvas(element, {
+      width,
+      height,
+      x: 0,
+      y: 0,
+      windowWidth: width,
+      windowHeight: height,
+      allowTaint: true,
+      useCORS: true,
+      foreignObjectRendering: true,
+      backgroundColor: null,
+    });
+
+    const dataUrl = canvas.toDataURL("image/png");
+    console.log("Capture successful, size:", dataUrl.length);
+    return dataUrl;
+  } catch (error) {
+    console.error("html2canvas failed:", error);
+    const canvas = document.createElement("canvas");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.fillStyle = "#f0f0f0";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#000";
+      ctx.font = "20px Arial";
+      ctx.fillText("Screenshot Placeholder", 20, 50);
+      ctx.fillText(`Captured at ${new Date().toLocaleTimeString()}`, 20, 100);
+      const fallbackUrl = canvas.toDataURL("image/png");
+      console.log("Using fallback screenshot");
+      return fallbackUrl;
+    }
+    return null;
+  }
+};
+
+const buildAutoSlide = (imageData: string, clicks: ClickEvent[], timestamp: number): Slide => ({
+  id: `slide-${Date.now()}`,
+  timestamp,
+  imageData,
+  clicks: [...clicks],
+  title: `Step ${Date.now()}`,
+  description: clicks.length > 0 ? `Clicked ${clicks.length} element(s)` : "Capture point",
+});
+
+interface RecordingHandlerDeps {
+  captureVisibleArea: () => Promise<string | null>;
+  clicksRef: MutableRefObject<ClickEvent[]>;
+  pendingCapturesRef: MutableRefObject<Promise<void>[]>;
+  recordingStartTimeRef: MutableRefObject<number>;
+  setSlides: Dispatch<SetStateAction<Slide[]>>;
+}
+
+// Build the click / navigation listeners used while recording. Kept at module
+// scope so the recorder hook body stays small; all mutable state is shared via
+// the refs passed in.
+const createRecordingHandlers = ({
+  captureVisibleArea,
+  clicksRef,
+  pendingCapturesRef,
+  recordingStartTimeRef,
+  setSlides,
+}: RecordingHandlerDeps) => {
+  const captureHandler = async () => {
+    try {
+      const imageData = await captureVisibleArea();
+      if (!imageData) {
+        console.warn("No image data captured");
+        return;
+      }
+
+      const now = Date.now();
+      const timestamp = now - recordingStartTimeRef.current;
+      const newSlide = buildAutoSlide(imageData, clicksRef.current, timestamp);
+
+      console.log("Adding slide:", newSlide.id);
+      setSlides((prev) => [...prev, newSlide]);
+      clicksRef.current = [];
+    } catch (error) {
+      console.error("Error in captureHandler:", error);
+    }
+  };
+
+  const handleClick = (e: MouseEvent) => {
+    console.log("Click detected at:", e.clientX, e.clientY);
+    const target = e.target as HTMLElement;
+    const now = Date.now();
+    clicksRef.current.push({
+      x: e.clientX,
+      y: e.clientY,
+      timestamp: now - recordingStartTimeRef.current,
+      elementText: target.textContent?.substring(0, 50) || "",
+      elementId: target.id,
+    });
+    const capturePromise = captureHandler();
+    pendingCapturesRef.current.push(capturePromise);
+  };
+
+  return { captureHandler, handleClick };
+};
+
+const requestSaveTutorial = async (
+  title: string,
+  description: string | undefined,
+  slides: Slide[]
+) => {
+  if (!title.trim() || slides.length === 0) {
+    throw new Error("Title and slides are required");
+  }
+
+  const payload = {
+    title,
+    description: description || null,
+    slides: slides.map((slide) => ({
+      title: slide.title,
+      description: slide.description,
+      imageData: slide.imageData,
+      clicks: slide.clicks,
+      timestamp: slide.timestamp,
+    })),
+  };
+
+  const response = await fetch("/api/tutorials", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to save tutorial");
+  }
+
+  return response.json();
+};
+
 export const useInteractionRecorder = () => {
   const [recording, setRecording] = useState(false);
   const [slides, setSlides] = useState<Slide[]>([]);
@@ -44,49 +197,7 @@ export const useInteractionRecorder = () => {
     captureHandler?: () => Promise<void>;
   }>({});
 
-  const captureVisibleArea = useCallback(async () => {
-    try {
-      console.log("Starting capture...");
-      const element = document.documentElement;
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-
-      const canvas = await html2canvas(element, {
-        width,
-        height,
-        x: 0,
-        y: 0,
-        windowWidth: width,
-        windowHeight: height,
-        allowTaint: true,
-        useCORS: true,
-        foreignObjectRendering: true,
-        backgroundColor: null,
-      });
-
-      const dataUrl = canvas.toDataURL("image/png");
-      console.log("Capture successful, size:", dataUrl.length);
-      return dataUrl;
-    } catch (error) {
-      console.error("html2canvas failed:", error);
-      const canvas = document.createElement("canvas");
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.fillStyle = "#f0f0f0";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#000";
-        ctx.font = "20px Arial";
-        ctx.fillText("Screenshot Placeholder", 20, 50);
-        ctx.fillText(`Captured at ${new Date().toLocaleTimeString()}`, 20, 100);
-        const fallbackUrl = canvas.toDataURL("image/png");
-        console.log("Using fallback screenshot");
-        return fallbackUrl;
-      }
-      return null;
-    }
-  }, []);
+  const captureVisibleArea = useCallback(() => captureScreenshot(), []);
 
   const startRecording = useCallback(() => {
     setRecording(true);
@@ -95,51 +206,13 @@ export const useInteractionRecorder = () => {
     recordingStartTimeRef.current = Date.now();
     setSlides([]);
 
-    const captureHandler = async () => {
-      try {
-        const imageData = await captureVisibleArea();
-        if (!imageData) {
-          console.warn("No image data captured");
-          return;
-        }
-
-        const now = Date.now();
-        const timestamp = now - recordingStartTimeRef.current;
-
-        const newSlide: Slide = {
-          id: `slide-${Date.now()}`,
-          timestamp,
-          imageData,
-          clicks: [...clicksRef.current],
-          title: `Step ${Date.now()}`,
-          description:
-            clicksRef.current.length > 0
-              ? `Clicked ${clicksRef.current.length} element(s)`
-              : "Capture point",
-        };
-
-        console.log("Adding slide:", newSlide.id);
-        setSlides((prev) => [...prev, newSlide]);
-        clicksRef.current = [];
-      } catch (error) {
-        console.error("Error in captureHandler:", error);
-      }
-    };
-
-    const handleClick = (e: MouseEvent) => {
-      console.log("Click detected at:", e.clientX, e.clientY);
-      const target = e.target as HTMLElement;
-      const now = Date.now();
-      clicksRef.current.push({
-        x: e.clientX,
-        y: e.clientY,
-        timestamp: now - recordingStartTimeRef.current,
-        elementText: target.textContent?.substring(0, 50) || "",
-        elementId: target.id,
-      });
-      const capturePromise = captureHandler();
-      pendingCapturesRef.current.push(capturePromise);
-    };
+    const { captureHandler, handleClick } = createRecordingHandlers({
+      captureVisibleArea,
+      clicksRef,
+      pendingCapturesRef,
+      recordingStartTimeRef,
+      setSlides,
+    });
 
     document.addEventListener("click", handleClick);
     window.addEventListener("hashchange", captureHandler);
@@ -226,34 +299,7 @@ export const useInteractionRecorder = () => {
   const saveTutorial = useCallback(
     async (title: string, description?: string) => {
       try {
-        if (!title.trim() || slides.length === 0) {
-          throw new Error("Title and slides are required");
-        }
-
-        const payload = {
-          title,
-          description: description || null,
-          slides: slides.map((slide) => ({
-            title: slide.title,
-            description: slide.description,
-            imageData: slide.imageData,
-            clicks: slide.clicks,
-            timestamp: slide.timestamp,
-          })),
-        };
-
-        const response = await fetch("/api/tutorials", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || "Failed to save tutorial");
-        }
-
-        const tutorial = await response.json();
+        const tutorial = await requestSaveTutorial(title, description, slides);
         reset();
         return tutorial;
       } catch (error) {
