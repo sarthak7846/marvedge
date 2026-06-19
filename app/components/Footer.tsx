@@ -298,10 +298,10 @@ const FooterBrandContent: React.FC<{ isInView: boolean }> = ({ isInView }) => (
         />
       </div>
       <h2
-        className="brand text-white text-lg sm:text-xl md:text-2xl font-semibold flex items-center gap-1.5"
+        className="brand text-white text-lg sm:text-xl md:text-2xl font-semibold"
         style={{ fontFamily: "var(--font-raleway)" }}
       >
-        MAR <strong className="text-white">VEDGE</strong>
+        MAR<strong className="text-white">VEDGE</strong>
       </h2>
     </div>
     <p

@@ -18,12 +18,13 @@ const SignIn = () => {
   } = useSignIn();
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen w-full font-sans bg-[#F1ECFF]">
+    <div className="flex flex-col md:flex-row min-h-screen w-full font-sans bg-[#F1ECFF] dark:bg-[#03030b]">
       <SignInMobileNav />
 
       <div
-        className={`w-full md:w-1/2 flex justify-center items-center px-4 sm:px-10 lg:px-20 py-6 md:py-10 transition-all duration-700 ease-out pt-24 md:pt-10 ${animatePanel ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
-          }`}
+        className={`w-full md:w-1/2 flex justify-center items-center px-4 sm:px-10 lg:px-20 py-6 md:py-10 transition-all duration-700 ease-out pt-24 md:pt-10 ${
+          animatePanel ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
+        }`}
       >
         <form
           onSubmit={handleSubmit}
