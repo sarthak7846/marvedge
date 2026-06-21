@@ -134,6 +134,10 @@ function RulerLayers(props: TimelineTrackProps & DragSetters) {
         setActiveSegment={setActiveSegment}
       />
 
+      {/* Horizontal separators in background */}
+      <div className="absolute top-[72px] left-0 w-full h-[1px] border-t border-dashed border-[#A594F9]/30 dark:border-[#3e2fd9]/30 pointer-events-none" />
+      <div className="absolute top-[108px] left-0 w-full h-[1px] border-t border-dashed border-[#A594F9]/30 dark:border-[#3e2fd9]/30 pointer-events-none" />
+
       <div
         className="absolute top-0 h-full z-40 pointer-events-none"
         style={{
@@ -264,7 +268,7 @@ export function TimelineTrack(props: TimelineTrackProps) {
           >
             <div
               ref={rulerRef}
-              className="relative bg-white border-y border-[#A594F9] cursor-pointer track-layers-row"
+              className="relative bg-white dark:bg-[#0a081a] border-y border-[#A594F9] dark:border-[#3e2fd9]/50 cursor-pointer track-layers-row"
               style={{
                 width: `${baseTimelineWidth * zoomLevel}px`,
                 minWidth: `${baseTimelineWidth}px`,

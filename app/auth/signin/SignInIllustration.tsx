@@ -11,9 +11,9 @@ const SignInIllustration = ({ animatePanel }: SignInIllustrationProps) => {
   const router = useRouter();
 
   return (
-    <div className="hidden md:flex md:w-1/2 relative justify-center items-center overflow-hidden rounded-l-[75px] bg-[#B09EE4]">
+    <div className="hidden md:flex md:w-1/2 relative justify-center items-center overflow-hidden rounded-l-[75px] bg-[#B09EE4] dark:bg-[#6d42ff]">
       <div
-        className={`absolute inset-0 bg-[#261753] rounded-l-[75px] z-0 transition-all duration-700 ease-out ${
+        className={`absolute inset-0 bg-[#261753] dark:bg-gradient-to-b dark:from-[#0a061d] dark:to-[#080513] rounded-l-[75px] z-0 transition-all duration-700 ease-out ${
           animatePanel ? "ml-[20px]" : "ml-[100%]"
         }`}
       />
@@ -32,7 +32,7 @@ const SignInIllustration = ({ animatePanel }: SignInIllustrationProps) => {
       >
         <Image src="/icons/logo.png" alt="Logo" width={28} height={28} />
 
-        <span className="text-base sm:text-lg font-extrabold tracking-wider text-[#B09EE4]">
+        <span className="text-base sm:text-lg font-extrabold tracking-wider text-[#B09EE4] dark:text-white">
           MARVEDGE
         </span>
       </button>

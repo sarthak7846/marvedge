@@ -36,7 +36,7 @@ export function TrimSegmentBlock({
 
   return (
     <div
-      className={`absolute top-0 h-[84px] mt-[50px] group cursor-grab transition-opacity track-red sequence-block-shape width-trim-block ${
+      className={`absolute top-0 h-[32px] mt-[38px] group cursor-grab transition-opacity track-red sequence-block-shape width-trim-block ${
         idx === activeSegment && activeSegment != -1
           ? "bg-[#FF3939]/54 opacity-70 z-10 hover:border-2 border-black rounded-md active"
           : "bg-[#FF3939]/35 opacity-50 hover:opacity-65 z-8"
@@ -75,7 +75,7 @@ export function TrimSegmentBlock({
       </div>
 
       <div
-        className="flex items-center justify-center absolute py-1 top-0 -left-1 h-[84px] w-[23px] bg-[#FF3939]/54 rounded-l-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#FF3939]"
+        className="flex items-center justify-center absolute py-1 top-0 -left-1 h-[32px] w-[23px] bg-[#FF3939]/54 rounded-l-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#FF3939]"
         onMouseDown={(e) => {
           e.stopPropagation();
           setDragState({
@@ -89,11 +89,11 @@ export function TrimSegmentBlock({
         aria-label="Resize start"
         title="Drag to resize start"
       >
-        <div className="w-px h-[60px] bg-white/80" />
+        <div className="w-px h-[20px] bg-white/80" />
       </div>
 
       <div
-        className="flex items-center justify-center absolute py-1 top-0 -right-1 h-[84px] w-[23px] bg-[#FF3939]/54 rounded-r-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#FF3939]"
+        className="flex items-center justify-center absolute py-1 top-0 -right-1 h-[32px] w-[23px] bg-[#FF3939]/54 rounded-r-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#FF3939]"
         onMouseDown={(e) => {
           e.stopPropagation();
           setDragState({
@@ -107,7 +107,7 @@ export function TrimSegmentBlock({
         title="Drag to resize end"
         aria-label="Resize end"
       >
-        <div className="w-px h-[60px] bg-white/80" />
+        <div className="w-px h-[20px] bg-white/80" />
       </div>
     </div>
   );
@@ -139,7 +139,7 @@ export function ZoomSegmentBlock({
 
   return (
     <div
-      className={`absolute top-0 h-[84px] mt-[50px] group cursor-grab transition-opacity track-green sequence-block-shape width-zoom-block ${
+      className={`absolute top-0 h-[32px] mt-[74px] group cursor-grab transition-opacity track-green sequence-block-shape width-zoom-block ${
         idx == activeZoomIdx
           ? "bg-[#36B37E]/40 opacity-80 z-10 hover:border-2 border-[#36B37E] rounded-md active"
           : "bg-[#36B37E]/25 opacity-70 hover:opacity-90 z-8"
@@ -178,7 +178,7 @@ export function ZoomSegmentBlock({
       </div>
 
       <div
-        className="flex items-center justify-center absolute py-1 top-0 -left-1 h-[84px] w-[23px] bg-[#36B37E]/80 rounded-l-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#36B37E]"
+        className="flex items-center justify-center absolute py-1 top-0 -left-1 h-[32px] w-[23px] bg-[#36B37E]/80 rounded-l-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#36B37E]"
         onMouseDown={(e) => {
           e.stopPropagation();
           setDragZoomState({
@@ -192,11 +192,11 @@ export function ZoomSegmentBlock({
         aria-label="Resize start"
         title="Drag to resize start"
       >
-        <div className="w-px h-[60px] bg-white/80" />
+        <div className="w-px h-[20px] bg-white/80" />
       </div>
 
       <div
-        className="flex items-center justify-center absolute py-1 top-0 -right-1 h-[84px] w-[23px] bg-[#36B37E]/80 rounded-r-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#36B37E]"
+        className="flex items-center justify-center absolute py-1 top-0 -right-1 h-[32px] w-[23px] bg-[#36B37E]/80 rounded-r-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#36B37E]"
         onMouseDown={(e) => {
           e.stopPropagation();
           setDragZoomState({
@@ -210,7 +210,7 @@ export function ZoomSegmentBlock({
         title="Drag to resize end"
         aria-label="Resize end"
       >
-        <div className="w-px h-[60px] bg-white/80" />
+        <div className="w-px h-[20px] bg-white/80" />
       </div>
     </div>
   );
@@ -252,7 +252,7 @@ export function TextOverlayBlock({
 
   return (
     <div
-      className={`absolute top-0 h-[84px] mt-[50px] group cursor-grab transition-opacity track-yellow sequence-block-shape width-text-block ${
+      className={`absolute top-0 h-[32px] mt-[110px] group cursor-grab transition-opacity track-yellow sequence-block-shape width-text-block ${
         isSelected
           ? "bg-[#FFF4A8]/85 opacity-90 z-10 hover:border-2 border-[#B38700] rounded-md active"
           : "bg-[#FFF4A8]/65 opacity-75 hover:opacity-90 border border-[#D4A017] z-8 rounded-md"
@@ -297,7 +297,7 @@ export function TextOverlayBlock({
       </div>
 
       <div
-        className="flex items-center justify-center absolute py-1 top-0 -left-1 h-[84px] w-[23px] bg-[#D4A017]/75 rounded-l-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#B38700]"
+        className="flex items-center justify-center absolute py-1 top-0 -left-1 h-[32px] w-[23px] bg-[#D4A017]/75 rounded-l-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#B38700]"
         onMouseDown={(e) => {
           e.stopPropagation();
           setDragTextState({
@@ -311,11 +311,11 @@ export function TextOverlayBlock({
         aria-label="Resize text start"
         title="Drag to resize start"
       >
-        <div className="w-px h-[60px] bg-white/80" />
+        <div className="w-px h-[20px] bg-white/80" />
       </div>
 
       <div
-        className="flex items-center justify-center absolute py-1 top-0 -right-1 h-[84px] w-[23px] bg-[#D4A017]/75 rounded-r-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#B38700]"
+        className="flex items-center justify-center absolute py-1 top-0 -right-1 h-[32px] w-[23px] bg-[#D4A017]/75 rounded-r-md group-hover:opacity-100 cursor-ew-resize transition-opacity hover:bg-[#B38700]"
         onMouseDown={(e) => {
           e.stopPropagation();
           setDragTextState({
@@ -329,7 +329,7 @@ export function TextOverlayBlock({
         aria-label="Resize text end"
         title="Drag to resize end"
       >
-        <div className="w-px h-[60px] bg-white/80" />
+        <div className="w-px h-[20px] bg-white/80" />
       </div>
     </div>
   );

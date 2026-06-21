@@ -3,6 +3,81 @@ import { useRef, useState } from "react";
 import { useBlobStore } from "../store/blobStore";
 import { toast } from "sonner";
 
+// Build a combined screen + audio MediaStream. A silent oscillator is added
+// when no real audio source exists so the recording always has a valid audio
+// track (FFmpeg's stream-copy trim needs audio timestamps for correct duration).
+const buildCombinedStream = async (
+  screenStream: MediaStream,
+  micEnabled: boolean
+): Promise<MediaStream> => {
+  const audioContext = new AudioContext();
+  const destination = audioContext.createMediaStreamDestination();
+
+  let micStream: MediaStream | null = null;
+  if (micEnabled) {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      console.warn("Mic access denied:", err);
+    }
+  }
+
+  let hasAudioSource = false;
+
+  if (screenStream.getAudioTracks().length > 0) {
+    const tabSource = audioContext.createMediaStreamSource(
+      new MediaStream(screenStream.getAudioTracks())
+    );
+    tabSource.connect(destination);
+    hasAudioSource = true;
+  }
+  if (micStream) {
+    const micSource = audioContext.createMediaStreamSource(micStream);
+    micSource.connect(destination);
+    hasAudioSource = true;
+  }
+
+  if (!hasAudioSource) {
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    gain.gain.value = 0; // complete silence
+    oscillator.connect(gain);
+    gain.connect(destination);
+    oscillator.start();
+  }
+
+  return new MediaStream([
+    ...screenStream.getVideoTracks(),
+    ...destination.stream.getAudioTracks(),
+  ]);
+};
+
+const pickRecorderMimeType = (): string =>
+  MediaRecorder.isTypeSupported("video/webm; codecs=vp8,opus")
+    ? "video/webm; codecs=vp8,opus"
+    : MediaRecorder.isTypeSupported("video/webm")
+      ? "video/webm"
+      : "";
+
+const createMediaRecorder = (stream: MediaStream): MediaRecorder => {
+  const mimeType = pickRecorderMimeType();
+  return mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+};
+
+const reportScreenShareError = (err: unknown) => {
+  if (err instanceof Error) {
+    if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+      console.log("User denied screen share.");
+    } else {
+      console.warn("Screen share failed:", err);
+      toast.error("Screen share failed. Please try again.");
+    }
+  } else {
+    console.warn("Screen share failed with unknown error:", err);
+    toast.error("Screen share failed. Please try again.");
+  }
+};
+
 export const useScreenRecorder = () => {
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
@@ -52,68 +127,16 @@ export const useScreenRecorder = () => {
 
   const startRecording = async () => {
     try {
-      const audioContext = new AudioContext();
-      const destination = audioContext.createMediaStreamDestination();
       if (!screenStreamRef.current) {
         return;
       }
 
-      let micStream: MediaStream | null = null;
-
-      if (micEnabled) {
-        try {
-          micStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-          });
-        } catch (err) {
-          console.warn("Mic access denied:", err);
-        }
-      }
-
-      let hasAudioSource = false;
-
-      if (screenStreamRef.current.getAudioTracks().length > 0) {
-        const tabSource = audioContext.createMediaStreamSource(
-          new MediaStream(screenStreamRef.current.getAudioTracks())
-        );
-        tabSource.connect(destination);
-        hasAudioSource = true;
-      }
-      if (micStream) {
-        const micSource = audioContext.createMediaStreamSource(micStream);
-        micSource.connect(destination);
-        hasAudioSource = true;
-      }
-
-      // If no real audio source, add a silent oscillator so the recording
-      // always has a valid audio track. This is required because FFmpeg's
-      // stream-copy trim needs audio timestamps to produce correct duration.
-      if (!hasAudioSource) {
-        const oscillator = audioContext.createOscillator();
-        const gain = audioContext.createGain();
-        gain.gain.value = 0; // complete silence
-        oscillator.connect(gain);
-        gain.connect(destination);
-        oscillator.start();
-      }
-
-      const combinedStream = new MediaStream([
-        ...screenStreamRef.current.getVideoTracks(),
-        ...destination.stream.getAudioTracks(),
-      ]);
+      const combinedStream = await buildCombinedStream(screenStreamRef.current, micEnabled);
       combinedStreamRef.current = combinedStream;
       chunksRef.current = [];
       hasFinalizedRef.current = false;
 
-      const mimeType = MediaRecorder.isTypeSupported("video/webm; codecs=vp8,opus")
-        ? "video/webm; codecs=vp8,opus"
-        : MediaRecorder.isTypeSupported("video/webm")
-          ? "video/webm"
-          : "";
-
-      mediaRecorder.current = mimeType
-        ? new MediaRecorder(combinedStream, { mimeType })
-        : new MediaRecorder(combinedStream);
+      mediaRecorder.current = createMediaRecorder(combinedStream);
       recorderMimeTypeRef.current = mediaRecorder.current.mimeType || "video/webm";
 
       mediaRecorder.current.ondataavailable = (e) => {
@@ -164,17 +187,7 @@ export const useScreenRecorder = () => {
 
       await startRecording();
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-          console.log("User denied screen share.");
-        } else {
-          console.warn("Screen share failed:", err);
-          toast.error("Screen share failed. Please try again.");
-        }
-      } else {
-        console.warn("Screen share failed with unknown error:", err);
-        toast.error("Screen share failed. Please try again.");
-      }
+      reportScreenShareError(err);
     }
   };
 

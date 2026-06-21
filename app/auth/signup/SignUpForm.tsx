@@ -24,7 +24,7 @@ const SignUp = () => {
   } = useSignUp();
 
   return (
-    <div className="flex flex-col md:flex-row h-full min-h-screen font-sans bg-[#F1ECFF]">
+    <div className="flex flex-col md:flex-row h-full min-h-screen font-sans bg-[#F1ECFF] dark:bg-[#03030b]">
       <SignUpMobileNav />
 
       <SignUpIllustration animatePanel={animatePanel} />
@@ -40,13 +40,15 @@ const SignUp = () => {
           autoComplete="on"
         >
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-black mb-2">Create your Account</h1>
-            <p className="text-sm text-gray-600 font-semibold">
+            <h1 className="text-2xl sm:text-3xl font-bold text-black dark:text-white mb-2">
+              Create your Account
+            </h1>
+            <p className="text-sm text-gray-600 dark:text-[#9d9db5] font-semibold">
               Already have an account?{" "}
               <button
                 type="button"
                 onClick={() => router.push("/auth/signin")}
-                className="text-[#6356D7] hover:underline font-semibold cursor-pointer"
+                className="text-[#6356D7] dark:text-[#8b5cff] hover:underline font-semibold cursor-pointer"
               >
                 Sign In here.
               </button>
@@ -60,7 +62,7 @@ const SignUp = () => {
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
-            className="w-full p-3 border-2 border-gray-500 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF]"
+            className="w-full p-3 border-2 border-gray-500 dark:border-[#3d2a73] dark:bg-transparent dark:text-white dark:placeholder-[#7f7f96] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] dark:focus:ring-[#8f5fff] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF] dark:hover:border-[#6e43ff]"
           />
 
           <input
@@ -71,7 +73,7 @@ const SignUp = () => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full p-3 border-2 border-gray-500 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF]"
+            className="w-full p-3 border-2 border-gray-500 dark:border-[#3d2a73] dark:bg-transparent dark:text-white dark:placeholder-[#7f7f96] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] dark:focus:ring-[#8f5fff] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF] dark:hover:border-[#6e43ff]"
           />
 
           <div className="relative">
@@ -82,7 +84,7 @@ const SignUp = () => {
               placeholder="Enter Password"
               ref={passwordRef}
               required
-              className="w-full p-3 border-2 border-gray-500 rounded-md text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF]"
+              className="w-full p-3 border-2 border-gray-500 dark:border-[#3d2a73] dark:bg-transparent dark:text-white dark:placeholder-[#7f7f96] rounded-md text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] dark:focus:ring-[#8f5fff] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF] dark:hover:border-[#6e43ff]"
             />
             <button
               type="button"
@@ -106,7 +108,7 @@ const SignUp = () => {
               placeholder="Enter Confirm Password"
               ref={confirmPasswordRef}
               required
-              className="w-full p-3 border-2 border-gray-500 rounded-md text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF]"
+              className="w-full p-3 border-2 border-gray-500 dark:border-[#3d2a73] dark:bg-transparent dark:text-white dark:placeholder-[#7f7f96] rounded-md text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] dark:focus:ring-[#8f5fff] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF] dark:hover:border-[#6e43ff]"
             />
             <button
               type="button"
@@ -121,30 +123,33 @@ const SignUp = () => {
               />
             </button>
           </div>
-          <label className="flex items-center space-x-2 text-sm">
-            <input type="checkbox" className="accent-[#6356D7]" />
-            <span className="font-semibold cursor-pointer">Remember Me</span>
+          <label className="flex items-center space-x-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              className="accent-[#6356D7] dark:accent-[#8f5fff] w-3.5 h-3.5 sm:w-4 sm:h-4"
+            />
+            <span className="font-semibold cursor-pointer dark:text-white">Remember Me</span>
           </label>
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 bg-[#6356D7] text-white rounded-md hover:bg-[#7E5FFF] font-semibold transition-all text-sm shadow-md cursor-pointer"
+            className="w-full py-3 bg-[#6356D7] dark:bg-gradient-to-r dark:from-[#6e43ff] dark:to-[#8f5fff] dark:shadow-[0_0_20px_rgba(120,70,255,0.4)] text-white rounded-md hover:bg-[#7E5FFF] font-semibold transition-all text-sm shadow-md cursor-pointer"
           >
             {isLoading ? "Creating Account..." : "Sign Up"}
           </button>
 
-          <div className="flex items-center gap-4 text-sm text-gray-500">
-            <div className="flex-grow border-t" />
-            <span className="font-semibold">or sign up with</span>
-            <div className="flex-grow border-t" />
+          <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-[#9f9fb6]">
+            <div className="flex-grow border-t dark:border-[#2b2b38]" />
+            <span className="font-semibold dark:text-[#9f9fb6]">or sign up with</span>
+            <div className="flex-grow border-t dark:border-[#2b2b38]" />
           </div>
 
           <div className="flex justify-center">
             <button
               type="button"
               onClick={() => signIn("google")}
-              className="h-[45px] w-[120px] rounded-md border border-[#D5C9FF] bg-[#F1ECFF] shadow-md hover:shadow-lg transition-all duration-300 active:scale-95 hover:scale-105 flex items-center justify-center cursor-pointer"
+              className="h-[45px] w-[120px] rounded-md border border-[#D5C9FF] dark:border-[#2f2f44] bg-[#F1ECFF] dark:bg-[#070710] dark:text-white shadow-md hover:shadow-lg transition-all duration-300 active:scale-95 hover:scale-105 flex items-center justify-center cursor-pointer"
               title="Sign up with Google"
             >
               <Image src="/icons/google.png" alt="Google" width={25} height={25} />

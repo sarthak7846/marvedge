@@ -2,6 +2,7 @@
 import { Button } from "@/app/components/ui/button";
 import { useEffect, useState, RefObject, useCallback } from "react";
 import { formatTimeFull } from "@/app/lib/dateTimeUtils";
+import TrimRangeSlider from "./TrimRangeSlider";
 
 type EditorControlsProps = {
   onTrim: (start: string, end: string) => void;
@@ -116,89 +117,41 @@ const EditorControls = ({ onTrim, processing, videoRef, duration }: EditorContro
           </Button>
         </div>
 
-        <div className="pt-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            ⏱ Start Time: <span className="font-mono">{formatTimeFull(start)}</span>
-          </label>
+        <TrimRangeSlider
+          label="⏱ Start Time:"
+          displayTime={formatTimeFull(start)}
+          inputValue={startTimeInput}
+          placeholder="00:00:00"
+          rangeMin={0}
+          rangeMax={Math.max(0, end - 1)}
+          rangeValue={start}
+          onRangeChange={(e) => {
+            const val = Number(e.target.value);
+            setStart(val);
+            if (val >= end) {
+              setEnd(val + 1 <= duration ? val + 1 : duration);
+            }
+          }}
+          processing={processing}
+        />
 
-          {/* Manual input for start time */}
-          <div className="mb-3">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="relative flex-1">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"></div>
-                <input
-                  type="text"
-                  value={startTimeInput}
-                  readOnly
-                  placeholder="00:00:00"
-                  disabled={processing}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-sm font-mono bg-gray-50 shadow-sm transition-all duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed cursor-default"
-                />
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                  <span className="text-xs text-gray-400 font-medium">HH:MM:SS</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <input
-            type="range"
-            min={0}
-            max={Math.max(0, end - 1)}
-            value={start}
-            onChange={(e) => {
-              const val = Number(e.target.value);
-              setStart(val);
-              if (val >= end) {
-                setEnd(val + 1 <= duration ? val + 1 : duration);
-              }
-            }}
-            disabled={processing}
-            className="w-full accent-blue-500 cursor-pointer"
-          />
-        </div>
-
-        <div className="pt-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            ⏲ End Time: <span className="font-mono">{formatTimeFull(end)}</span>
-          </label>
-
-          {/* Manual input for end time */}
-          <div className="mb-3">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="relative flex-1">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"></div>
-                <input
-                  type="text"
-                  value={endTimeInput}
-                  readOnly
-                  placeholder="00:00:10"
-                  disabled={processing}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-sm font-mono bg-gray-50 shadow-sm transition-all duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed cursor-default"
-                />
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                  <span className="text-xs text-gray-400 font-medium">HH:MM:SS</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <input
-            type="range"
-            min={start + 1}
-            max={duration}
-            value={end}
-            onChange={(e) => {
-              const val = Number(e.target.value);
-              setEnd(val);
-              if (val <= start) {
-                setStart(val - 1 >= 0 ? val - 1 : 0);
-              }
-            }}
-            disabled={processing}
-            className="w-full accent-blue-500 cursor-pointer"
-          />
-        </div>
+        <TrimRangeSlider
+          label="⏲ End Time:"
+          displayTime={formatTimeFull(end)}
+          inputValue={endTimeInput}
+          placeholder="00:00:10"
+          rangeMin={start + 1}
+          rangeMax={duration}
+          rangeValue={end}
+          onRangeChange={(e) => {
+            const val = Number(e.target.value);
+            setEnd(val);
+            if (val <= start) {
+              setStart(val - 1 >= 0 ? val - 1 : 0);
+            }
+          }}
+          processing={processing}
+        />
       </div>
 
       <div className="text-xs text-gray-500 mt-6 border-t pt-4">
