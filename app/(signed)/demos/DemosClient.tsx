@@ -1,74 +1,21 @@
 "use client";
-import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  FaTh,
-  FaThList,
-  FaSort,
-  FaEye,
-  FaRegCalendarAlt,
-  FaListUl,
-  FaRegClock,
-  FaPlusSquare,
-} from "react-icons/fa";
-import Image from "next/image";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import axios from "axios";
-import { formatDate, formatTime } from "@/app/lib/dateTimeUtils";
 import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
+import { useDemosData } from "./hooks/useDemosData";
+import { buildDemoEditorParams, filterAndSortDemos } from "./utils/demoHelpers";
+import DemosToolbar from "./components/DemosToolbar";
+import DemoGridView from "./components/DemoGridView";
+import DemoListView from "./components/DemoListView";
+import type { Demo, DemoSortOption } from "./types";
 
 export const metadata = {
   titleText: "My Demos",
   iconSRC: "/Group.png",
 };
 
-interface Demo {
-  id: string;
-  title: string;
-  description: string;
-  videoUrl: string;
-  exportedUrl?: string;
-  startTime?: string;
-  endTime?: string;
-  duration?: number | null;
-  segments?: unknown;
-  createdAt: string;
-  updatedAt: string;
-  editing?: {
-    segments?: unknown;
-    zoom?: unknown;
-    subtitles?: unknown;
-    textOverlays?: unknown;
-    background?: string | null;
-    backgroundType?: string;
-    aspectRatio?: string;
-    browserFrame?: unknown;
-  };
-}
-
 interface DemosPageProps {
   initialDemos: Demo[];
-}
-
-function probeVideoDuration(url: string): Promise<number> {
-  return new Promise((resolve) => {
-    const video = document.createElement("video");
-    video.preload = "metadata";
-    video.muted = true;
-    const cleanup = () => {
-      video.removeAttribute("src");
-      video.load();
-    };
-    video.addEventListener("loadedmetadata", () => {
-      const dur = video.duration;
-      cleanup();
-      resolve(Number.isFinite(dur) ? dur : 0);
-    });
-    video.addEventListener("error", () => {
-      cleanup();
-      resolve(0);
-    });
-    video.src = url;
-  });
 }
 
 export default function DemosPage({ initialDemos }: DemosPageProps) {
@@ -80,75 +27,11 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
 
-  const [demos, setDemos] = useState<Demo[]>(initialDemos);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [sortOption, setSortOption] = useState<"title" | "updatedAt" | "createdAt" | "views">(
-    "updatedAt"
-  );
+  const [sortOption, setSortOption] = useState<DemoSortOption>("updatedAt");
 
-  const [durationMap, setDurationMap] = useState<Record<string, string>>(() => {
-    const map: Record<string, string> = {};
-    for (const demo of initialDemos) {
-      if (demo.duration && demo.duration > 0) {
-        map[demo.id] = formatTime(demo.duration);
-      }
-    }
-    return map;
-  });
-
-  const fetchDurations = useCallback(async (demoList: Demo[]) => {
-    const uncached = demoList.filter((d) => !d.duration && d.videoUrl);
-    for (const demo of uncached) {
-      try {
-        let playableUrl = demo.videoUrl;
-        if (demo.videoUrl.startsWith("gs://")) {
-          const res = await fetch(`/api/gcs/resolve?url=${encodeURIComponent(demo.videoUrl)}`);
-          const data = await res.json();
-          if (data.ok && data.playableUrl) {
-            playableUrl = data.playableUrl;
-          } else {
-            continue;
-          }
-        }
-        const dur = await probeVideoDuration(playableUrl);
-        if (dur > 0) {
-          setDurationMap((prev) => ({ ...prev, [demo.id]: formatTime(dur) }));
-
-          fetch("/api/demo/duration", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: demo.id, duration: dur }),
-          }).catch(() => {});
-        }
-      } catch {}
-    }
-  }, []);
-
-  useEffect(() => {
-    if (demos.length > 0) {
-      fetchDurations(demos);
-    }
-  }, [demos, fetchDurations]);
-
-  const fetchDemos = async () => {
-    setLoading(true);
-    try {
-      const response = await axios.get("/api/demo");
-      setDemos(response.data.demos || []);
-    } catch (err: unknown) {
-      console.error("Error fetching demos:", err);
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || "Failed to fetch demos");
-      } else {
-        setError("Failed to fetch demos");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { demos, loading, error, durationMap, deleteDemo } = useDemosData(initialDemos);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -163,65 +46,10 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const filteredAndSortedDemos = demos
-    .filter(
-      (demo) =>
-        demo.title.toLowerCase().includes(search.toLowerCase()) ||
-        demo.description.toLowerCase().includes(search.toLowerCase())
-    )
-    .sort((a, b) => {
-      if (sortOption === "title") {
-        return a.title.localeCompare(b.title);
-      } else if (sortOption === "updatedAt") {
-        return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
-      } else if (sortOption === "createdAt") {
-        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-      } else if (sortOption === "views") {
-        return 0;
-      }
-      return 0;
-    });
+  const filteredAndSortedDemos = filterAndSortDemos(demos, search, sortOption);
 
   const handleEditDemo = (demo: Demo) => {
-    const params = new URLSearchParams({
-      video: demo.videoUrl,
-      startTime: demo.startTime || "",
-      endTime: demo.endTime || "",
-      title: demo.title || "",
-      description: demo.description || "",
-      demoId: demo.id,
-    });
-
-    if (demo.editing) {
-      if (demo.editing.segments) {
-        params.append("segments", JSON.stringify(demo.editing.segments));
-      }
-      if (demo.editing.zoom) {
-        params.append("zoom", JSON.stringify(demo.editing.zoom));
-      }
-      if (demo.editing.subtitles) {
-        params.append("subtitles", JSON.stringify(demo.editing.subtitles));
-      }
-      if (demo.editing.textOverlays) {
-        params.append("textOverlays", JSON.stringify(demo.editing.textOverlays));
-      }
-      if (typeof demo.editing.background !== "undefined" && demo.editing.background !== null) {
-        params.append("background", String(demo.editing.background));
-      }
-      if (demo.editing.backgroundType) {
-        params.append("backgroundType", demo.editing.backgroundType);
-      }
-      if (demo.editing.aspectRatio) {
-        params.append("aspectRatio", demo.editing.aspectRatio);
-      }
-      if (demo.editing.browserFrame) {
-        params.append("browserFrame", JSON.stringify(demo.editing.browserFrame));
-      }
-    } else if (demo.segments) {
-      params.append("segments", JSON.stringify(demo.segments));
-    }
-
-    router.push(`/editor?${params.toString()}`);
+    router.push(`/editor?${buildDemoEditorParams(demo)}`);
   };
 
   const handleDeleteDemo = (id: string) => {
@@ -233,20 +61,9 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
     if (!deleteId) {
       return;
     }
-    try {
-      await axios.delete("/api/demo/", {
-        params: {
-          id: deleteId,
-        },
-      });
-      await fetchDemos();
-    } catch (error) {
-      console.error("Error deleting demo:", error);
-      setError("Failed to delete demo");
-    } finally {
-      setIsModalOpen(false);
-      setDeleteId(null);
-    }
+    await deleteDemo(deleteId);
+    setIsModalOpen(false);
+    setDeleteId(null);
   };
 
   return (
@@ -256,93 +73,17 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
           <h2 className="text-2xl font-normal text-[#8B8B8B] dark:text-[var(--text-muted)] mb-2">
             Manage and organize all your interactive demos.
           </h2>
-          <div className="flex flex-wrap items-center justify-between mt-6 gap-4">
-            <input
-              type="text"
-              placeholder="Search your demos"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="demos-search flex-1 min-w-[300px] px-4 py-3 rounded-lg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#A594F9]"
-            />
-
-            <div className="flex items-center gap-6 ml-auto">
-              <div className="relative">
-                <button
-                  className="demos-sort-btn flex items-center gap-2 px-6 py-3 rounded-lg bg-white border border-gray-200 text-[#A594F9] font-medium hover:bg-[#ede7fa]"
-                  onClick={() => setSortDropdownOpen((v) => !v)}
-                >
-                  <FaSort className="text-lg" /> Sort By
-                </button>
-                {sortDropdownOpen && (
-                  <div
-                    ref={sortDropdownRef}
-                    className="demos-dropdown-menu absolute left-0 top-full mt-2 bg-white rounded-2xl shadow-lg p-4 z-50 border border-gray-100 min-w-[180px] animate-fade-in"
-                  >
-                    <div className="flex flex-col gap-2">
-                      <div
-                        onClick={() => {
-                          setSortOption("title");
-                          setSortDropdownOpen(false);
-                        }}
-                        className={`flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "title" ? "text-purple-700 bg-purple-50 active-sort" : "text-[#A594F9]"}`}
-                      >
-                        <FaListUl className="text-lg" /> Title
-                      </div>
-                      <div
-                        onClick={() => {
-                          setSortOption("updatedAt");
-                          setSortDropdownOpen(false);
-                        }}
-                        className={`flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "updatedAt" ? "text-purple-700 bg-purple-50 active-sort" : "text-[#A594F9]"}`}
-                      >
-                        <FaRegClock className="text-lg" /> Last Updated
-                      </div>
-                      <div
-                        onClick={() => {
-                          setSortOption("createdAt");
-                          setSortDropdownOpen(false);
-                        }}
-                        className={`flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "createdAt" ? "text-purple-700 bg-purple-50 active-sort" : "text-[#A594F9]"}`}
-                      >
-                        <FaPlusSquare className="text-lg" /> Created date
-                      </div>
-                      <div
-                        onClick={() => {
-                          setSortOption("views");
-                          setSortDropdownOpen(false);
-                        }}
-                        className={`flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "views" ? "text-purple-700 bg-purple-50 active-sort" : "text-[#A594F9]"}`}
-                      >
-                        <FaEye className="text-lg" /> Views
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  className={`p-3 rounded-lg border transition-all ${
-                    view === "grid"
-                      ? "bg-[#A594F9] text-white dark:bg-[var(--purple-primary)] dark:border-[var(--purple-primary)]"
-                      : "bg-white text-[#A594F9] border-gray-200 dark:bg-[var(--bg-card)] dark:border-[var(--border-primary)] dark:text-[var(--purple-light)]"
-                  }`}
-                  onClick={() => setView("grid")}
-                >
-                  <FaTh className="text-xl" />
-                </button>
-                <button
-                  className={`p-3 rounded-lg border transition-all ${
-                    view === "list"
-                      ? "bg-[#A594F9] text-white dark:bg-[var(--purple-primary)] dark:border-[var(--purple-primary)]"
-                      : "bg-white text-[#A594F9] border-gray-200 dark:bg-[var(--bg-card)] dark:border-[var(--border-primary)] dark:text-[var(--purple-light)]"
-                  }`}
-                  onClick={() => setView("list")}
-                >
-                  <FaThList className="text-xl" />
-                </button>
-              </div>
-            </div>
-          </div>
+          <DemosToolbar
+            search={search}
+            setSearch={setSearch}
+            sortDropdownOpen={sortDropdownOpen}
+            setSortDropdownOpen={setSortDropdownOpen}
+            sortDropdownRef={sortDropdownRef}
+            sortOption={sortOption}
+            setSortOption={setSortOption}
+            view={view}
+            setView={setView}
+          />
         </div>
         <div className="mt-8">
           <h3 className="text-3xl font-semibold text-[#1A0033] dark:text-[var(--text-primary)] mb-6">
@@ -364,134 +105,18 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
               <div className="text-[#8B8B8B] text-lg">No demos found</div>
             </div>
           ) : view === "grid" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-8">
-              {filteredAndSortedDemos.map((demo: Demo) => (
-                <div
-                  key={demo.id}
-                  className="demos-card bg-white rounded-2xl p-4 flex flex-col h-full shadow-sm cursor-pointer hover:shadow-md transition"
-                  onClick={() => handleEditDemo(demo)}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-2xl text-[#8B8B8B] dark:text-[var(--text-primary)] font-normal">
-                      {demo.title}
-                    </div>
-                    <button
-                      className="text-red-400 hover:text-red-600 text-xl flex-shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteDemo(demo.id);
-                      }}
-                    >
-                      <Image
-                        src="/icons/delete-demo.svg"
-                        alt="Delete"
-                        width={24}
-                        height={24}
-                        className="w-6 h-6"
-                      />
-                    </button>
-                  </div>
-                  <div className="flex-1 flex items-center justify-center rounded-xl mb-4 min-h-[220px] overflow-hidden">
-                    <Image
-                      src="/LargeMarvedge.png"
-                      alt="Demo thumbnail"
-                      width={800}
-                      height={450}
-                      className="w-full h-full object-cover rounded-xl"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-[#8B8B8B] dark:text-[var(--text-soft)] text-base mb-2">
-                    <div className="flex items-center gap-2">
-                      <FaRegClock className="text-lg" /> {durationMap[demo.id] || "..."}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <FaRegCalendarAlt className="text-lg" /> {formatDate(demo.updatedAt)}
-                    </div>
-                    <div>Draft</div>
-                  </div>
-                  <div className="text-sm text-[#8B8B8B] dark:text-[var(--text-muted)] truncate">
-                    {demo.description || "No description"}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <DemoGridView
+              demos={filteredAndSortedDemos}
+              durationMap={durationMap}
+              onEdit={handleEditDemo}
+              onDelete={handleDeleteDemo}
+            />
           ) : (
-            <div className="bg-white dark:bg-[var(--bg-card)] dark:border dark:border-[var(--border-primary)] rounded-2xl overflow-hidden">
-              <table className="w-full text-left">
-                <thead className="bg-[#F3F0FC] dark:bg-[var(--panel-primary)] text-[#8B8B8B] dark:text-[var(--text-muted)] text-lg">
-                  <tr>
-                    <th className="py-4 px-6 font-medium">Demos</th>
-
-                    <th className="py-4 px-6 font-medium">Status</th>
-                    <th className="py-4 px-6 font-medium">Updated</th>
-                    <th className="py-4 px-6 font-medium text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAndSortedDemos.map((demo: Demo) => (
-                    <tr
-                      key={demo.id}
-                      className="border-t border-[#F3F0FC] dark:border-[var(--border-primary)] hover:bg-[#F8F6FF] dark:hover:bg-[var(--active-start)]/30 cursor-pointer"
-                      onClick={() => handleEditDemo(demo)}
-                    >
-                      <td className="py-4 px-6 flex items-center gap-4">
-                        <span className="inline-flex items-center justify-center w-14 h-14 rounded-xl overflow-hidden bg-white dark:bg-gradient-to-br dark:from-[#8a63ff] dark:to-[#5c38f7] border border-[#E9E4F5] dark:border-none shadow-sm shrink-0">
-                          <Image
-                            src="/images/Transparent logo.png"
-                            alt="Demo thumbnail"
-                            width={28}
-                            height={28}
-                            className="w-7 h-7 object-contain dark:hidden block"
-                          />
-                          <Image
-                            src="/images/Transparent logo.png"
-                            alt="Demo thumbnail"
-                            width={28}
-                            height={28}
-                            className="w-7 h-7 object-contain brightness-0 invert dark:block hidden"
-                          />
-                        </span>
-                        <div>
-                          <div className="font-semibold text-lg text-[#1A0033] dark:text-[var(--text-primary)]">
-                            {demo.title}
-                          </div>
-                          <div className="text-[#8B8B8B] dark:text-[var(--text-muted)] text-sm">
-                            {demo.description || "No description"}
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="py-4 px-6 text-[#8B8B8B] dark:text-[var(--text-soft)] font-medium">
-                        Draft
-                      </td>
-                      <td className="py-4 px-6 text-[#8B8B8B] dark:text-[var(--text-soft)] font-medium">
-                        {formatDate(demo.updatedAt)}
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex items-center justify-center">
-                          <button
-                            className="text-red-400 hover:text-red-600 text-xl cursor-pointer"
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteDemo(demo.id);
-                            }}
-                          >
-                            <Image
-                              src="/icons/delete-demo.svg"
-                              alt="Delete"
-                              width={24}
-                              height={24}
-                              className="w-6 h-6"
-                            />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DemoListView
+              demos={filteredAndSortedDemos}
+              onEdit={handleEditDemo}
+              onDelete={handleDeleteDemo}
+            />
           )}
         </div>
       </div>

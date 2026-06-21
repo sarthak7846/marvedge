@@ -1,32 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import {
-  FaShareAlt,
-  FaTh,
-  FaThList,
-  FaSort,
-  FaEye,
-  FaRegCalendarAlt,
-  FaListUl,
-  FaRegClock,
-  FaPlusSquare,
-} from "react-icons/fa";
-import Image from "next/image";
-import axios from "axios";
-import { formatDate } from "@/app/lib/dateTimeUtils";
 import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
 import ShareModal from "../../components/ShareModal";
-
-interface ExportedVideo {
-  id: string;
-  title: string;
-  description: string | null;
-  exportedUrl: string;
-  shareableUrl: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import { useExportedVideos } from "./hooks/useExportedVideos";
+import { filterAndSortVideos } from "./utils/videoHelpers";
+import VideosToolbar from "./components/VideosToolbar";
+import VideoGridView from "./components/VideoGridView";
+import VideoListView from "./components/VideoListView";
+import type { ExportedVideo, VideoSortOption } from "./types";
 
 export default function ExportedVideosClient() {
   const [search, setSearch] = useState("");
@@ -35,37 +17,12 @@ export default function ExportedVideosClient() {
   const statusDropdownRef = useRef<HTMLDivElement>(null);
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
-  const [videos, setVideos] = useState<ExportedVideo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [shareVideo, setShareVideo] = useState<Pick<ExportedVideo, "id" | "title"> | null>(null);
-  const [sortOption, setSortOption] = useState<"title" | "updatedAt" | "createdAt" | "views">(
-    "updatedAt"
-  );
+  const [sortOption, setSortOption] = useState<VideoSortOption>("updatedAt");
 
-  const fetchExportedVideos = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await axios.get("/api/exported-videos");
-      setVideos(response.data.exportedVideos || []);
-    } catch (err: unknown) {
-      console.error("Error fetching exported videos:", err);
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || "Failed to fetch exported videos");
-      } else {
-        setError("Failed to fetch exported videos");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchExportedVideos();
-  }, []);
+  const { videos, loading, error, deleteVideo } = useExportedVideos();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -80,24 +37,7 @@ export default function ExportedVideosClient() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const filteredAndSortedVideos = videos
-    .filter(
-      (video) =>
-        video.title.toLowerCase().includes(search.toLowerCase()) ||
-        (video.description || "").toLowerCase().includes(search.toLowerCase())
-    )
-    .sort((a, b) => {
-      if (sortOption === "title") {
-        return a.title.localeCompare(b.title);
-      } else if (sortOption === "updatedAt") {
-        return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
-      } else if (sortOption === "createdAt") {
-        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-      } else if (sortOption === "views") {
-        return 0;
-      }
-      return 0;
-    });
+  const filteredAndSortedVideos = filterAndSortVideos(videos, search, sortOption);
 
   const openVideo = (url: string) => {
     if (!url) {
@@ -115,18 +55,9 @@ export default function ExportedVideosClient() {
     if (!deleteId) {
       return;
     }
-    try {
-      await axios.delete("/api/exported-videos", {
-        params: { id: deleteId },
-      });
-      await fetchExportedVideos();
-    } catch (deleteError) {
-      console.error("Error deleting exported video:", deleteError);
-      setError("Failed to delete exported video");
-    } finally {
-      setIsModalOpen(false);
-      setDeleteId(null);
-    }
+    await deleteVideo(deleteId);
+    setIsModalOpen(false);
+    setDeleteId(null);
   };
 
   return (
@@ -136,93 +67,17 @@ export default function ExportedVideosClient() {
           <h2 className="shared-subtitle text-2xl font-normal text-[#8B8B8B] mb-2">
             Manage and organize all your shared videos.
           </h2>
-          <div className="flex flex-wrap items-center justify-between mt-6 gap-4">
-            <input
-              type="text"
-              placeholder="Search your shared videos"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="shared-search flex-1 min-w-[300px] px-4 py-3 rounded-lg bg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#A594F9]"
-            />
-
-            <div className="flex items-center gap-6 ml-auto">
-              <div className="relative">
-                <button
-                  className="shared-sort-btn flex items-center gap-2 px-6 py-3 rounded-lg bg-white border border-gray-200 text-[#A594F9] font-medium hover:bg-[#ede7fa]"
-                  onClick={() => setSortDropdownOpen((v) => !v)}
-                >
-                  <FaSort className="text-lg" /> Sort By
-                </button>
-                {sortDropdownOpen && (
-                  <div
-                    ref={sortDropdownRef}
-                    className="shared-sort-dropdown absolute left-0 top-full mt-2 bg-white rounded-2xl shadow-lg p-4 z-50 border border-gray-100 min-w-[180px] animate-fade-in"
-                  >
-                    <div className="flex flex-col gap-2">
-                      <div
-                        onClick={() => {
-                          setSortOption("title");
-                          setSortDropdownOpen(false);
-                        }}
-                        className={`shared-sort-option flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "title" ? "active text-purple-700 bg-purple-50" : "text-[#A594F9]"}`}
-                      >
-                        <FaListUl className="text-lg" /> Title
-                      </div>
-                      <div
-                        onClick={() => {
-                          setSortOption("updatedAt");
-                          setSortDropdownOpen(false);
-                        }}
-                        className={`shared-sort-option flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "updatedAt" ? "active text-purple-700 bg-purple-50" : "text-[#A594F9]"}`}
-                      >
-                        <FaRegClock className="text-lg" /> Last Updated
-                      </div>
-                      <div
-                        onClick={() => {
-                          setSortOption("createdAt");
-                          setSortDropdownOpen(false);
-                        }}
-                        className={`shared-sort-option flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "createdAt" ? "active text-purple-700 bg-purple-50" : "text-[#A594F9]"}`}
-                      >
-                        <FaPlusSquare className="text-lg" /> Created date
-                      </div>
-                      <div
-                        onClick={() => {
-                          setSortOption("views");
-                          setSortDropdownOpen(false);
-                        }}
-                        className={`shared-sort-option flex items-center gap-3 text-base font-medium cursor-pointer px-2 py-2 rounded-lg hover:bg-[#F3F0FC] ${sortOption === "views" ? "active text-purple-700 bg-purple-50" : "text-[#A594F9]"}`}
-                      >
-                        <FaEye className="text-lg" /> Views
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  className={`shared-view-btn p-3 rounded-lg border ${
-                    view === "grid"
-                      ? "active bg-[#A594F9] text-white"
-                      : "bg-white text-[#A594F9] border-gray-200"
-                  }`}
-                  onClick={() => setView("grid")}
-                >
-                  <FaTh className="text-xl" />
-                </button>
-                <button
-                  className={`shared-view-btn p-3 rounded-lg border ${
-                    view === "list"
-                      ? "active bg-[#A594F9] text-white"
-                      : "bg-white text-[#A594F9] border-gray-200"
-                  }`}
-                  onClick={() => setView("list")}
-                >
-                  <FaThList className="text-xl" />
-                </button>
-              </div>
-            </div>
-          </div>
+          <VideosToolbar
+            search={search}
+            setSearch={setSearch}
+            sortDropdownOpen={sortDropdownOpen}
+            setSortDropdownOpen={setSortDropdownOpen}
+            sortDropdownRef={sortDropdownRef}
+            sortOption={sortOption}
+            setSortOption={setSortOption}
+            view={view}
+            setView={setView}
+          />
         </div>
 
         <div className="mt-8">
@@ -246,150 +101,19 @@ export default function ExportedVideosClient() {
               </div>
             </div>
           ) : view === "grid" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-8">
-              {filteredAndSortedVideos.map((video) => (
-                <div
-                  key={video.id}
-                  className="shared-card bg-white rounded-2xl p-4 flex flex-col h-full shadow-sm cursor-pointer hover:shadow-md transition"
-                  onClick={() => openVideo(video.exportedUrl)}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="shared-card-title text-2xl text-[#8B8B8B] font-normal">
-                      {video.title}
-                    </div>
-                    <button
-                      className="text-red-400 hover:text-red-600 text-xl flex-shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteVideo(video.id);
-                      }}
-                    >
-                      <Image
-                        src="/icons/delete-demo.svg"
-                        alt="Delete"
-                        width={24}
-                        height={24}
-                        className="w-6 h-6"
-                      />
-                    </button>
-                  </div>
-                  <div className="flex-1 flex items-center justify-center rounded-xl mb-4 min-h-[220px] overflow-hidden">
-                    <Image
-                      src="/LargeMarvedge.png"
-                      alt="Video thumbnail"
-                      width={800}
-                      height={450}
-                      className="w-full h-full object-cover rounded-xl"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-[#8B8B8B] text-base mb-2">
-                    <div className="shared-card-desc flex-1 truncate text-sm">
-                      {video.description || "No description"}
-                    </div>
-                    <div className="shared-card-date flex items-center gap-2 flex-shrink-0 ml-4">
-                      <FaRegCalendarAlt className="text-lg" /> {formatDate(video.updatedAt)}
-                    </div>
-                    <div className="shared-card-desc ml-4 flex-shrink-0">Published</div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShareVideo({ id: video.id, title: video.title });
-                    }}
-                    className="shared-btn bg-[#A594F9] text-white rounded-lg px-6 py-3 w-full text-lg font-medium flex items-center justify-center gap-2 mt-auto cursor-pointer"
-                  >
-                    <FaShareAlt /> Share
-                  </button>
-                </div>
-              ))}
-            </div>
+            <VideoGridView
+              videos={filteredAndSortedVideos}
+              onOpen={openVideo}
+              onDelete={handleDeleteVideo}
+              onShare={(video) => setShareVideo({ id: video.id, title: video.title })}
+            />
           ) : (
-            <div className="shared-table-container bg-white rounded-2xl overflow-hidden">
-              <table className="w-full text-left">
-                <thead className="shared-table-head bg-[#F3F0FC] text-[#8B8B8B] text-lg">
-                  <tr>
-                    <th className="py-4 px-6 font-medium">Videos</th>
-                    <th className="py-4 px-6 font-medium">Status</th>
-                    <th className="py-4 px-6 font-medium">Updated</th>
-                    <th className="py-4 px-6 font-medium text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAndSortedVideos.map((video) => (
-                    <tr
-                      key={video.id}
-                      className="shared-table-row border-t border-[#F3F0FC] hover:bg-[#F8F6FF] cursor-pointer"
-                      onClick={() => openVideo(video.exportedUrl)}
-                    >
-                      <td className="py-4 px-6 flex items-center gap-4">
-                        <span className="inline-flex items-center justify-center w-14 h-14 rounded-xl overflow-hidden bg-white dark:bg-gradient-to-br dark:from-[#8a63ff] dark:to-[#5c38f7] border border-[#E9E4F5] dark:border-none shadow-sm shrink-0">
-                          <Image
-                            src="/images/Transparent logo.png"
-                            alt="Video thumbnail"
-                            width={28}
-                            height={28}
-                            className="w-7 h-7 object-contain dark:hidden block"
-                          />
-                          <Image
-                            src="/images/Transparent logo.png"
-                            alt="Video thumbnail"
-                            width={28}
-                            height={28}
-                            className="w-7 h-7 object-contain brightness-0 invert dark:block hidden"
-                          />
-                        </span>
-                        <div>
-                          <div className="shared-table-text-primary font-semibold text-lg text-[#1A0033]">
-                            {video.title}
-                          </div>
-                          <div className="shared-table-text-muted text-[#8B8B8B] text-sm">
-                            {video.description || "No description"}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="shared-table-text-muted py-4 px-6 text-[#8B8B8B] font-medium">
-                        Published
-                      </td>
-                      <td className="shared-table-text-muted py-4 px-6 text-[#8B8B8B] font-medium">
-                        {formatDate(video.updatedAt)}
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex gap-4 items-center justify-center">
-                          <button
-                            className="text-[#A594F9] hover:text-[#7C6FEF] text-xl cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShareVideo({
-                                id: video.id,
-                                title: video.title,
-                              });
-                            }}
-                          >
-                            <FaShareAlt />
-                          </button>
-                          <button
-                            className="text-red-400 hover:text-red-600 text-xl cursor-pointer"
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteVideo(video.id);
-                            }}
-                          >
-                            <Image
-                              src="/icons/delete-demo.svg"
-                              alt="Delete"
-                              width={24}
-                              height={24}
-                              className="w-6 h-6"
-                            />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <VideoListView
+              videos={filteredAndSortedVideos}
+              onOpen={openVideo}
+              onDelete={handleDeleteVideo}
+              onShare={(video) => setShareVideo({ id: video.id, title: video.title })}
+            />
           )}
         </div>
       </div>
