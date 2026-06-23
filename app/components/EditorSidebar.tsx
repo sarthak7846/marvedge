@@ -3,6 +3,8 @@ import { MainTab } from "./editorSidebar/backgroundOptions";
 import SidebarHeader from "./editorSidebar/SidebarHeader";
 import BackgroundPanel from "./editorSidebar/BackgroundPanel";
 import ToolsPanel from "./editorSidebar/ToolsPanel";
+import CtaPanel from "./editorSidebar/CtaPanel";
+import type { CtaItem } from "@/app/(signed)/editor/apiTypes";
 
 interface EditorSidebarProps {
   title: string;
@@ -43,6 +45,14 @@ interface EditorSidebarProps {
   savingDemo?: boolean;
   demoSaved?: boolean;
   onToggleDashboardMenu?: () => void;
+  ctas?: CtaItem[];
+  onAddCta?: (data: { label: string; url: string; placement?: string }) => void | Promise<void>;
+  onUpdateCta?: (
+    id: string,
+    data: { label?: string; url?: string; placement?: string | null }
+  ) => void | Promise<void>;
+  onDeleteCta?: (id: string) => void | Promise<void>;
+  onReorderCta?: (id: string, direction: "up" | "down") => void | Promise<void>;
 }
 
 const EditorSidebar: React.FC<EditorSidebarProps> = ({
@@ -79,6 +89,11 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   savingDemo = false,
   demoSaved = false,
   onToggleDashboardMenu,
+  ctas,
+  onAddCta,
+  onUpdateCta,
+  onDeleteCta,
+  onReorderCta,
 }) => {
   const [activeTab, setActiveTab] = React.useState<MainTab>("background");
 
@@ -131,6 +146,16 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
           onClearSubtitles={onClearSubtitles}
           subtitlesLoading={subtitlesLoading}
           hasSubtitles={hasSubtitles}
+        />
+      )}
+
+      {activeTab === "cta" && (
+        <CtaPanel
+          ctas={ctas}
+          onAddCta={onAddCta}
+          onUpdateCta={onUpdateCta}
+          onDeleteCta={onDeleteCta}
+          onReorderCta={onReorderCta}
         />
       )}
     </aside>
