@@ -53,6 +53,7 @@ export function useDemoLoader({
     setBrowserFrameMode,
     setBrowserFrameDrawShadow,
     setBrowserFrameDrawBorder,
+    setCtas,
   } = editorState;
 
   const restoreDemoEditing = (ed: DemoEditing) => {
@@ -155,6 +156,42 @@ export function useDemoLoader({
       isMounted = false;
     };
   }, [savedDemoId, params]);
+
+  // CTAs live in the Cta table, not in demo.editing, so load them separately.
+  // Degrades gracefully: a missing/empty endpoint just leaves the list empty.
+  useEffect(() => {
+    const demoId = savedDemoId || params?.get("demoId");
+    if (!demoId) {
+      return;
+    }
+    let isMounted = true;
+    axios
+      .get(`/api/demos/${demoId}/ctas`)
+      .then((res) => {
+        if (!isMounted) {
+          return;
+        }
+        const list = res.data?.ctas;
+        if (!Array.isArray(list)) {
+          return;
+        }
+        setCtas(
+          list.map((c) => ({
+            id: String(c.id),
+            label: String(c.label ?? ""),
+            url: String(c.url ?? ""),
+            placement: c.placement ?? null,
+            order: typeof c.order === "number" ? c.order : 0,
+          }))
+        );
+      })
+      .catch(() => {
+        // CTAs are optional; ignore load failures (e.g. endpoint not yet deployed).
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [savedDemoId, params, setCtas]);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);

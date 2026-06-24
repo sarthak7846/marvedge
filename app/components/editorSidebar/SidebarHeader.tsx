@@ -91,6 +91,14 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({
         >
           Tools
         </button>
+        <button
+          className={`tab-item flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
+            activeTab === "cta" ? "active bg-white text-[#7C5CFC] shadow" : "text-gray-600"
+          }`}
+          onClick={() => setActiveTab("cta")}
+        >
+          CTA
+        </button>
       </div>
     </>
   );

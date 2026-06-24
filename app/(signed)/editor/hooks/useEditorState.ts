@@ -9,6 +9,14 @@ export interface Segment {
 
 export type BrowserFrameMode = "default" | "minimal" | "hidden";
 
+export interface CtaItem {
+  id: string;
+  label: string;
+  url: string;
+  placement?: string | null;
+  order: number;
+}
+
 export function useEditorState() {
   const [params, setParams] = useState<URLSearchParams | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -28,6 +36,9 @@ export function useEditorState() {
   // Sidebar state
   const [sidebarTitle, setSidebarTitle] = useState("");
   const [sidebarDescription, setSidebarDescription] = useState("");
+
+  // CTA state (definitions live in the Cta table, not in demo.editing)
+  const [ctas, setCtas] = useState<CtaItem[]>([]);
 
   // Modal state
   const [showSaveDemoModal, setShowSaveDemoModal] = useState(false);
@@ -95,6 +106,8 @@ export function useEditorState() {
     setSidebarTitle,
     sidebarDescription,
     setSidebarDescription,
+    ctas,
+    setCtas,
     showSaveDemoModal,
     setShowSaveDemoModal,
     savingDemo,
