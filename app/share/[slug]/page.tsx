@@ -116,6 +116,10 @@ export default async function SharePage({ params }: PageProps) {
       videoUrl: true,
       exportedUrl: true,
       editing: true,
+      ctas: {
+        select: { id: true, label: true, url: true, order: true },
+        orderBy: { order: "asc" },
+      },
     },
   });
 
@@ -135,6 +139,7 @@ export default async function SharePage({ params }: PageProps) {
           : "16:9"
       }
       demoId={demo.id}
+      ctas={demo.ctas}
     />
   );
 }

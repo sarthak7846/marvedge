@@ -7,6 +7,7 @@ import { useViewTracking } from "./hooks/useViewTracking";
 import { getPreviewStage } from "./utils/previewStage";
 import ShareHeader from "./components/ShareHeader";
 import ShareSignupCTA from "./components/ShareSignupCTA";
+import ShareCtaButtons, { type ShareCta } from "./components/ShareCtaButtons";
 
 type ShareVideoPageClientProps = {
   title: string;
@@ -16,6 +17,7 @@ type ShareVideoPageClientProps = {
   aspectRatio: string;
   demoId?: string;
   videoId?: string;
+  ctas?: ShareCta[];
 };
 
 export default function ShareVideoPageClient({
@@ -26,6 +28,7 @@ export default function ShareVideoPageClient({
   aspectRatio,
   demoId,
   videoId,
+  ctas = [],
 }: ShareVideoPageClientProps) {
   const videoRef = useViewTracking(demoId, videoId);
 
@@ -78,6 +81,8 @@ export default function ShareVideoPageClient({
             </div>
           </div>
         </div>
+
+        <ShareCtaButtons ctas={ctas} demoId={demoId} />
 
         {!isLoggedIn && <ShareSignupCTA />}
       </section>
