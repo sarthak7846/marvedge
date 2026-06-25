@@ -96,7 +96,7 @@ const Linepage = ({
             }}
           >
             <div
-              className={`bg-[#A594F9] mx-auto ${
+              className={`bg-[#7C5CFC] dark:bg-[#A594F9] mx-auto ${
                 tick.type === "major"
                   ? "w-0.5 h-6"
                   : tick.type === "middle"
@@ -105,7 +105,7 @@ const Linepage = ({
               }`}
             />
             {tick.type === "major" && (
-              <span className="text-xs text-[#A594F9] font-medium mt-1 whitespace-nowrap">
+              <span className="text-xs text-[#7C5CFC] dark:text-[#A594F9] font-medium mt-1 whitespace-nowrap">
                 {tick.label}
               </span>
             )}
