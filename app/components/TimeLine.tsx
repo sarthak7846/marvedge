@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { ZoomEffect } from "../types/editor/zoom-effect";
 import Linepage from "./Linepage";
@@ -132,9 +132,61 @@ export default function TimelineRuler({
 
   const [playheadMode, setPlayheadMode] = useState<"trim" | "non-trim">("non-trim");
   const [selectedTrimIdx, setSelectedTrimIdx] = useState<number | null>(null);
+
+  const [trackIndices, setTrackIndices] = useState<Record<string, number>>({});
+
+  const getTrackIndex = useCallback(
+    (itemId: string, type: "trim" | "zoom" | "text") => {
+      if (trackIndices[itemId] !== undefined) {
+        return trackIndices[itemId];
+      }
+      if (type === "trim") {
+        return 0;
+      }
+      if (type === "zoom") {
+        return 1;
+      }
+      return 2;
+    },
+    [trackIndices]
+  );
+
+  const maxTrackIndex = useMemo(() => {
+    let maxIdx = 2; // default accommodates at least 3 tracks (0, 1, 2)
+
+    (segments || []).forEach((_, idx) => {
+      const tIdx = getTrackIndex(`trim-${idx}`, "trim");
+      if (tIdx > maxIdx) {
+        maxIdx = tIdx;
+      }
+    });
+
+    (zoomSegments || []).forEach((seg, idx) => {
+      const tIdx = getTrackIndex(`zoom-${idx}`, "zoom");
+      if (tIdx > maxIdx) {
+        maxIdx = tIdx;
+      }
+    });
+
+    (textOverlays || []).forEach((overlay) => {
+      const tIdx = getTrackIndex(`text-${overlay.id}`, "text");
+      if (tIdx > maxIdx) {
+        maxIdx = tIdx;
+      }
+    });
+
+    return maxIdx;
+  }, [segments, zoomSegments, textOverlays, getTrackIndex]);
+
+  const totalTracks = maxTrackIndex + 2; // occupied tracks + 1 extra empty track
+  const calculatedHeight = 42 + totalTracks * 38;
+
   const FIXED_TRIM_DURATION = 4;
 
   const segmentsRef = useRef(segments);
+  const zoomSegmentsRef = useRef(zoomSegments);
+  const textOverlaysRef = useRef(textOverlays);
+  const trackIndicesRef = useRef(trackIndices);
   const playheadModeRef = useRef(playheadMode);
   const selectedTrimIdxRef = useRef(selectedTrimIdx);
   const onValueChangeRef = useRef(onValueChange);
@@ -161,8 +213,26 @@ export default function TimelineRuler({
   };
 
   useEffect(() => {
-    segmentsRef.current = segments;
+    segmentsRef.current = (segments || []).map((s) => {
+      return { ...s };
+    });
   }, [segments]);
+
+  useEffect(() => {
+    zoomSegmentsRef.current = (zoomSegments || []).map((s) => {
+      return { ...s };
+    });
+  }, [zoomSegments]);
+
+  useEffect(() => {
+    textOverlaysRef.current = (textOverlays || []).map((s) => {
+      return { ...s };
+    });
+  }, [textOverlays]);
+
+  useEffect(() => {
+    trackIndicesRef.current = trackIndices;
+  }, [trackIndices]);
 
   useEffect(() => {
     playheadModeRef.current = playheadMode;
@@ -183,6 +253,371 @@ export default function TimelineRuler({
   useEffect(() => {
     onEndTimeChangeRef.current = onEndTimeChange;
   }, [onEndTimeChange]);
+
+  interface TimelineBlock {
+    id: string;
+    type: "trim" | "zoom" | "text";
+    index: number;
+    start: number;
+    end: number;
+    track: number;
+    width: number;
+  }
+
+  const getAllBlocksFromRefs = useCallback((excludeId?: string): TimelineBlock[] => {
+    const list: TimelineBlock[] = [];
+    (segmentsRef.current || []).forEach((seg, idx) => {
+      const id = `trim-${idx}`;
+      if (id !== excludeId) {
+        list.push({
+          id,
+          type: "trim",
+          index: idx,
+          start: seg.start,
+          end: seg.end,
+          track: trackIndicesRef.current[id] !== undefined ? trackIndicesRef.current[id] : 0,
+          width: seg.end - seg.start,
+        });
+      }
+    });
+    (zoomSegmentsRef.current || []).forEach((seg, idx) => {
+      const id = `zoom-${idx}`;
+      if (id !== excludeId) {
+        list.push({
+          id,
+          type: "zoom",
+          index: idx,
+          start: seg.startTime,
+          end: seg.endTime,
+          track: trackIndicesRef.current[id] !== undefined ? trackIndicesRef.current[id] : 1,
+          width: seg.endTime - seg.startTime,
+        });
+      }
+    });
+    (textOverlaysRef.current || []).forEach((overlay) => {
+      const id = `text-${overlay.id}`;
+      if (id !== excludeId) {
+        list.push({
+          id,
+          type: "text",
+          index: -1,
+          start: overlay.startTime,
+          end: overlay.endTime,
+          track: trackIndicesRef.current[id] !== undefined ? trackIndicesRef.current[id] : 2,
+          width: overlay.endTime - overlay.startTime,
+        });
+      }
+    });
+    return list;
+  }, []);
+
+  const updateAllSegmentStates = useCallback(
+    (updatedPositions: Record<string, { start: number; end: number }>) => {
+      // 1. Sync refs immediately to prevent stale event data on next pixel move
+      (segmentsRef.current || []).forEach((seg, idx) => {
+        const id = `trim-${idx}`;
+        if (updatedPositions[id] !== undefined) {
+          seg.start = updatedPositions[id].start;
+          seg.end = updatedPositions[id].end;
+        }
+      });
+
+      (zoomSegmentsRef.current || []).forEach((seg, idx) => {
+        const id = `zoom-${idx}`;
+        if (updatedPositions[id] !== undefined) {
+          seg.startTime = updatedPositions[id].start;
+          seg.endTime = updatedPositions[id].end;
+        }
+      });
+
+      (textOverlaysRef.current || []).forEach((overlay) => {
+        const id = `text-${overlay.id}`;
+        if (updatedPositions[id] !== undefined) {
+          overlay.startTime = updatedPositions[id].start;
+          overlay.endTime = updatedPositions[id].end;
+        }
+      });
+
+      // 2. Dispatch state updates to React
+      setSegments((prev) =>
+        prev.map((seg, idx) => {
+          const id = `trim-${idx}`;
+          if (updatedPositions[id] !== undefined) {
+            return {
+              ...seg,
+              start: updatedPositions[id].start,
+              end: updatedPositions[id].end,
+            };
+          }
+          return seg;
+        })
+      );
+
+      setZoomSegments((prev) =>
+        prev.map((seg, idx) => {
+          const id = `zoom-${idx}`;
+          if (updatedPositions[id] !== undefined) {
+            return {
+              ...seg,
+              startTime: updatedPositions[id].start,
+              endTime: updatedPositions[id].end,
+            };
+          }
+          return seg;
+        })
+      );
+
+      setTextOverlays((prev) =>
+        prev.map((overlay) => {
+          const id = `text-${overlay.id}`;
+          if (updatedPositions[id] !== undefined) {
+            return {
+              ...overlay,
+              startTime: updatedPositions[id].start,
+              endTime: updatedPositions[id].end,
+            };
+          }
+          return overlay;
+        })
+      );
+    },
+    [setSegments, setZoomSegments, setTextOverlays]
+  );
+
+  useEffect(() => {
+    let changed = false;
+    const newTrackIndices = { ...trackIndices };
+
+    const checkAndAssign = (id: string, start: number, end: number) => {
+      if (newTrackIndices[id] === undefined) {
+        let track = 0;
+        while (true) {
+          let hasOverlap = false;
+          (segments || []).forEach((s, i) => {
+            const blockId = `trim-${i}`;
+            if (blockId !== id && newTrackIndices[blockId] === track) {
+              if (!(end <= s.start || start >= s.end)) {
+                hasOverlap = true;
+              }
+            }
+          });
+          (zoomSegments || []).forEach((s, i) => {
+            const blockId = `zoom-${i}`;
+            if (blockId !== id && newTrackIndices[blockId] === track) {
+              if (!(end <= s.startTime || start >= s.endTime)) {
+                hasOverlap = true;
+              }
+            }
+          });
+          (textOverlays || []).forEach((s) => {
+            const blockId = `text-${s.id}`;
+            if (blockId !== id && newTrackIndices[blockId] === track) {
+              if (!(end <= s.startTime || start >= s.endTime)) {
+                hasOverlap = true;
+              }
+            }
+          });
+
+          if (!hasOverlap) {
+            newTrackIndices[id] = track;
+            changed = true;
+            break;
+          }
+          track++;
+        }
+      }
+    };
+
+    (segments || []).forEach((seg, idx) => {
+      checkAndAssign(`trim-${idx}`, seg.start, seg.end);
+    });
+
+    (zoomSegments || []).forEach((seg, idx) => {
+      checkAndAssign(`zoom-${idx}`, seg.startTime, seg.endTime);
+    });
+
+    (textOverlays || []).forEach((overlay) => {
+      checkAndAssign(`text-${overlay.id}`, overlay.startTime, overlay.endTime);
+    });
+
+    if (changed) {
+      setTrackIndices(newTrackIndices);
+    }
+  }, [segments, zoomSegments, textOverlays, trackIndices]);
+
+  const resolveLaneCollisions = useCallback(
+    (
+      draggedId: string,
+      newStart: number,
+      newEnd: number,
+      newTrackIdx: number,
+      originalStart: number,
+      originalTrack: number
+    ) => {
+      const draggedWidth = newEnd - newStart;
+      const laneItems = getAllBlocksFromRefs(draggedId).filter((b) => {
+        return b.track === newTrackIdx;
+      });
+
+      const sortedLaneItems = [...laneItems].sort((a, b) => {
+        return a.start - b.start;
+      });
+
+      let leftItems: TimelineBlock[] = [];
+      let rightItems: TimelineBlock[] = [];
+
+      if (originalTrack === newTrackIdx) {
+        leftItems = sortedLaneItems.filter((b) => {
+          return b.start < originalStart;
+        });
+        rightItems = sortedLaneItems.filter((b) => {
+          return b.start >= originalStart;
+        });
+      } else {
+        const insertIdx = sortedLaneItems.findIndex((b) => {
+          return newStart < b.start;
+        });
+        if (insertIdx === -1) {
+          leftItems = sortedLaneItems;
+          rightItems = [];
+        } else {
+          leftItems = sortedLaneItems.slice(0, insertIdx);
+          rightItems = sortedLaneItems.slice(insertIdx);
+        }
+      }
+
+      let currentRightBoundary = newEnd;
+      rightItems.forEach((b) => {
+        if (b.start < currentRightBoundary) {
+          b.start = currentRightBoundary;
+          b.end = b.start + b.width;
+        }
+        currentRightBoundary = b.end;
+      });
+
+      let currentLeftBoundary = newStart;
+      for (let i = leftItems.length - 1; i >= 0; i--) {
+        const b = leftItems[i];
+        if (b.end > currentLeftBoundary) {
+          b.end = currentLeftBoundary;
+          b.start = b.end - b.width;
+        }
+        currentLeftBoundary = b.start;
+      }
+
+      if (rightItems.length > 0) {
+        const lastItem = rightItems[rightItems.length - 1];
+        if (lastItem.end > maxValue) {
+          lastItem.end = maxValue;
+          lastItem.start = maxValue - lastItem.width;
+          for (let i = rightItems.length - 2; i >= 0; i--) {
+            if (rightItems[i].end > rightItems[i + 1].start) {
+              rightItems[i].end = rightItems[i + 1].start;
+              rightItems[i].start = rightItems[i].end - rightItems[i].width;
+            }
+          }
+          newEnd = Math.min(newEnd, rightItems[0].start);
+          newStart = newEnd - draggedWidth;
+        }
+      }
+
+      if (leftItems.length > 0) {
+        const firstItem = leftItems[0];
+        if (firstItem.start < minValue) {
+          firstItem.start = minValue;
+          firstItem.end = minValue + firstItem.width;
+          for (let i = 1; i < leftItems.length; i++) {
+            if (leftItems[i].start < leftItems[i - 1].end) {
+              leftItems[i].start = leftItems[i - 1].end;
+              leftItems[i].end = leftItems[i].start + leftItems[i].width;
+            }
+          }
+          newStart = Math.max(newStart, leftItems[leftItems.length - 1].end);
+          newEnd = newStart + draggedWidth;
+        }
+      }
+
+      if (newStart < minValue) {
+        newStart = minValue;
+        newEnd = minValue + draggedWidth;
+      } else if (newEnd > maxValue) {
+        newEnd = maxValue;
+        newStart = maxValue - draggedWidth;
+      }
+
+      const updatedPositions: Record<string, { start: number; end: number }> = {};
+      leftItems.forEach((b) => {
+        updatedPositions[b.id] = { start: b.start, end: b.end };
+      });
+      rightItems.forEach((b) => {
+        updatedPositions[b.id] = { start: b.start, end: b.end };
+      });
+      updatedPositions[draggedId] = { start: newStart, end: newEnd };
+
+      return updatedPositions;
+    },
+    [getAllBlocksFromRefs, minValue, maxValue]
+  );
+
+  const resolveEdgeResizeCollisions = useCallback(
+    (
+      draggedId: string,
+      side: "left" | "right",
+      newValue: number,
+      originalStart: number,
+      originalEnd: number,
+      originalTrack: number
+    ) => {
+      const laneItems = getAllBlocksFromRefs(draggedId).filter((b) => {
+        return b.track === originalTrack;
+      });
+      const updatedPositions: Record<string, { start: number; end: number }> = {};
+      const minDuration = 0.05;
+
+      if (side === "left") {
+        const leftItems = laneItems.filter((b) => {
+          return b.end <= originalStart;
+        });
+        const closestLeft =
+          leftItems.length > 0
+            ? leftItems.reduce((max, curr) => {
+                return curr.end > max.end ? curr : max;
+              }, leftItems[0])
+            : null;
+
+        if (closestLeft) {
+          const clampedValue = Math.max(newValue, closestLeft.start + minDuration);
+          updatedPositions[closestLeft.id] = { start: closestLeft.start, end: clampedValue };
+          updatedPositions[draggedId] = { start: clampedValue, end: originalEnd };
+        } else {
+          const clampedValue = Math.max(newValue, minValue);
+          updatedPositions[draggedId] = { start: clampedValue, end: originalEnd };
+        }
+      } else {
+        const rightItems = laneItems.filter((b) => {
+          return b.start >= originalEnd;
+        });
+        const closestRight =
+          rightItems.length > 0
+            ? rightItems.reduce((min, curr) => {
+                return curr.start < min.start ? curr : min;
+              }, rightItems[0])
+            : null;
+
+        if (closestRight) {
+          const clampedValue = Math.min(newValue, closestRight.end - minDuration);
+          updatedPositions[closestRight.id] = { start: clampedValue, end: closestRight.end };
+          updatedPositions[draggedId] = { start: originalStart, end: clampedValue };
+        } else {
+          const clampedValue = Math.min(newValue, maxValue);
+          updatedPositions[draggedId] = { start: originalStart, end: clampedValue };
+        }
+      }
+
+      return updatedPositions;
+    },
+    [getAllBlocksFromRefs, minValue, maxValue]
+  );
 
   const hasBeenTrimmed =
     segments.length > 1 ||
@@ -660,8 +1095,10 @@ export default function TimelineRuler({
         mode: "segment";
         index: number;
         startX: number;
+        startY: number;
         startValue: number;
         endValue: number;
+        startTrackIndex: number;
       };
 
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -675,92 +1112,75 @@ export default function TimelineRuler({
       const deltaX = e.clientX - dragState.startX;
       const pixelsPerUnit = zoomedTimelineWidth / (maxValue - minValue);
       const deltaValue = deltaX / pixelsPerUnit;
+      const draggedId = `trim-${dragState.index}`;
 
-      setSegments((prev) =>
-        prev.map((seg, i) => {
-          if (i !== dragState.index) {
-            return seg;
+      if (dragState.mode === "segment") {
+        const deltaY = e.clientY - dragState.startY;
+        const deltaTrack = Math.round(deltaY / 38);
+        let newTrackIdx = Math.max(0, dragState.startTrackIndex + deltaTrack);
+
+        const draggedWidth = dragState.endValue - dragState.startValue;
+        const laneItems = getAllBlocksFromRefs(draggedId).filter((b) => {
+          return b.track === newTrackIdx;
+        });
+        const laneWidth = laneItems.reduce((sum, b) => {
+          return sum + b.width;
+        }, 0);
+
+        if (laneWidth + draggedWidth > maxValue - minValue) {
+          const currentTrack =
+            trackIndicesRef.current[draggedId] !== undefined
+              ? trackIndicesRef.current[draggedId]
+              : dragState.startTrackIndex;
+          newTrackIdx = currentTrack;
+        }
+
+        setTrackIndices((prev) => {
+          if (prev[draggedId] === newTrackIdx) {
+            return prev;
           }
+          return {
+            ...prev,
+            [draggedId]: newTrackIdx,
+          };
+        });
+        trackIndicesRef.current[draggedId] = newTrackIdx;
 
-          if (dragState.mode === "edge") {
-            let newStart = seg.start;
-            let newEnd = seg.end;
+        const newStart = dragState.startValue + deltaValue;
+        const newEnd = dragState.endValue + deltaValue;
 
-            if (dragState.side === "left") {
-              newStart = dragState.startValue + deltaValue;
+        const updatedPositions = resolveLaneCollisions(
+          draggedId,
+          newStart,
+          newEnd,
+          newTrackIdx,
+          dragState.startValue,
+          dragState.startTrackIndex
+        );
 
-              if (newStart <= seg.end - 0.01) {
-                newStart = Math.max(minValue, newStart);
-              } else {
-                const flippedStart = seg.end;
-                const flippedEnd = Math.min(maxValue, newStart);
-                newStart = flippedStart;
-                newEnd = flippedEnd;
+        updateAllSegmentStates(updatedPositions);
+      }
 
-                setTimeout(() => {
-                  setDragState((d) =>
-                    d && d.mode === "edge"
-                      ? {
-                          ...d,
-                          side: "right",
-                          startValue: flippedEnd,
-                          startX: e.clientX,
-                        }
-                      : d
-                  );
-                }, 0);
-              }
-            }
+      if (dragState.mode === "edge") {
+        const proposedValue = dragState.startValue + deltaValue;
+        const seg = segmentsRef.current[dragState.index];
+        if (seg) {
+          const originalStart = seg.start;
+          const originalEnd = seg.end;
+          const originalTrack = getTrackIndex(draggedId, "trim");
 
-            if (dragState.side === "right") {
-              newEnd = dragState.startValue + deltaValue;
+          const updatedPositions = resolveEdgeResizeCollisions(
+            draggedId,
+            dragState.side,
+            proposedValue,
+            originalStart,
+            originalEnd,
+            originalTrack
+          );
 
-              if (newEnd >= seg.start + 0.01) {
-                newEnd = Math.min(maxValue, newEnd);
-              } else {
-                const flippedEnd = seg.start;
-                const flippedStart = Math.max(minValue, newEnd);
-                newStart = flippedStart;
-                newEnd = flippedEnd;
-
-                setTimeout(() => {
-                  setDragState((d) =>
-                    d && d.mode === "edge"
-                      ? {
-                          ...d,
-                          side: "left",
-                          startValue: flippedStart,
-                          startX: e.clientX,
-                        }
-                      : d
-                  );
-                }, 0);
-              }
-            }
-
-            return { ...seg, start: newStart, end: newEnd };
-          }
-
-          if (dragState.mode === "segment") {
-            const width = dragState.endValue - dragState.startValue;
-
-            let newStart = dragState.startValue + deltaValue;
-            let newEnd = dragState.endValue + deltaValue;
-
-            if (newStart < minValue) {
-              newStart = minValue;
-              newEnd = minValue + width;
-            } else if (newEnd > maxValue) {
-              newEnd = maxValue;
-              newStart = maxValue - width;
-            }
-
-            return { ...seg, start: newStart, end: newEnd };
-          }
-
-          return seg;
-        })
-      );
+          updateAllSegmentStates(updatedPositions);
+        }
+      }
     };
 
     const onUp = () => setDragState(null);
@@ -772,7 +1192,17 @@ export default function TimelineRuler({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [dragState, maxValue, minValue, zoomedTimelineWidth, setSegments]);
+  }, [
+    dragState,
+    maxValue,
+    minValue,
+    zoomedTimelineWidth,
+    getTrackIndex,
+    resolveEdgeResizeCollisions,
+    resolveLaneCollisions,
+    updateAllSegmentStates,
+    getAllBlocksFromRefs,
+  ]);
 
   useEffect(() => {
     if (isUpdatingFromPropRef.current) {
@@ -794,8 +1224,10 @@ export default function TimelineRuler({
         mode: "segment";
         index: number;
         startX: number;
+        startY: number;
         startValue: number;
         endValue: number;
+        startTrackIndex: number;
       };
 
   const playZoomSegment = (segment: ZoomEffect, idx: number, e?: React.MouseEvent) => {
@@ -825,100 +1257,77 @@ export default function TimelineRuler({
     }
 
     const onMove = (e: MouseEvent) => {
-      let pendingFlip: null | {
-        side: "left" | "right";
-        startValue: number;
-        startX: number;
-      } = null;
       const deltaX = e.clientX - dragZoomState.startX;
       const pixelsPerUnit = zoomedTimelineWidth / (maxValue - minValue);
       const deltaValue = deltaX / pixelsPerUnit;
+      const draggedId = `zoom-${dragZoomState.index}`;
 
-      setZoomSegments((prev) =>
-        prev.map((seg, i) => {
-          console.log("zoom", i, dragZoomState);
-          if (i !== dragZoomState.index) {
-            return seg;
+      if (dragZoomState.mode === "segment") {
+        const deltaY = e.clientY - dragZoomState.startY;
+        const deltaTrack = Math.round(deltaY / 38);
+        let newTrackIdx = Math.max(0, dragZoomState.startTrackIndex + deltaTrack);
+
+        const draggedWidth = dragZoomState.endValue - dragZoomState.startValue;
+        const laneItems = getAllBlocksFromRefs(draggedId).filter((b) => {
+          return b.track === newTrackIdx;
+        });
+        const laneWidth = laneItems.reduce((sum, b) => {
+          return sum + b.width;
+        }, 0);
+
+        if (laneWidth + draggedWidth > maxValue - minValue) {
+          const currentTrack =
+            trackIndicesRef.current[draggedId] !== undefined
+              ? trackIndicesRef.current[draggedId]
+              : dragZoomState.startTrackIndex;
+          newTrackIdx = currentTrack;
+        }
+
+        setTrackIndices((prev) => {
+          if (prev[draggedId] === newTrackIdx) {
+            return prev;
           }
+          return {
+            ...prev,
+            [draggedId]: newTrackIdx,
+          };
+        });
+        trackIndicesRef.current[draggedId] = newTrackIdx;
 
-          if (dragZoomState.mode === "edge") {
-            console.log("zoom runn in edge");
-            let newStart = seg.startTime;
-            let newEnd = seg.endTime;
+        const newStart = dragZoomState.startValue + deltaValue;
+        const newEnd = dragZoomState.endValue + deltaValue;
 
-            if (dragZoomState.side === "left") {
-              newStart = dragZoomState.startValue + deltaValue;
-
-              if (newStart <= seg.endTime - 0.01) {
-                newStart = Math.max(minValue, newStart);
-              } else {
-                const flippedStart = seg.endTime;
-                const flippedEnd = Math.min(maxValue, newStart);
-                newStart = flippedStart;
-                newEnd = flippedEnd;
-
-                pendingFlip = {
-                  side: "right",
-                  startValue: flippedEnd,
-                  startX: e.clientX,
-                };
-              }
-            }
-
-            if (dragZoomState.side === "right") {
-              newEnd = dragZoomState.startValue + deltaValue;
-
-              if (newEnd >= seg.startTime + 0.01) {
-                newEnd = Math.min(maxValue, newEnd);
-              } else {
-                const flippedEnd = seg.startTime;
-                const flippedStart = Math.max(minValue, newEnd);
-                newStart = flippedStart;
-                newEnd = flippedEnd;
-
-                pendingFlip = {
-                  side: "left",
-                  startValue: flippedStart,
-                  startX: e.clientX,
-                };
-              }
-            }
-
-            return { ...seg, startTime: newStart, endTime: newEnd };
-          }
-
-          if (dragZoomState.mode === "segment") {
-            const width = dragZoomState.endValue - dragZoomState.startValue;
-
-            let newStart = dragZoomState.startValue + deltaValue;
-            let newEnd = dragZoomState.endValue + deltaValue;
-
-            if (newStart < minValue) {
-              newStart = minValue;
-              newEnd = minValue + width;
-            } else if (newEnd > maxValue) {
-              newEnd = maxValue;
-              newStart = maxValue - width;
-            }
-
-            return { ...seg, startTime: newStart, endTime: newEnd };
-          }
-
-          return seg;
-        })
-      );
-
-      if (pendingFlip) {
-        setDragZoomState((d) =>
-          d && d.mode === "edge"
-            ? {
-                ...d,
-                side: pendingFlip!.side,
-                startValue: pendingFlip!.startValue,
-                startX: pendingFlip!.startX,
-              }
-            : d
+        const updatedPositions = resolveLaneCollisions(
+          draggedId,
+          newStart,
+          newEnd,
+          newTrackIdx,
+          dragZoomState.startValue,
+          dragZoomState.startTrackIndex
         );
+
+        updateAllSegmentStates(updatedPositions);
+      }
+
+      if (dragZoomState.mode === "edge") {
+        const proposedValue = dragZoomState.startValue + deltaValue;
+        const seg = zoomSegmentsRef.current[dragZoomState.index];
+        if (seg) {
+          const originalStart = seg.startTime;
+          const originalEnd = seg.endTime;
+          const originalTrack = getTrackIndex(draggedId, "zoom");
+
+          const updatedPositions = resolveEdgeResizeCollisions(
+            draggedId,
+            dragZoomState.side,
+            proposedValue,
+            originalStart,
+            originalEnd,
+            originalTrack
+          );
+
+          updateAllSegmentStates(updatedPositions);
+        }
       }
     };
 
@@ -931,7 +1340,17 @@ export default function TimelineRuler({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [dragZoomState, maxValue, minValue, setZoomSegments, zoomedTimelineWidth]);
+  }, [
+    dragZoomState,
+    maxValue,
+    minValue,
+    zoomedTimelineWidth,
+    getTrackIndex,
+    resolveEdgeResizeCollisions,
+    resolveLaneCollisions,
+    updateAllSegmentStates,
+    getAllBlocksFromRefs,
+  ]);
 
   type DragTextState =
     | {
@@ -945,8 +1364,10 @@ export default function TimelineRuler({
         mode: "segment";
         id: string;
         startX: number;
+        startY: number;
         startValue: number;
         endValue: number;
+        startTrackIndex: number;
       };
 
   const [dragTextState, setDragTextState] = useState<DragTextState | null>(null);
@@ -960,47 +1381,77 @@ export default function TimelineRuler({
       const deltaX = e.clientX - dragTextState.startX;
       const pixelsPerUnit = zoomedTimelineWidth / (maxValue - minValue);
       const deltaValue = deltaX / pixelsPerUnit;
+      const draggedId = `text-${dragTextState.id}`;
 
-      setTextOverlays((prev) =>
-        prev.map((t) => {
-          if (t.id !== dragTextState.id) {
-            return t;
+      if (dragTextState.mode === "segment") {
+        const deltaY = e.clientY - dragTextState.startY;
+        const deltaTrack = Math.round(deltaY / 38);
+        let newTrackIdx = Math.max(0, dragTextState.startTrackIndex + deltaTrack);
+
+        const draggedWidth = dragTextState.endValue - dragTextState.startValue;
+        const laneItems = getAllBlocksFromRefs(draggedId).filter((b) => {
+          return b.track === newTrackIdx;
+        });
+        const laneWidth = laneItems.reduce((sum, b) => {
+          return sum + b.width;
+        }, 0);
+
+        if (laneWidth + draggedWidth > maxValue - minValue) {
+          const currentTrack =
+            trackIndicesRef.current[draggedId] !== undefined
+              ? trackIndicesRef.current[draggedId]
+              : dragTextState.startTrackIndex;
+          newTrackIdx = currentTrack;
+        }
+
+        setTrackIndices((prev) => {
+          if (prev[draggedId] === newTrackIdx) {
+            return prev;
           }
+          return {
+            ...prev,
+            [draggedId]: newTrackIdx,
+          };
+        });
+        trackIndicesRef.current[draggedId] = newTrackIdx;
 
-          if (dragTextState.mode === "edge") {
-            let newStart = t.startTime;
-            let newEnd = t.endTime;
+        const newStart = dragTextState.startValue + deltaValue;
+        const newEnd = dragTextState.endValue + deltaValue;
 
-            if (dragTextState.side === "left") {
-              newStart = dragTextState.startValue + deltaValue;
-              newStart = Math.max(minValue, Math.min(newStart, newEnd - 0.05));
-            } else {
-              newEnd = dragTextState.startValue + deltaValue;
-              newEnd = Math.min(maxValue, Math.max(newEnd, newStart + 0.05));
-            }
+        const updatedPositions = resolveLaneCollisions(
+          draggedId,
+          newStart,
+          newEnd,
+          newTrackIdx,
+          dragTextState.startValue,
+          dragTextState.startTrackIndex
+        );
 
-            return { ...t, startTime: newStart, endTime: newEnd };
-          }
+        updateAllSegmentStates(updatedPositions);
+      }
 
-          if (dragTextState.mode === "segment") {
-            const width = dragTextState.endValue - dragTextState.startValue;
-            let newStart = dragTextState.startValue + deltaValue;
-            let newEnd = dragTextState.endValue + deltaValue;
+      if (dragTextState.mode === "edge") {
+        const proposedValue = dragTextState.startValue + deltaValue;
+        const overlay = textOverlaysRef.current.find((t) => {
+          return t.id === dragTextState.id;
+        });
+        if (overlay) {
+          const originalStart = overlay.startTime;
+          const originalEnd = overlay.endTime;
+          const originalTrack = getTrackIndex(draggedId, "text");
 
-            if (newStart < minValue) {
-              newStart = minValue;
-              newEnd = minValue + width;
-            } else if (newEnd > maxValue) {
-              newEnd = maxValue;
-              newStart = maxValue - width;
-            }
+          const updatedPositions = resolveEdgeResizeCollisions(
+            draggedId,
+            dragTextState.side,
+            proposedValue,
+            originalStart,
+            originalEnd,
+            originalTrack
+          );
 
-            return { ...t, startTime: newStart, endTime: newEnd };
-          }
-
-          return t;
-        })
-      );
+          updateAllSegmentStates(updatedPositions);
+        }
+      }
     };
 
     const onUp = () => setDragTextState(null);
@@ -1010,7 +1461,17 @@ export default function TimelineRuler({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [dragTextState, maxValue, minValue, setTextOverlays, zoomedTimelineWidth]);
+  }, [
+    dragTextState,
+    maxValue,
+    minValue,
+    zoomedTimelineWidth,
+    getTrackIndex,
+    resolveEdgeResizeCollisions,
+    resolveLaneCollisions,
+    updateAllSegmentStates,
+    getAllBlocksFromRefs,
+  ]);
 
   const currentPosition = ((localValue - minValue) / (maxValue - minValue)) * zoomedTimelineWidth;
   const handleZoomClick = () => {
@@ -1278,7 +1739,7 @@ export default function TimelineRuler({
           <div className="h-full overflow-hidden">
             <div
               ref={scrollContainerRef}
-              className={` w-full h-full overflow-y-hidden ${
+              className={` w-full h-full overflow-y-auto ${
                 zoomLevel > 1 ? "overflow-x-auto" : "overflow-x-hidden"
               }`}
               onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
@@ -1289,7 +1750,8 @@ export default function TimelineRuler({
                 style={{
                   width: `${baseTimelineWidth * zoomLevel}px`,
                   minWidth: `${baseTimelineWidth}px`,
-                  height: "100%",
+                  height: `${calculatedHeight}px`,
+                  minHeight: "100%",
 
                   boxSizing: "border-box",
                 }}
@@ -1321,8 +1783,13 @@ export default function TimelineRuler({
                 />
 
                 {/* Horizontal separators in background */}
-                <div className="absolute top-[72px] left-0 w-full h-[1px] border-t border-dashed border-[#A594F9]/30 dark:border-[#3e2fd9]/30 pointer-events-none" />
-                <div className="absolute top-[108px] left-0 w-full h-[1px] border-t border-dashed border-[#A594F9]/30 dark:border-[#3e2fd9]/30 pointer-events-none" />
+                {Array.from({ length: totalTracks - 1 }).map((_, i) => (
+                  <div
+                    key={`separator-${i}`}
+                    className="absolute left-0 w-full h-[1px] border-t border-dashed border-[#A594F9]/30 dark:border-[#3e2fd9]/30 pointer-events-none"
+                    style={{ top: `${36 + (i + 1) * 38}px` }}
+                  />
+                ))}
 
                 <div
                   className="absolute top-0 h-full z-40 pointer-events-none"
@@ -1346,11 +1813,13 @@ export default function TimelineRuler({
                   const endPosition =
                     ((segment.end - minValue) / (maxValue - minValue)) * zoomedTimelineWidth;
                   const width = endPosition - startPosition;
+                  const trackIdx = getTrackIndex(`trim-${idx}`, "trim");
+                  const topOffset = 36 + trackIdx * 38;
 
                   return (
                     <div
                       key={`segment-${idx}`}
-                      className={`absolute top-0 h-[32px] mt-[38px] group cursor-grab transition-opacity track-red sequence-block-shape width-trim-block ${
+                      className={`absolute group cursor-grab transition-opacity track-red sequence-block-shape width-trim-block ${
                         idx === activeSegment && activeSegment != -1
                           ? "bg-[#FF3939]/54 opacity-70 z-10 hover:border-2 border-black rounded-md active"
                           : "bg-[#FF3939]/35 opacity-50 hover:opacity-65 z-8"
@@ -1358,6 +1827,8 @@ export default function TimelineRuler({
                       style={{
                         left: `${startPosition}px`,
                         width: `${width}px`,
+                        top: `${topOffset}px`,
+                        height: "32px",
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1370,8 +1841,10 @@ export default function TimelineRuler({
                           mode: "segment",
                           index: idx,
                           startX: e.clientX,
+                          startY: e.clientY,
                           startValue: segment.start,
                           endValue: segment.end,
+                          startTrackIndex: trackIdx,
                         });
                       }}
                     >
@@ -1434,11 +1907,13 @@ export default function TimelineRuler({
                   const endPosition =
                     ((segment.endTime - minValue) / (maxValue - minValue)) * zoomedTimelineWidth;
                   const width = endPosition - startPosition;
+                  const trackIdx = getTrackIndex(`zoom-${idx}`, "zoom");
+                  const topOffset = 36 + trackIdx * 38;
 
                   return (
                     <div
                       key={`segment-${idx}`}
-                      className={`absolute top-0 h-[32px] mt-[74px] group cursor-grab transition-opacity track-green sequence-block-shape width-zoom-block ${
+                      className={`absolute group cursor-grab transition-opacity track-green sequence-block-shape width-zoom-block ${
                         idx == activeZoomIdx
                           ? "bg-[#36B37E]/40 opacity-80 z-10 hover:border-2 border-[#36B37E] rounded-md active"
                           : "bg-[#36B37E]/25 opacity-70 hover:opacity-90 z-8"
@@ -1446,6 +1921,8 @@ export default function TimelineRuler({
                       style={{
                         left: `${startPosition}px`,
                         width: `${width}px`,
+                        top: `${topOffset}px`,
+                        height: "32px",
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1458,8 +1935,10 @@ export default function TimelineRuler({
                           mode: "segment",
                           index: idx,
                           startX: e.clientX,
+                          startY: e.clientY,
                           startValue: segment.startTime,
                           endValue: segment.endTime,
+                          startTrackIndex: trackIdx,
                         });
                       }}
                     >
@@ -1525,11 +2004,13 @@ export default function TimelineRuler({
                   const width = Math.max(6, endPosition - startPosition);
                   const isSelected = overlay.id === selectedTextOverlayId;
                   const label = overlay.text?.trim() ? overlay.text.trim() : `Text ${idx + 1}`;
+                  const trackIdx = getTrackIndex(`text-${overlay.id}`, "text");
+                  const topOffset = 36 + trackIdx * 38;
 
                   return (
                     <div
                       key={`text-${overlay.id}`}
-                      className={`absolute top-0 h-[32px] mt-[110px] group cursor-grab transition-opacity track-yellow sequence-block-shape width-text-block ${
+                      className={`absolute group cursor-grab transition-opacity track-yellow sequence-block-shape width-text-block ${
                         isSelected
                           ? "bg-[#FFF4A8]/85 opacity-90 z-10 hover:border-2 border-[#B38700] rounded-md active"
                           : "bg-[#FFF4A8]/65 opacity-75 hover:opacity-90 border border-[#D4A017] z-8 rounded-md"
@@ -1537,6 +2018,8 @@ export default function TimelineRuler({
                       style={{
                         left: `${startPosition}px`,
                         width: `${width}px`,
+                        top: `${topOffset}px`,
+                        height: "32px",
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1552,8 +2035,10 @@ export default function TimelineRuler({
                           mode: "segment",
                           id: overlay.id,
                           startX: e.clientX,
+                          startY: e.clientY,
                           startValue: overlay.startTime,
                           endValue: overlay.endTime,
+                          startTrackIndex: trackIdx,
                         });
                       }}
                     >
