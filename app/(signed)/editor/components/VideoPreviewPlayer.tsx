@@ -17,6 +17,7 @@ interface VideoPreviewPlayerProps {
   childHandleProgress: null | ((data: { playedSeconds: number }) => void);
   setDuration: (duration: number | ((prev: number) => number)) => void;
   setPlaying: (playing: boolean) => void;
+  duration: number;
 }
 
 export default function VideoPreviewPlayer({
@@ -33,6 +34,7 @@ export default function VideoPreviewPlayer({
   childHandleProgress,
   setDuration,
   setPlaying,
+  duration,
 }: VideoPreviewPlayerProps) {
   return (
     <div className="w-full h-full">
@@ -80,6 +82,11 @@ export default function VideoPreviewPlayer({
             if (Date.now() - lastInteractionRef.current < 500) {
               return;
             }
+
+            if (duration > 0 && data.playedSeconds >= duration - 0.05) {
+              setPlaying(false);
+            }
+
             setCurrentTime(data.playedSeconds);
             childHandleProgress?.(data);
           }}

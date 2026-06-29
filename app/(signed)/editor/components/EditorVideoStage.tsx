@@ -41,7 +41,8 @@ export default function EditorVideoStage({
   lastInteractionRef,
   isDraggingTimelineRef,
 }: EditorVideoStageProps) {
-  const { videoUrl, playing, volume, tool, canvasRef, playerRef, currentTime } = editorState;
+  const { videoUrl, playing, volume, tool, canvasRef, playerRef, currentTime, duration } =
+    editorState;
   const { isDraggingZoomTarget, handleZoomTargetMouseDown, preview } = zoom;
   const {
     shouldApplyZoomPreview,
@@ -87,6 +88,7 @@ export default function EditorVideoStage({
           childHandleProgress={childHandleProgress}
           setDuration={editorState.setDuration}
           setPlaying={editorState.setPlaying}
+          duration={duration}
         />
       </div>
 

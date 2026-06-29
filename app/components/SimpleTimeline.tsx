@@ -65,7 +65,15 @@ export default function SimpleTimeline({
   };
 
   const handlePlayPause = () => {
-    setVideoPlaying(!videoPlaying);
+    const nextPlaying = !videoPlaying;
+    if (nextPlaying) {
+      const isAtEnd = videoCurrentTime >= displayDuration - 0.1;
+      if (isAtEnd && videoPlayerRef.current) {
+        videoPlayerRef.current.seekTo(0, "seconds");
+        setVideoCurrentTime(0);
+      }
+    }
+    setVideoPlaying(nextPlaying);
   };
 
   const handleSkip = (seconds: number) => {

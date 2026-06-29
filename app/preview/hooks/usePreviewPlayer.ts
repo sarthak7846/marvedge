@@ -27,7 +27,15 @@ export function usePreviewPlayer() {
   const playerRef = React.useRef<ReactPlayer>(null);
 
   const handlePlayPause = () => {
-    setPlaying(!playing);
+    const nextPlaying = !playing;
+    if (nextPlaying) {
+      const isAtEnd = currentTime >= duration - 0.1;
+      if (isAtEnd && playerRef.current) {
+        playerRef.current.seekTo(0, "seconds");
+        setCurrentTime(0);
+      }
+    }
+    setPlaying(nextPlaying);
   };
 
   const handleVolumeChange = (newVolume: number) => {
@@ -113,6 +121,9 @@ export function usePreviewPlayer() {
 
   const handleProgress = (state: { playedSeconds: number }) => {
     setCurrentTime(state.playedSeconds);
+    if (duration > 0 && state.playedSeconds >= duration - 0.05) {
+      setPlaying(false);
+    }
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -147,5 +158,6 @@ export function usePreviewPlayer() {
     handleShare,
     handleProgress,
     handleSeek,
+    onEnded: () => setPlaying(false),
   };
 }

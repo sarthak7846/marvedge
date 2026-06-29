@@ -34,12 +34,18 @@ export default function CustomVideoControls({
 
   const handlePlayPause = () => {
     setPlaying((prev) => {
-      if (prev) {
-        playerRef.current?.getInternalPlayer()?.pause?.();
-      } else {
+      const nextPlaying = !prev;
+      if (nextPlaying) {
+        const isAtEnd = currentTime >= duration - 0.1;
+        if (isAtEnd && playerRef.current) {
+          playerRef.current.seekTo(0, "seconds");
+          setCurrentTime(0);
+        }
         playerRef.current?.getInternalPlayer()?.play?.();
+      } else {
+        playerRef.current?.getInternalPlayer()?.pause?.();
       }
-      return !prev;
+      return nextPlaying;
     });
   };
 

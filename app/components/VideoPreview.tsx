@@ -38,6 +38,7 @@ export default function VideoPreview({
     duration,
     setDuration,
     playing,
+    setPlaying,
     dragging,
     dragValue,
     volume,
@@ -103,6 +104,7 @@ export default function VideoPreview({
             playerRef={playerRef}
             videoUrl={videoUrl}
             playing={playing}
+            setPlaying={setPlaying}
             isRecording={isRecording}
             volume={volume}
             duration={duration}

@@ -15,6 +15,7 @@ export function TrimSegmentBlock({
   switchToTrimMode,
   playTrimSegment,
   setDragState,
+  trackIdx,
 }: {
   segment: { start: number; end: number };
   idx: number;
@@ -29,6 +30,7 @@ export function TrimSegmentBlock({
     e?: React.MouseEvent
   ) => void;
   setDragState: React.Dispatch<React.SetStateAction<DragState | null>>;
+  trackIdx: number;
 }) {
   const startPosition = ((segment.start - minValue) / (maxValue - minValue)) * zoomedTimelineWidth;
   const endPosition = ((segment.end - minValue) / (maxValue - minValue)) * zoomedTimelineWidth;
@@ -36,7 +38,7 @@ export function TrimSegmentBlock({
 
   return (
     <div
-      className={`absolute top-0 h-[32px] mt-[38px] group cursor-grab transition-opacity track-red sequence-block-shape width-trim-block ${
+      className={`absolute h-[32px] group cursor-grab transition-opacity track-red sequence-block-shape width-trim-block ${
         idx === activeSegment && activeSegment != -1
           ? "bg-[#FF3939]/54 opacity-70 z-10 hover:border-2 border-black rounded-md active"
           : "bg-[#FF3939]/35 opacity-50 hover:opacity-65 z-8"
@@ -44,6 +46,7 @@ export function TrimSegmentBlock({
       style={{
         left: `${startPosition}px`,
         width: `${width}px`,
+        top: `${38 + trackIdx * 36}px`,
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -56,6 +59,8 @@ export function TrimSegmentBlock({
           mode: "segment",
           index: idx,
           startX: e.clientX,
+          startY: e.clientY,
+          startTrack: trackIdx,
           startValue: segment.start,
           endValue: segment.end,
         });
@@ -122,6 +127,7 @@ export function ZoomSegmentBlock({
   zoomedTimelineWidth,
   playZoomSegment,
   setDragZoomState,
+  trackIdx,
 }: {
   segment: ZoomEffect;
   idx: number;
@@ -131,6 +137,7 @@ export function ZoomSegmentBlock({
   zoomedTimelineWidth: number;
   playZoomSegment: (segment: ZoomEffect, idx: number, e?: React.MouseEvent) => void;
   setDragZoomState: React.Dispatch<React.SetStateAction<DragZoomState | null>>;
+  trackIdx: number;
 }) {
   const startPosition =
     ((segment.startTime - minValue) / (maxValue - minValue)) * zoomedTimelineWidth;
@@ -139,7 +146,7 @@ export function ZoomSegmentBlock({
 
   return (
     <div
-      className={`absolute top-0 h-[32px] mt-[74px] group cursor-grab transition-opacity track-green sequence-block-shape width-zoom-block ${
+      className={`absolute h-[32px] group cursor-grab transition-opacity track-green sequence-block-shape width-zoom-block ${
         idx == activeZoomIdx
           ? "bg-[#36B37E]/40 opacity-80 z-10 hover:border-2 border-[#36B37E] rounded-md active"
           : "bg-[#36B37E]/25 opacity-70 hover:opacity-90 z-8"
@@ -147,6 +154,7 @@ export function ZoomSegmentBlock({
       style={{
         left: `${startPosition}px`,
         width: `${width}px`,
+        top: `${38 + trackIdx * 36}px`,
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -159,6 +167,8 @@ export function ZoomSegmentBlock({
           mode: "segment",
           index: idx,
           startX: e.clientX,
+          startY: e.clientY,
+          startTrack: trackIdx,
           startValue: segment.startTime,
           endValue: segment.endTime,
         });
@@ -229,6 +239,7 @@ export function TextOverlayBlock({
   updateCurrentTimeFromMouse,
   setPlaying,
   setDragTextState,
+  trackIdx,
 }: {
   overlay: TextOverlayItem;
   idx: number;
@@ -242,6 +253,7 @@ export function TextOverlayBlock({
   updateCurrentTimeFromMouse: (e: MouseEvent | React.MouseEvent) => void;
   setPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   setDragTextState: React.Dispatch<React.SetStateAction<DragTextState | null>>;
+  trackIdx: number;
 }) {
   const startPosition =
     ((overlay.startTime - minValue) / (maxValue - minValue)) * zoomedTimelineWidth;
@@ -252,7 +264,7 @@ export function TextOverlayBlock({
 
   return (
     <div
-      className={`absolute top-0 h-[32px] mt-[110px] group cursor-grab transition-opacity track-yellow sequence-block-shape width-text-block ${
+      className={`absolute h-[32px] group cursor-grab transition-opacity track-yellow sequence-block-shape width-text-block ${
         isSelected
           ? "bg-[#FFF4A8]/85 opacity-90 z-10 hover:border-2 border-[#B38700] rounded-md active"
           : "bg-[#FFF4A8]/65 opacity-75 hover:opacity-90 border border-[#D4A017] z-8 rounded-md"
@@ -260,6 +272,7 @@ export function TextOverlayBlock({
       style={{
         left: `${startPosition}px`,
         width: `${width}px`,
+        top: `${38 + trackIdx * 36}px`,
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -275,6 +288,8 @@ export function TextOverlayBlock({
           mode: "segment",
           id: overlay.id,
           startX: e.clientX,
+          startY: e.clientY,
+          startTrack: trackIdx,
           startValue: overlay.startTime,
           endValue: overlay.endTime,
         });

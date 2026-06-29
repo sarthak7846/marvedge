@@ -25,7 +25,9 @@ export function usePlayhead({
   setPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   isDraggingTimelineRef: React.MutableRefObject<boolean>;
 }) {
-  const [localValue, setLocalValue] = useState(currentValue || 0);
+  const [dragValue, setDragValue] = useState<number | null>(null);
+  const localValue = dragValue !== null ? dragValue : currentValue;
+
   const localValueRef = useRef(localValue);
   useEffect(() => {
     localValueRef.current = localValue;
@@ -36,17 +38,8 @@ export function usePlayhead({
     onValueChangeRef.current = onValueChange;
   }, [onValueChange]);
 
-  const isUpdatingFromPropRef = useRef(false);
   const lastSeekTimeRef = useRef<number>(0);
   const [draggingCurrentTime, setDraggingCurrentTime] = useState(false);
-
-  useEffect(() => {
-    if (isDraggingTimelineRef.current) {
-      return;
-    }
-    isUpdatingFromPropRef.current = true;
-    setLocalValue(currentValue);
-  }, [currentValue, isDraggingTimelineRef]);
 
   const updateCurrentTimeFromMouse = useCallback(
     (e: MouseEvent | React.MouseEvent) => {
@@ -61,8 +54,12 @@ export function usePlayhead({
       const percentage = Math.max(0, Math.min(1, x / width));
       const value = minValue + (maxValue - minValue) * percentage;
 
-      localValueRef.current = value;
-      setLocalValue(value);
+      if (!Number.isFinite(value)) {
+        return;
+      }
+
+      setDragValue(value);
+      onValueChangeRef.current?.(value);
     },
     [minValue, maxValue, rulerRef]
   );
@@ -85,6 +82,7 @@ export function usePlayhead({
 
       setDraggingCurrentTime(false);
       isDraggingTimelineRef.current = false;
+      setDragValue(null);
 
       lastSeekTimeRef.current = Date.now();
     };
@@ -102,13 +100,9 @@ export function usePlayhead({
     playerRef,
   ]);
 
-  useEffect(() => {
-    if (isUpdatingFromPropRef.current) {
-      isUpdatingFromPropRef.current = false;
-      return;
-    }
-    onValueChangeRef.current?.(localValue);
-  }, [localValue]);
+  const setLocalValue = useCallback((val: number) => {
+    onValueChangeRef.current?.(val);
+  }, []);
 
   return {
     localValue,
@@ -201,7 +195,7 @@ export function useTrimSelection({
   endTime?: number;
   minValue: number;
   maxValue: number;
-  setLocalValue: React.Dispatch<React.SetStateAction<number>>;
+  setLocalValue: (value: number) => void;
 }) {
   const [localStartTime, setLocalStartTime] = useState(startTime ?? minValue);
   const [localEndTime, setLocalEndTime] = useState(endTime ?? maxValue);

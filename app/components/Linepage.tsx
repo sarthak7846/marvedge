@@ -72,7 +72,7 @@ const Linepage = ({
 
   return (
     <div
-      className="relative bg-white dark:bg-[var(--bg-sidebar)] h-full select-none"
+      className="sticky top-0 bg-white dark:bg-[#0a081a] h-[38px] z-30 select-none border-b border-[#A594F9] dark:border-[#3e2fd9]/50"
       style={{ width }}
       onClick={() => {
         setMode("main");
@@ -105,7 +105,7 @@ const Linepage = ({
               }`}
             />
             {tick.type === "major" && (
-              <span className="text-xs text-[#A594F9] font-medium mt-1 whitespace-nowrap">
+              <span className="text-xs text-[#5c4cb4] dark:text-[#c4b5fd] font-medium mt-1 whitespace-nowrap">
                 {tick.label}
               </span>
             )}

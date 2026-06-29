@@ -85,6 +85,8 @@ type TimelineTrackProps = {
   selectedTextOverlayId: string | null;
   setSelectedTextOverlayId: React.Dispatch<React.SetStateAction<string | null>>;
   setTextOverlayInspectorValues: (overlay: TextOverlayItem) => void;
+  trackIndices: Record<string, number>;
+  setTrackIndices: React.Dispatch<React.SetStateAction<Record<string, number>>>;
 };
 
 type DragSetters = {
@@ -120,7 +122,11 @@ function RulerLayers(props: TimelineTrackProps & DragSetters) {
     updateCurrentTimeFromMouse,
     setPlaying,
     setDragTextState,
+    trackIndices,
   } = props;
+
+  const maxTrackIdx = Object.values(trackIndices || {}).reduce((max, val) => Math.max(max, val), 2);
+  const totalTracks = maxTrackIdx + 2;
 
   return (
     <>
@@ -135,8 +141,13 @@ function RulerLayers(props: TimelineTrackProps & DragSetters) {
       />
 
       {/* Horizontal separators in background */}
-      <div className="absolute top-[72px] left-0 w-full h-[1px] border-t border-dashed border-[#A594F9]/30 dark:border-[#3e2fd9]/30 pointer-events-none" />
-      <div className="absolute top-[108px] left-0 w-full h-[1px] border-t border-dashed border-[#A594F9]/30 dark:border-[#3e2fd9]/30 pointer-events-none" />
+      {Array.from({ length: totalTracks - 1 }).map((_, i) => (
+        <div
+          key={`separator-${i}`}
+          className="absolute left-0 w-full h-[1px] border-t border-dashed border-[#A594F9]/30 dark:border-[#3e2fd9]/30 pointer-events-none"
+          style={{ top: `${72 + i * 36}px` }}
+        />
+      ))}
 
       <div
         className="absolute top-0 h-full z-40 pointer-events-none"
@@ -145,7 +156,7 @@ function RulerLayers(props: TimelineTrackProps & DragSetters) {
         }}
       >
         <div
-          className="absolute top-0 left-1/2 -translate-x-1/2
+          className="sticky top-0 left-1/2 -translate-x-1/2 z-50
                w-0 h-0
                border-l-[9px] border-r-[9px] border-t-[9px]
                border-l-transparent border-r-transparent border-t-green-500"
@@ -166,6 +177,7 @@ function RulerLayers(props: TimelineTrackProps & DragSetters) {
           switchToTrimMode={switchToTrimMode}
           playTrimSegment={playTrimSegment}
           setDragState={setDragState}
+          trackIdx={trackIndices[`trim-${idx}`] ?? 0}
         />
       ))}
       {zoomSegments.map((segment: ZoomEffect, idx) => (
@@ -179,6 +191,7 @@ function RulerLayers(props: TimelineTrackProps & DragSetters) {
           zoomedTimelineWidth={zoomedTimelineWidth}
           playZoomSegment={playZoomSegment}
           setDragZoomState={setDragZoomState}
+          trackIdx={trackIndices[`zoom-${idx}`] ?? 0}
         />
       ))}
 
@@ -197,6 +210,7 @@ function RulerLayers(props: TimelineTrackProps & DragSetters) {
           updateCurrentTimeFromMouse={updateCurrentTimeFromMouse}
           setPlaying={setPlaying}
           setDragTextState={setDragTextState}
+          trackIdx={trackIndices[`text-${overlay.id}`] ?? 0}
         />
       ))}
     </>
@@ -221,8 +235,12 @@ export function TimelineTrack(props: TimelineTrackProps) {
     setActiveSegment,
     segments,
     setSegments,
+    zoomSegments,
     setZoomSegments,
+    textOverlays,
     setTextOverlays,
+    trackIndices,
+    setTrackIndices,
   } = props;
 
   const { draggingScissor, setDraggingScissor, setScissorPreview } = useScissorDrag({
@@ -233,19 +251,51 @@ export function TimelineTrack(props: TimelineTrackProps) {
     setSegments,
     setActiveSegment,
   });
-  const { setDragState } = useSegmentDrag({ minValue, maxValue, zoomedTimelineWidth, setSegments });
+
+  const { setDragState } = useSegmentDrag({
+    minValue,
+    maxValue,
+    zoomedTimelineWidth,
+    segments,
+    zoomSegments,
+    textOverlays,
+    trackIndices,
+    setSegments,
+    setZoomSegments,
+    setTextOverlays,
+    setTrackIndices,
+  });
+
   const { setDragZoomState } = useZoomSegmentDrag({
     minValue,
     maxValue,
     zoomedTimelineWidth,
+    segments,
+    zoomSegments,
+    textOverlays,
+    trackIndices,
+    setSegments,
     setZoomSegments,
+    setTextOverlays,
+    setTrackIndices,
   });
+
   const { setDragTextState } = useTextOverlayDrag({
     minValue,
     maxValue,
     zoomedTimelineWidth,
+    segments,
+    zoomSegments,
+    textOverlays,
+    trackIndices,
+    setSegments,
+    setZoomSegments,
     setTextOverlays,
+    setTrackIndices,
   });
+
+  const maxTrackIdx = Object.values(trackIndices || {}).reduce((max, val) => Math.max(max, val), 2);
+  const totalTracks = maxTrackIdx + 2;
 
   return (
     <div className="track-stream-container max-w-[1379px] h-[173px]">
@@ -258,10 +308,10 @@ export function TimelineTrack(props: TimelineTrackProps) {
           }}
         />
 
-        <div className="h-full overflow-hidden">
+        <div className="h-full overflow-hidden w-full">
           <div
             ref={scrollContainerRef}
-            className={` w-full h-full overflow-y-hidden ${
+            className={` w-full h-full overflow-y-auto ${
               zoomLevel > 1 ? "overflow-x-auto" : "overflow-x-hidden"
             }`}
             onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
@@ -272,8 +322,7 @@ export function TimelineTrack(props: TimelineTrackProps) {
               style={{
                 width: `${baseTimelineWidth * zoomLevel}px`,
                 minWidth: `${baseTimelineWidth}px`,
-                height: "100%",
-
+                height: `${38 + totalTracks * 36 + 10}px`,
                 boxSizing: "border-box",
               }}
               onMouseDown={(e) => {
