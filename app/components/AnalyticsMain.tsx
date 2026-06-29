@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import AnalyticsStatCards from "./analytics/AnalyticsStatCards";
 import ViewsOverTimePanel from "./analytics/ViewsOverTimePanel";
 import TopDemosPanel from "./analytics/TopDemosPanel";
+import TopCtaPanel from "./analytics/TopCtaPanel";
 
 export const metadata = {
   title: "Settings",
@@ -15,8 +16,12 @@ type AnalyticsMainProps = {
   avgDuration?: string;
   completionRate?: string;
   activeShares?: number;
-  topDemos?: { title: string; views: number }[];
+  topDemos?: { title: string; views: number; ctaClicks: number; hasCta: boolean }[];
   viewsOverTime?: { date: string; views: number }[];
+  totalCtaClicks?: number;
+  uniqueCtaClicks?: number;
+  ctaClickRate?: string;
+  topCtas?: { label: string; clicks: number }[];
 };
 
 const AnalyticsMain = ({
@@ -26,7 +31,12 @@ const AnalyticsMain = ({
   activeShares = 0,
   topDemos = [],
   viewsOverTime = [],
+  totalCtaClicks = 0,
+  uniqueCtaClicks = 0,
+  ctaClickRate = "0%",
+  topCtas = [],
 }: AnalyticsMainProps) => {
+  const topCta = topCtas[0] ?? null;
   const [isVisible, setIsVisible] = useState(false);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
 
@@ -53,6 +63,10 @@ const AnalyticsMain = ({
         avgDuration={avgDuration}
         completionRate={completionRate}
         activeShares={activeShares}
+        totalCtaClicks={totalCtaClicks}
+        uniqueCtaClicks={uniqueCtaClicks}
+        ctaClickRate={ctaClickRate}
+        topCta={topCta}
         isVisible={isVisible}
         hoveredCard={hoveredCard}
         onHover={handleCardHover}
@@ -60,8 +74,11 @@ const AnalyticsMain = ({
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ViewsOverTimePanel viewsOverTime={viewsOverTime} />
+        <div className="lg:col-span-2">
+          <ViewsOverTimePanel viewsOverTime={viewsOverTime} />
+        </div>
         <TopDemosPanel topDemos={topDemos} />
+        <TopCtaPanel topCtas={topCtas} />
       </div>
     </div>
   );
