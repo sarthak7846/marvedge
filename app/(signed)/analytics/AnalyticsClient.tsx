@@ -6,8 +6,12 @@ type AnalyticsClientProps = {
   avgDuration: string;
   completionRate: string;
   activeShares: number;
-  topDemos: { title: string; views: number }[];
+  topDemos: { title: string; views: number; ctaClicks: number; hasCta: boolean }[];
   viewsOverTime: { date: string; views: number }[];
+  totalCtaClicks: number;
+  uniqueCtaClicks: number;
+  ctaClickRate: string;
+  topCtas: { label: string; clicks: number }[];
 };
 
 const AnalyticsPage = (props: AnalyticsClientProps) => {

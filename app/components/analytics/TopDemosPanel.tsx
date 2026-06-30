@@ -1,10 +1,10 @@
 import React from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { Eye } from "lucide-react";
+import { Eye, MousePointerClick } from "lucide-react";
 
 interface TopDemosPanelProps {
-  topDemos: { title: string; views: number }[];
+  topDemos: { title: string; views: number; ctaClicks: number; hasCta: boolean }[];
 }
 
 const TopDemosPanel = ({ topDemos }: TopDemosPanelProps) => (
@@ -32,13 +32,25 @@ const TopDemosPanel = ({ topDemos }: TopDemosPanelProps) => (
               <div className="rank w-8 h-8 rounded-full bg-[#EAE5FB] flex items-center justify-center text-[#8A76FC] font-semibold">
                 {i + 1}
               </div>
-              <p className="demo-name font-medium text-[#2D2154] truncate max-w-[200px] md:max-w-[250px]">
+              <p className="demo-name font-medium text-[#2D2154] truncate max-w-[120px] md:max-w-[180px]">
                 {demo.title}
               </p>
             </div>
-            <div className="views flex items-center gap-1.5 text-[#6356D7] bg-[#F4F1FD] px-3 py-1 rounded-full">
-              <Eye size={14} />
-              <span className="font-semibold text-sm">{demo.views} views</span>
+            <div className="flex items-center gap-2">
+              <div className="views flex items-center gap-1.5 text-[#6356D7] bg-[#F4F1FD] px-3 py-1 rounded-full">
+                <Eye size={14} />
+                <span className="font-semibold text-sm">{demo.views} views</span>
+              </div>
+              {demo.hasCta ? (
+                <div className="cta-clicks flex items-center gap-1.5 text-[#8A76FC] bg-[#EAE5FB] px-3 py-1 rounded-full">
+                  <MousePointerClick size={14} />
+                  <span className="font-semibold text-sm">{demo.ctaClicks} clicks</span>
+                </div>
+              ) : (
+                <span className="text-xs text-[#8C82B4] max-w-[160px] text-right">
+                  No CTA added yet. Add a CTA to start tracking clicks.
+                </span>
+              )}
             </div>
           </div>
         ))

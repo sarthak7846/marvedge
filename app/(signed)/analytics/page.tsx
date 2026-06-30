@@ -46,6 +46,7 @@ export default async function Page() {
       exportedVideo: {
         include: { views: true },
       },
+      _count: { select: { ctas: true, ctaClicks: true } },
     },
   });
   const topDemos = demos
@@ -55,7 +56,12 @@ export default async function Page() {
         ...d.views.map((v) => v.id),
         ...(d.exportedVideo?.views.map((v) => v.id) || []),
       ]);
-      return { title: d.title, views: allViewIds.size };
+      return {
+        title: d.title,
+        views: allViewIds.size,
+        ctaClicks: d._count.ctaClicks,
+        hasCta: d._count.ctas > 0,
+      };
     })
     .sort((a, b) => b.views - a.views)
     .slice(0, 5);
@@ -69,6 +75,32 @@ export default async function Page() {
     .map(([date, count]) => ({ date, views: count }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  // CTA analytics (clicks for the logged-in user's demos)
+  const ctaClickRows = await prisma.ctaClick.findMany({
+    where: { demo: { userId } },
+    select: { userId: true, sessionId: true },
+  });
+  const totalCtaClicks = ctaClickRows.length;
+  // unique clicks = COUNT(DISTINCT COALESCE(userId, sessionId)); nulls are not counted
+  const uniqueCtaClicks = new Set(
+    ctaClickRows.map((c) => c.userId ?? c.sessionId).filter((id): id is string => Boolean(id))
+  ).size;
+  // CTA click rate = unique clicks (per browser) ÷ total views; guard divide-by-zero
+  const ctaClickRate = totalViews ? `${Math.round((uniqueCtaClicks / totalViews) * 100)}%` : "0%";
+
+  // top performing CTA(s): group clicks by label, ordered by click count
+  const ctaByLabel = await prisma.ctaClick.groupBy({
+    by: ["label"],
+    where: { demo: { userId } },
+    _count: { label: true },
+    orderBy: { _count: { label: "desc" } },
+    take: 5,
+  });
+  const topCtas = ctaByLabel.map((g) => ({
+    label: g.label,
+    clicks: g._count.label,
+  }));
+
   return (
     <AnalyticsClient
       totalViews={totalViews}
@@ -77,6 +109,10 @@ export default async function Page() {
       activeShares={activeShares}
       topDemos={topDemos}
       viewsOverTime={viewsOverTime}
+      totalCtaClicks={totalCtaClicks}
+      uniqueCtaClicks={uniqueCtaClicks}
+      ctaClickRate={ctaClickRate}
+      topCtas={topCtas}
     />
   );
 }
