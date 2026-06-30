@@ -21,6 +21,7 @@ interface PreviewPlayerProps {
   onMuteToggle: () => void;
   onVolumeChange: (newVolume: number) => void;
   onFullscreen: () => void;
+  onEnded: () => void;
 }
 
 export default function PreviewPlayer({
@@ -40,6 +41,7 @@ export default function PreviewPlayer({
   onMuteToggle,
   onVolumeChange,
   onFullscreen,
+  onEnded,
 }: PreviewPlayerProps) {
   return (
     <div
@@ -63,6 +65,7 @@ export default function PreviewPlayer({
         onReady={() => setIsLoading(false)}
         onDuration={setDuration}
         onProgress={onProgress}
+        onEnded={onEnded}
         config={{
           file: {
             attributes: {

@@ -1,5 +1,6 @@
-import { useRef } from "react";
-import { TimelineRulerProps } from "./types";
+import { useRef, useState, useEffect } from "react";
+import { TimelineRulerProps, TextOverlayItem } from "./types";
+import { ZoomEffect } from "../../types/editor/zoom-effect";
 import {
   usePlayhead,
   useTimelineZoom,
@@ -9,6 +10,105 @@ import {
 } from "./useTimelineCore";
 import { useHandleDrag } from "./useTimelineDrags";
 import { useTrimActions, useZoomActions } from "./useTimelineActions";
+
+export interface TimelineBlock {
+  id: string;
+  type: "trim" | "zoom" | "text";
+  index: number;
+  originalId?: string;
+  start: number;
+  end: number;
+  track: number;
+}
+
+export function getAllBlocks(
+  segs: { start: number; end: number }[],
+  zooms: ZoomEffect[],
+  texts: TextOverlayItem[],
+  tracks: Record<string, number>
+): TimelineBlock[] {
+  const list: TimelineBlock[] = [];
+  segs.forEach((s, idx) => {
+    const id = `trim-${idx}`;
+    list.push({
+      id,
+      type: "trim",
+      index: idx,
+      start: s.start,
+      end: s.end,
+      track: tracks[id] ?? 0,
+    });
+  });
+  zooms.forEach((z, idx) => {
+    const id = `zoom-${idx}`;
+    list.push({
+      id,
+      type: "zoom",
+      index: idx,
+      start: z.startTime,
+      end: z.endTime,
+      track: tracks[id] ?? 0,
+    });
+  });
+  texts.forEach((t) => {
+    const id = `text-${t.id}`;
+    list.push({
+      id,
+      type: "text",
+      index: -1,
+      originalId: t.id,
+      start: t.startTime,
+      end: t.endTime,
+      track: tracks[id] ?? 0,
+    });
+  });
+  return list;
+}
+
+export function resolveTracks(
+  segs: { start: number; end: number }[],
+  zooms: ZoomEffect[],
+  texts: TextOverlayItem[],
+  currentTracks: Record<string, number>
+): Record<string, number> {
+  const resolved: Record<string, number> = { ...currentTracks };
+  const allBlocks = getAllBlocks(segs, zooms, texts, resolved);
+  const sortedBlocks = [...allBlocks].sort((a, b) => a.start - b.start);
+  const trackPlacements: Record<number, TimelineBlock[]> = {};
+
+  sortedBlocks.forEach((block) => {
+    let track = resolved[block.id];
+    let hasCollision = false;
+    if (track !== undefined) {
+      const placedOnTrack = trackPlacements[track] || [];
+      hasCollision = placedOnTrack.some(
+        (placed) => block.start < placed.end - 0.001 && placed.start < block.end - 0.001
+      );
+    }
+
+    if (track === undefined || hasCollision) {
+      track = 0;
+      while (true) {
+        const placedOnTrack = trackPlacements[track] || [];
+        const collides = placedOnTrack.some(
+          (placed) => block.start < placed.end - 0.001 && placed.start < block.end - 0.001
+        );
+        if (!collides) {
+          break;
+        }
+        track++;
+      }
+    }
+
+    if (!trackPlacements[track]) {
+      trackPlacements[track] = [];
+    }
+    trackPlacements[track].push(block);
+    resolved[block.id] = track;
+  });
+
+  return resolved;
+}
 
 function useTimelineRulerState(props: TimelineRulerProps) {
   const {
@@ -30,12 +130,49 @@ function useTimelineRulerState(props: TimelineRulerProps) {
     segments,
     setSegments,
     setZoomSegments,
+    textOverlays,
     isDraggingTimelineRef,
   } = props;
 
+  const [trackIndices, setTrackIndices] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    setTrackIndices((prev) => {
+      const next = resolveTracks(segments, zoomSegments, textOverlays, prev);
+      const changed =
+        Object.keys(next).some((k) => next[k] !== prev[k]) ||
+        Object.keys(prev).some((k) => next[k] !== prev[k]);
+      return changed ? next : prev;
+    });
+  }, [segments, zoomSegments, textOverlays]);
+
   const rulerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const baseTimelineWidth = 956;
+  const [baseTimelineWidth, setBaseTimelineWidth] = useState(956);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) {
+      return;
+    }
+
+    const updateWidth = () => {
+      if (el.clientWidth > 0) {
+        setBaseTimelineWidth(el.clientWidth);
+      }
+    };
+
+    updateWidth();
+
+    const observer = new ResizeObserver(() => {
+      updateWidth();
+    });
+    observer.observe(el);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   const { zoomLevel, setZoomLevel, scrollLeft, setScrollLeft } = useTimelineZoom({
     rulerRef,
@@ -142,6 +279,8 @@ function useTimelineRulerState(props: TimelineRulerProps) {
     minValue,
     maxValue,
     processing,
+    trackIndices,
+    setTrackIndices,
   };
 }
 

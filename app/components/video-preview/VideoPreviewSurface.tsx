@@ -62,6 +62,7 @@ interface PreviewReactPlayerProps {
   playerRef: React.RefObject<ReactPlayer>;
   videoUrl: string | null;
   playing: boolean;
+  setPlaying: (playing: boolean) => void;
   isRecording: boolean;
   volume: number;
   duration: number;
@@ -74,6 +75,7 @@ export function PreviewReactPlayer({
   playerRef,
   videoUrl,
   playing,
+  setPlaying,
   isRecording,
   volume,
   duration,
@@ -102,10 +104,9 @@ export function PreviewReactPlayer({
         setCurrentTime(0);
         onTimeChange?.(0);
       }}
-      onPlay={() => {
-        // Ensure currentTime is 0 when video starts playing
-        setCurrentTime(0);
-        onTimeChange?.(0);
+      onPlay={() => {}}
+      onEnded={() => {
+        setPlaying(false);
       }}
       onDuration={(dur) => {
         if (isFinite(dur) && !isNaN(dur) && dur > 0) {
@@ -143,6 +144,10 @@ export function PreviewReactPlayer({
         } else {
           setCurrentTime(playedSeconds);
           onTimeChange?.(playedSeconds);
+        }
+
+        if (duration > 0 && playedSeconds >= duration - 0.05) {
+          setPlaying(false);
         }
 
         // Try to get duration when video starts playing - FASTER

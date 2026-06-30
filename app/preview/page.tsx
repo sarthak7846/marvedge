@@ -48,6 +48,7 @@ export default function PreviewPage() {
           onMuteToggle={player.handleMuteToggle}
           onVolumeChange={player.handleVolumeChange}
           onFullscreen={player.handleFullscreen}
+          onEnded={player.onEnded}
         />
 
         {/* Video Info */}

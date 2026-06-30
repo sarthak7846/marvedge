@@ -38,6 +38,8 @@ export type DragState =
       mode: "segment";
       index: number;
       startX: number;
+      startY: number;
+      startTrack: number;
       startValue: number;
       endValue: number;
     };
@@ -54,6 +56,8 @@ export type DragZoomState =
       mode: "segment";
       index: number;
       startX: number;
+      startY: number;
+      startTrack: number;
       startValue: number;
       endValue: number;
     };
@@ -70,6 +74,8 @@ export type DragTextState =
       mode: "segment";
       id: string;
       startX: number;
+      startY: number;
+      startTrack: number;
       startValue: number;
       endValue: number;
     };

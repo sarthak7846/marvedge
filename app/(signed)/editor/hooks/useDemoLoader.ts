@@ -9,7 +9,7 @@ import type { EditorState } from "../apiTypes";
 
 interface UseDemoLoaderProps {
   editorState: EditorState;
-  isEditorInitializedRef: React.RefObject<boolean>;
+  isEditorInitializedRef: React.MutableRefObject<boolean>;
   setSegments: (segments: { start: number; end: number }[]) => void;
   setZoomSegments: (segments: ZoomEffect[]) => void;
   setSubtitleCues: (cues: SubtitleCue[]) => void;
@@ -56,55 +56,6 @@ export function useDemoLoader({
     setCtas,
   } = editorState;
 
-  const restoreDemoEditing = (ed: DemoEditing) => {
-    if (ed.segments) {
-      const numeric = ed.segments
-        .map((s) => ({
-          start: typeof s.start === "string" ? parseFloat(s.start) : Number(s.start),
-          end: typeof s.end === "string" ? parseFloat(s.end) : Number(s.end),
-        }))
-        .filter((s) => !isNaN(s.start) && !isNaN(s.end));
-      if (numeric.length > 0) {
-        setSegments(numeric);
-        setCurrentSegments(
-          ed.segments.map((s) => ({
-            start: String(s.start),
-            end: String(s.end),
-          }))
-        );
-      }
-    }
-    if (ed.zoom) {
-      setZoomSegments(ed.zoom);
-    }
-    if (ed.background) {
-      setSelectedBackground(ed.background);
-    }
-    if (ed.backgroundType) {
-      setBackgroundType(ed.backgroundType);
-    }
-    if (ed.subtitles) {
-      setSubtitleCues(ed.subtitles);
-    }
-    if (ed.textOverlays) {
-      setTextOverlays(ed.textOverlays);
-    }
-    if (ed.aspectRatio) {
-      setAspectRatio(ed.aspectRatio);
-    }
-    if (ed.browserFrame) {
-      if (ed.browserFrame.mode) {
-        setBrowserFrameMode(ed.browserFrame.mode);
-      }
-      if (typeof ed.browserFrame.drawShadow === "boolean") {
-        setBrowserFrameDrawShadow(ed.browserFrame.drawShadow);
-      }
-      if (typeof ed.browserFrame.drawBorder === "boolean") {
-        setBrowserFrameDrawBorder(ed.browserFrame.drawBorder);
-      }
-    }
-  };
-
   useEffect(() => {
     const nextParams = new URLSearchParams(window.location.search);
     setParams(nextParams);
@@ -116,6 +67,17 @@ export function useDemoLoader({
   }, [setParams, setSavedDemoId]);
 
   useEffect(() => {
+    if (savedDemoId) {
+      const searchParams = new URLSearchParams(window.location.search);
+      if (searchParams.get("demoId") !== savedDemoId) {
+        searchParams.set("demoId", savedDemoId);
+        const newUrl = window.location.pathname + "?" + searchParams.toString();
+        window.history.replaceState({}, "", newUrl);
+      }
+    }
+  }, [savedDemoId]);
+
+  useEffect(() => {
     const demoId = savedDemoId || params?.get("demoId");
     if (!demoId) {
       const timer = setTimeout(() => {
@@ -125,7 +87,58 @@ export function useDemoLoader({
         clearTimeout(timer);
       };
     }
+    isEditorInitializedRef.current = false;
     let isMounted = true;
+
+    const restoreDemoEditing = (ed: DemoEditing) => {
+      if (ed.segments) {
+        const numeric = ed.segments
+          .map((s) => ({
+            start: typeof s.start === "string" ? parseFloat(s.start) : Number(s.start),
+            end: typeof s.end === "string" ? parseFloat(s.end) : Number(s.end),
+          }))
+          .filter((s) => !isNaN(s.start) && !isNaN(s.end));
+        if (numeric.length > 0) {
+          setSegments(numeric);
+          setCurrentSegments(
+            ed.segments.map((s) => ({
+              start: String(s.start),
+              end: String(s.end),
+            }))
+          );
+        }
+      }
+      if (ed.zoom) {
+        setZoomSegments(ed.zoom);
+      }
+      if (ed.background) {
+        setSelectedBackground(ed.background);
+      }
+      if (ed.backgroundType) {
+        setBackgroundType(ed.backgroundType);
+      }
+      if (ed.subtitles) {
+        setSubtitleCues(ed.subtitles);
+      }
+      if (ed.textOverlays) {
+        setTextOverlays(ed.textOverlays);
+      }
+      if (ed.aspectRatio) {
+        setAspectRatio(ed.aspectRatio);
+      }
+      if (ed.browserFrame) {
+        if (ed.browserFrame.mode) {
+          setBrowserFrameMode(ed.browserFrame.mode);
+        }
+        if (typeof ed.browserFrame.drawShadow === "boolean") {
+          setBrowserFrameDrawShadow(ed.browserFrame.drawShadow);
+        }
+        if (typeof ed.browserFrame.drawBorder === "boolean") {
+          setBrowserFrameDrawBorder(ed.browserFrame.drawBorder);
+        }
+      }
+    };
+
     axios
       .get(`/api/demo?id=${demoId}`)
       .then((res) => {
@@ -155,7 +168,24 @@ export function useDemoLoader({
     return () => {
       isMounted = false;
     };
-  }, [savedDemoId, params]);
+  }, [
+    savedDemoId,
+    params,
+    isEditorInitializedRef,
+    setSidebarDescription,
+    setSidebarTitle,
+    setCurrentSegments,
+    setSelectedBackground,
+    setBackgroundType,
+    setAspectRatio,
+    setBrowserFrameMode,
+    setBrowserFrameDrawShadow,
+    setBrowserFrameDrawBorder,
+    setSegments,
+    setZoomSegments,
+    setSubtitleCues,
+    setTextOverlays,
+  ]);
 
   // CTAs live in the Cta table, not in demo.editing, so load them separately.
   // Degrades gracefully: a missing/empty endpoint just leaves the list empty.

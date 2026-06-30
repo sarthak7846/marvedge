@@ -30,20 +30,32 @@ export function useVideoPreviewPlayback({
       return;
     }
     setPlaying((prev) => {
-      if (screenStream && videoRef.current) {
-        if (prev) {
-          videoRef.current.pause();
-        } else {
-          videoRef.current.play();
+      const nextPlaying = !prev;
+      if (nextPlaying) {
+        const isAtEnd = currentTime >= duration - 0.1;
+        if (isAtEnd) {
+          if (screenStream && videoRef.current) {
+            videoRef.current.currentTime = 0;
+          } else if (playerRef.current) {
+            playerRef.current.seekTo(0, "seconds");
+          }
+          setCurrentTime(0);
+          onTimeChange?.(0);
         }
-      } else {
-        if (prev) {
-          playerRef.current?.getInternalPlayer()?.pause?.();
+
+        if (screenStream && videoRef.current) {
+          videoRef.current.play();
         } else {
           playerRef.current?.getInternalPlayer()?.play?.();
         }
+      } else {
+        if (screenStream && videoRef.current) {
+          videoRef.current.pause();
+        } else {
+          playerRef.current?.getInternalPlayer()?.pause?.();
+        }
       }
-      return !prev;
+      return nextPlaying;
     });
   };
 
@@ -116,6 +128,7 @@ export function useVideoPreviewPlayback({
     duration,
     setDuration,
     playing,
+    setPlaying,
     dragging,
     dragValue,
     volume,

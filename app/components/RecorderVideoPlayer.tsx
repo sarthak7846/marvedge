@@ -143,6 +143,10 @@ export default function RecorderVideoPlayer({
               } else {
                 setVideoCurrentTime(playedSeconds);
               }
+
+              if (videoDuration > 0 && playedSeconds >= videoDuration - 0.05) {
+                setVideoPlaying(false);
+              }
             }}
             onDuration={(dur) => {
               if (
@@ -160,9 +164,7 @@ export default function RecorderVideoPlayer({
             onStart={() => {
               setVideoCurrentTime(0);
             }}
-            onPlay={() => {
-              setVideoCurrentTime(0);
-            }}
+            onPlay={() => {}}
             onEnded={() => setVideoPlaying(false)}
             onReady={() => {
               console.log("Video loaded in recorder");
@@ -181,7 +183,14 @@ export default function RecorderVideoPlayer({
 
           {!videoPlaying && (
             <button
-              onClick={() => setVideoPlaying(true)}
+              onClick={() => {
+                const isAtEnd = videoCurrentTime >= videoDuration - 0.1;
+                if (isAtEnd && videoPlayerRef.current) {
+                  videoPlayerRef.current.seekTo(0, "seconds");
+                  setVideoCurrentTime(0);
+                }
+                setVideoPlaying(true);
+              }}
               className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/50 transition-colors"
             >
               <div className="play-circle bg-white hover:bg-gray-100 rounded-full p-4 transition-all shadow-lg text-[#7C5CFC]">
