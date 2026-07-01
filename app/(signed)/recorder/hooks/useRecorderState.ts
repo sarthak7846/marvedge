@@ -1,51 +1,52 @@
-import { useState, useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { useRecorderStore } from "@/app/store/recorderStore";
 
+/**
+ * Thin shim over the recorderStore (strangler pattern). Returns the same shape
+ * the god-hook used to expose so existing consumers keep working untouched, but
+ * the UI state now lives in the Zustand store. Refs stay local to the caller.
+ */
 export function useRecorderState() {
-  const [uploadMessage, setUploadMessage] = useState<string>("");
-  const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
-  const [uploadedFileType, setUploadedFileType] = useState<string | null>(null);
-  const [format, setFormat] = useState<"webm" | "mp4">("webm");
-  const [saveMessage] = useState<string>("");
-  const [recordingTimer, setRecordingTimer] = useState(0);
-  const [showSavePopup, setShowSavePopup] = useState(false);
-  const [processingDownload, setProcessingDownload] = useState(false);
+  const state = useRecorderStore(
+    useShallow((s) => ({
+      uploadMessage: s.uploadMessage,
+      setUploadMessage: s.setUploadMessage,
+      uploadedFileUrl: s.uploadedFileUrl,
+      setUploadedFileUrl: s.setUploadedFileUrl,
+      uploadedFileType: s.uploadedFileType,
+      setUploadedFileType: s.setUploadedFileType,
+      format: s.format,
+      setFormat: s.setFormat,
+      recordingTimer: s.recordingTimer,
+      setRecordingTimer: s.setRecordingTimer,
+      showSavePopup: s.showSavePopup,
+      setShowSavePopup: s.setShowSavePopup,
+      processingDownload: s.processingDownload,
+      setProcessingDownload: s.setProcessingDownload,
+      videoPlaying: s.videoPlaying,
+      setVideoPlaying: s.setVideoPlaying,
+      videoCurrentTime: s.videoCurrentTime,
+      setVideoCurrentTime: s.setVideoCurrentTime,
+      videoDuration: s.videoDuration,
+      setVideoDuration: s.setVideoDuration,
+      sidebarOpen: s.sidebarOpen,
+      setSidebarOpen: s.setSidebarOpen,
+      isSavePublishDisabled: s.isSavePublishDisabled,
+      setIsSavePublishDisabled: s.setIsSavePublishDisabled,
+    }))
+  );
 
-  // Video controls state
-  const [videoPlaying, setVideoPlaying] = useState(false);
-  const [videoCurrentTime, setVideoCurrentTime] = useState(0);
-  const [videoDuration, setVideoDuration] = useState(0);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isSavePublishDisabled, setIsSavePublishDisabled] = useState(false);
+  // saveMessage was always "" (no setter was ever exposed); keep it for parity.
+  const saveMessage = "";
 
+  // Refs stay as refs — they do not belong in the store.
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   return {
-    uploadMessage,
-    setUploadMessage,
-    uploadedFileUrl,
-    setUploadedFileUrl,
-    uploadedFileType,
-    setUploadedFileType,
-    format,
-    setFormat,
+    ...state,
     saveMessage,
-    recordingTimer,
-    setRecordingTimer,
-    showSavePopup,
-    setShowSavePopup,
-    processingDownload,
-    setProcessingDownload,
-    videoPlaying,
-    setVideoPlaying,
-    videoCurrentTime,
-    setVideoCurrentTime,
-    videoDuration,
-    setVideoDuration,
-    sidebarOpen,
-    setSidebarOpen,
-    isSavePublishDisabled,
-    setIsSavePublishDisabled,
     fileInputRef,
     recordingIntervalRef,
   };

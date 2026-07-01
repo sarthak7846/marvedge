@@ -1,79 +1,89 @@
 import ReactPlayer from "react-player";
 import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
 import RecorderTopbar from "@/app/components/RecorderTopbar";
 import SavePopupForm from "@/app/components/SavePopupForm";
 import VideoPlayerSection from "@/app/components/VideoPlayerSection";
 import RecordingControls from "@/app/components/RecordingControls";
+import { useRecorderStore } from "@/app/store/recorderStore";
+import { useBlobStore } from "@/app/store/blobStore";
 
 interface RecorderWorkspaceViewProps {
   initials: string;
   isUploaded: boolean;
   onBack: () => void;
   onEditVideo: () => void;
-  uploadedFileType: string | null;
-  uploadedFileUrl: string | null;
   videoUrl: string | null;
   screenStream: MediaStream | null;
   recording: boolean;
-  videoPlaying: boolean;
-  setVideoPlaying: (playing: boolean) => void;
-  videoCurrentTime: number;
-  setVideoCurrentTime: (time: number) => void;
-  videoDuration: number;
-  setVideoDuration: (duration: number) => void;
   recordingDuration: number;
-  recordingTimer: number;
   videoPlayerRef: React.RefObject<ReactPlayer | null>;
-  saveMessage: string;
   startScreenShare: () => void;
   stopRecording: () => void;
-  setUploadedFileUrl: (url: string | null) => void;
-  setUploadedFileType: (type: string | null) => void;
-  setBlob: (blob: Blob | null) => void;
   reset: () => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
-  showSavePopup: boolean;
-  setShowSavePopup: (open: boolean) => void;
   onPopupDownload: (data: { title: string; format: string }) => void;
-  title: string;
-  processingDownload: boolean;
   isProcessingRef: React.MutableRefObject<boolean>;
 }
+
+// saveMessage was always "" (no setter was ever exposed); kept for parity.
+const saveMessage = "";
 
 export default function RecorderWorkspaceView({
   initials,
   isUploaded,
   onBack,
   onEditVideo,
-  uploadedFileType,
-  uploadedFileUrl,
   videoUrl,
   screenStream,
   recording,
-  videoPlaying,
-  setVideoPlaying,
-  videoCurrentTime,
-  setVideoCurrentTime,
-  videoDuration,
-  setVideoDuration,
   recordingDuration,
-  recordingTimer,
   videoPlayerRef,
-  saveMessage,
   startScreenShare,
   stopRecording,
-  setUploadedFileUrl,
-  setUploadedFileType,
-  setBlob,
   reset,
   fileInputRef,
-  showSavePopup,
-  setShowSavePopup,
   onPopupDownload,
-  title,
-  processingDownload,
   isProcessingRef,
 }: RecorderWorkspaceViewProps) {
+  const {
+    uploadedFileType,
+    uploadedFileUrl,
+    videoPlaying,
+    setVideoPlaying,
+    videoCurrentTime,
+    setVideoCurrentTime,
+    videoDuration,
+    setVideoDuration,
+    recordingTimer,
+    showSavePopup,
+    setShowSavePopup,
+    processingDownload,
+    setUploadedFileUrl,
+    setUploadedFileType,
+  } = useRecorderStore(
+    useShallow((s) => ({
+      uploadedFileType: s.uploadedFileType,
+      uploadedFileUrl: s.uploadedFileUrl,
+      videoPlaying: s.videoPlaying,
+      setVideoPlaying: s.setVideoPlaying,
+      videoCurrentTime: s.videoCurrentTime,
+      setVideoCurrentTime: s.setVideoCurrentTime,
+      videoDuration: s.videoDuration,
+      setVideoDuration: s.setVideoDuration,
+      recordingTimer: s.recordingTimer,
+      showSavePopup: s.showSavePopup,
+      setShowSavePopup: s.setShowSavePopup,
+      processingDownload: s.processingDownload,
+      setUploadedFileUrl: s.setUploadedFileUrl,
+      setUploadedFileType: s.setUploadedFileType,
+    }))
+  );
+
+  const { setBlob, title } = useBlobStore(
+    useShallow((s) => ({ setBlob: s.setBlob, title: s.title }))
+  );
+
   return (
     <div
       className="page flex flex-col h-screen w-full overflow-hidden"
