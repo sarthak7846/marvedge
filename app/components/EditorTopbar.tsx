@@ -5,7 +5,7 @@ import { FaBars, FaXmark } from "react-icons/fa6";
 import { useRouter } from "next/navigation";
 import SidemenuDashboard from "./SidemenuDashboard";
 import EditorTopbarUserMenu from "./EditorTopbarUserMenu";
-import { useProfileImage } from "./useProfileImage";
+import { useUserStore } from "@/app/store/userStore";
 
 type EditorTopbarProps = {
   onBack: () => void;
@@ -18,12 +18,19 @@ const EditorTopbar = ({ onBack, userInitials, onToggleMenu }: EditorTopbarProps)
   const { data: session } = useSession();
   const [showDropdown, setShowDropdown] = useState(false);
   const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(false);
-  const profileImage = useProfileImage(session);
+  const profileImage = useUserStore((state) => state.profileImage);
+  const fetchProfileImage = useUserStore((state) => state.fetchProfileImage);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const hamburgerRef = useRef<HTMLDivElement>(null);
 
   const username =
     session?.user?.name?.split(" ")[0] || session?.user?.email?.split("@")?.[0] || "User";
+
+  useEffect(() => {
+    if (session?.user) {
+      fetchProfileImage();
+    }
+  }, [session, fetchProfileImage]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
