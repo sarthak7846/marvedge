@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
 
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import { clamp } from "../utils/clamp";
@@ -6,6 +7,17 @@ import { computeZoomPreview } from "../utils/zoomPreview";
 import type { EditorState } from "../apiTypes";
 
 type EditorMode = "main" | "trim" | "zoom" | "text";
+
+interface ExtensionClickEvent {
+  timestamp_ms: number;
+  event_type: string;
+  coordinates: {
+    x: number;
+    y: number;
+  };
+  screenshot_scale: number;
+  target_element: string;
+}
 
 interface UseZoomEditorProps {
   editorState: EditorState;
@@ -27,6 +39,83 @@ export function useZoomEditor({
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isDraggingZoomTarget, setIsDraggingZoomTarget] = useState(false);
   const [showZoomModal, setShowZoomModal] = useState(false);
+
+  // States for Chrome Extension click events
+  const [extensionEvents, setExtensionEvents] = useState<ExtensionClickEvent[]>([]);
+  const [hasAppliedAutoZoom, setHasAppliedAutoZoom] = useState(false);
+
+  // Listen for timeline messages from the extension content script
+  useEffect(() => {
+    const handleExtensionMessage = (event: MessageEvent) => {
+      if (event.data && event.data.source === "marvedge-extension") {
+        if (event.data.type === "SEND_TIMELINE" && event.data.lastSession) {
+          const timeline = event.data.lastSession.eventsTimeline || [];
+          console.log("[Marvedge Editor] Received events timeline from extension:", timeline);
+          if (timeline.length > 0) {
+            setExtensionEvents(timeline);
+          }
+        }
+      }
+    };
+
+    window.addEventListener("message", handleExtensionMessage);
+
+    // Prompt extension to send the last session event timeline
+    const timer = setTimeout(() => {
+      window.postMessage({ source: "marvedge-web", action: "GET_LAST_SESSION" }, "*");
+    }, 800);
+
+    return () => {
+      window.removeEventListener("message", handleExtensionMessage);
+      clearTimeout(timer);
+    };
+  }, []);
+
+  // Convert click events to ZoomEffect segments
+  const applyAutoZoomSuggestions = useCallback(() => {
+    if (extensionEvents.length === 0) {
+      return;
+    }
+
+    const suggestions: ZoomEffect[] = extensionEvents
+      .filter((e) => e.event_type === "click" && e.coordinates)
+      .map((event, index) => {
+        const clickTimeSec = event.timestamp_ms / 1000;
+        return {
+          id: `auto-zoom-${index}-${Date.now()}`,
+          startTime: Math.max(0, clickTimeSec - 0.3), // start 300ms before click
+          endTime: clickTimeSec + 2.2, // end 2.2s after click
+          zoomLevel: 1.8, // default 1.8x zoom level
+          x: event.coordinates.x,
+          y: event.coordinates.y,
+        };
+      });
+
+    // Apply debounce inside the editor too (250ms guard between zoom segments to prevent double-zoom stutters)
+    const debouncedSuggestions: ZoomEffect[] = [];
+    suggestions.forEach((suggest) => {
+      const isTooClose = debouncedSuggestions.some(
+        (existing) => Math.abs(existing.startTime - suggest.startTime) < 0.25
+      );
+      if (!isTooClose) {
+        debouncedSuggestions.push(suggest);
+      }
+    });
+
+    if (debouncedSuggestions.length === 0) {
+      toast.error("No valid click zoom events found to apply.");
+      return;
+    }
+
+    setZoomSegments((prev) => {
+      // Merge with existing zoom segments and sort by time
+      const merged = [...prev, ...debouncedSuggestions];
+      return merged.sort((a, b) => a.startTime - b.startTime);
+    });
+
+    setHasAppliedAutoZoom(true);
+    toast.success(`Successfully applied ${debouncedSuggestions.length} auto-zoom highlights!`);
+  }, [extensionEvents]);
 
   const preview = computeZoomPreview({ zoomSegments, activeZoomIdx, currentTime });
   const { resolvedZoomIdx, activeEditedZoomSegment, shouldShowZoomFocusBox } = preview;
@@ -137,5 +226,9 @@ export function useZoomEditor({
     setShowZoomModal,
     handleZoomTargetMouseDown,
     preview,
+    extensionEvents,
+    hasAppliedAutoZoom,
+    applyAutoZoomSuggestions,
+    setExtensionEvents,
   };
 }
