@@ -1,6 +1,7 @@
-import { useState, useRef } from "react";
+import { useRef } from "react";
 import ReactPlayer from "react-player";
-import { ZoomEffect } from "@/app/types/editor/zoom-effect";
+
+import { useEditorStore } from "@/app/store/editor/editorStore";
 
 export interface Segment {
   start: string;
@@ -17,139 +18,28 @@ export interface CtaItem {
   order: number;
 }
 
+/**
+ * Thin compatibility shim over the editorStore (issue #150).
+ *
+ * The editor state used to live here as 34 `useState` calls. It now lives in
+ * `useEditorStore`; this hook returns the SAME shape (all store fields + setters,
+ * plus the three locally-created refs) so existing consumers keep compiling and
+ * `EditorState = ReturnType<typeof useEditorState>` keeps resolving.
+ *
+ * Migrated consumers (EditorClient region components) read from `useEditorStore`
+ * via granular selectors directly; this shim stays in place for every consumer
+ * that has not been migrated yet (the feature sub-hooks).
+ */
 export function useEditorState() {
-  const [params, setParams] = useState<URLSearchParams | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [timelineStartTime, setTimelineStartTime] = useState<number>(0);
-  const [timelineEndTime, setTimelineEndTime] = useState(0);
+  const store = useEditorStore();
 
-  // Segments state
-  const [loadedSegments, setLoadedSegments] = useState<Segment[] | null>(null);
-  const [currentSegments, setCurrentSegments] = useState<Segment[]>([]);
-
-  // Tool state
-  const [tool, setTool] = useState<"none" | "blur" | "rect" | "arrow" | "text">("none");
-  const [textColor, setTextColor] = useState("#000000");
-  const [textFont, setTextFont] = useState("16px sans-serif");
-
-  // Sidebar state
-  const [sidebarTitle, setSidebarTitle] = useState("");
-  const [sidebarDescription, setSidebarDescription] = useState("");
-
-  // CTA state (definitions live in the Cta table, not in demo.editing)
-  const [ctas, setCtas] = useState<CtaItem[]>([]);
-
-  // Modal state
-  const [showSaveDemoModal, setShowSaveDemoModal] = useState(false);
-  const [savingDemo, setSavingDemo] = useState(false);
-  const [demoSaved, setDemoSaved] = useState(false);
-  const [savedDemoId, setSavedDemoId] = useState<string | null>(null);
-
-  // UI state
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
-  // Video state
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
-
-  // Zoom effects state
-  const [zoomEffects, setZoomEffects] = useState<ZoomEffect[]>([]);
-  const [isZoomPopupOpen, setIsZoomPopupOpen] = useState(false);
-
-  // Timeline input state
-  const [inputStartTime, setInputStartTime] = useState("00:00:00");
-  const [inputEndTime, setInputEndTime] = useState("00:00:00");
-
-  // Background state
-  const [selectedBackground, setSelectedBackground] = useState<string | null>(null);
-  const [backgroundType, setBackgroundType] = useState<string>("");
-  const [customBackground, setCustomBackground] = useState<File | null>(null);
-
-  // Aspect ratio state
-  const [aspectRatio, setAspectRatio] = useState<string>("native");
-  const [browserFrameMode, setBrowserFrameMode] = useState<BrowserFrameMode>("default");
-  const [browserFrameDrawShadow, setBrowserFrameDrawShadow] = useState<boolean>(true);
-  const [browserFrameDrawBorder, setBrowserFrameDrawBorder] = useState<boolean>(false);
-
-  // Refs
+  // Refs stay as refs — never in the store.
   const playerRef = useRef<ReactPlayer>(null!);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
 
   return {
-    // State
-    params,
-    setParams,
-    videoUrl,
-    setVideoUrl,
-    playing,
-    setPlaying,
-    timelineStartTime,
-    setTimelineStartTime,
-    timelineEndTime,
-    setTimelineEndTime,
-    loadedSegments,
-    setLoadedSegments,
-    currentSegments,
-    setCurrentSegments,
-    tool,
-    setTool,
-    textColor,
-    setTextColor,
-    textFont,
-    setTextFont,
-    sidebarTitle,
-    setSidebarTitle,
-    sidebarDescription,
-    setSidebarDescription,
-    ctas,
-    setCtas,
-    showSaveDemoModal,
-    setShowSaveDemoModal,
-    savingDemo,
-    setSavingDemo,
-    demoSaved,
-    setDemoSaved,
-    savedDemoId,
-    setSavedDemoId,
-    isSidebarOpen,
-    setIsSidebarOpen,
-    isDashboardMenuOpen,
-    setIsDashboardMenuOpen,
-    isFullscreen,
-    setIsFullscreen,
-    currentTime,
-    setCurrentTime,
-    duration,
-    setDuration,
-    volume,
-    setVolume,
-    zoomEffects,
-    setZoomEffects,
-    isZoomPopupOpen,
-    setIsZoomPopupOpen,
-    inputStartTime,
-    setInputStartTime,
-    inputEndTime,
-    setInputEndTime,
-    selectedBackground,
-    setSelectedBackground,
-    backgroundType,
-    setBackgroundType,
-    customBackground,
-    setCustomBackground,
-    aspectRatio,
-    setAspectRatio,
-    browserFrameMode,
-    setBrowserFrameMode,
-    browserFrameDrawShadow,
-    setBrowserFrameDrawShadow,
-    browserFrameDrawBorder,
-    setBrowserFrameDrawBorder,
+    ...store,
     // Refs
     playerRef,
     canvasRef,

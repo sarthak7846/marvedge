@@ -1,14 +1,16 @@
 import React from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import TimelineRuler from "@/app/components/TimeLine";
+import { useEditorStore } from "@/app/store/editor/editorStore";
 import type { EditorState, TextOverlaysApi, ZoomEditorApi } from "../apiTypes";
 
 type EditorMode = "main" | "trim" | "zoom" | "text";
 
 interface EditorTimelineSectionProps {
-  editorState: EditorState;
   zoom: ZoomEditorApi;
   text: TextOverlaysApi;
+  playerRef: EditorState["playerRef"];
   resolvedDuration: number;
   playbackSpeed: number;
   setPlaybackSpeed: (speed: number) => void;
@@ -25,9 +27,9 @@ interface EditorTimelineSectionProps {
 }
 
 export default function EditorTimelineSection({
-  editorState,
   zoom,
   text,
+  playerRef,
   resolvedDuration,
   playbackSpeed,
   setPlaybackSpeed,
@@ -47,12 +49,22 @@ export default function EditorTimelineSection({
     setCurrentTime,
     playing,
     setPlaying,
-    playerRef,
     timelineStartTime,
     timelineEndTime,
     setTimelineStartTime,
     setTimelineEndTime,
-  } = editorState;
+  } = useEditorStore(
+    useShallow((s) => ({
+      currentTime: s.currentTime,
+      setCurrentTime: s.setCurrentTime,
+      playing: s.playing,
+      setPlaying: s.setPlaying,
+      timelineStartTime: s.timelineStartTime,
+      timelineEndTime: s.timelineEndTime,
+      setTimelineStartTime: s.setTimelineStartTime,
+      setTimelineEndTime: s.setTimelineEndTime,
+    }))
+  );
 
   if (resolvedDuration <= 0) {
     return (

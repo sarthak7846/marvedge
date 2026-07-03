@@ -134,15 +134,14 @@ export default function EditorPage() {
   return (
     <main className="editor-page flex flex-col min-h-screen w-full bg-gray-50 overflow-hidden">
       <EditorModals
-        editorState={editorState}
         exportFlow={exportFlow}
         onSaveDemo={onSaveDemo}
         resolvedDuration={resolvedDuration}
+        playerRef={editorState.playerRef}
       />
 
       <div className="flex flex-1 min-h-0 overflow-hidden relative">
         <EditorSidebarRegion
-          editorState={editorState}
           text={text}
           zoom={zoom}
           subtitles={subtitles}
@@ -151,10 +150,12 @@ export default function EditorPage() {
         />
 
         <EditorPreviewRegion
-          editorState={editorState}
           text={text}
           zoom={zoom}
           subtitles={subtitles}
+          playerRef={editorState.playerRef}
+          canvasRef={editorState.canvasRef}
+          videoContainerRef={editorState.videoContainerRef}
           isDark={isDark}
           processing={processing}
           nativeAspectRatio={nativeAspectRatio}

@@ -1,5 +1,7 @@
 import React from "react";
+import { useShallow } from "zustand/react/shallow";
 
+import { useEditorStore } from "@/app/store/editor/editorStore";
 import SubtitleOverlay from "./SubtitleOverlay";
 import TextOverlayLayer from "./TextOverlayLayer";
 import VideoPreviewPlayer from "./VideoPreviewPlayer";
@@ -9,10 +11,11 @@ import type { EditorState, SubtitlesApi, TextOverlaysApi, ZoomEditorApi } from "
 type EditorMode = "main" | "trim" | "zoom" | "text";
 
 interface EditorVideoStageProps {
-  editorState: EditorState;
   text: TextOverlaysApi;
   zoom: ZoomEditorApi;
   subtitles: SubtitlesApi;
+  canvasRef: EditorState["canvasRef"];
+  playerRef: EditorState["playerRef"];
   hasCanvasBackground: boolean;
   previewObjectFit: "contain";
   playbackSpeed: number;
@@ -26,10 +29,11 @@ interface EditorVideoStageProps {
 }
 
 export default function EditorVideoStage({
-  editorState,
   text,
   zoom,
   subtitles,
+  canvasRef,
+  playerRef,
   hasCanvasBackground,
   previewObjectFit,
   playbackSpeed,
@@ -41,8 +45,30 @@ export default function EditorVideoStage({
   lastInteractionRef,
   isDraggingTimelineRef,
 }: EditorVideoStageProps) {
-  const { videoUrl, playing, volume, tool, canvasRef, playerRef, currentTime, duration } =
-    editorState;
+  const {
+    videoUrl,
+    playing,
+    volume,
+    tool,
+    currentTime,
+    duration,
+    setCurrentTime,
+    setDuration,
+    setPlaying,
+  } = useEditorStore(
+    useShallow((s) => ({
+      videoUrl: s.videoUrl,
+      playing: s.playing,
+      volume: s.volume,
+      tool: s.tool,
+      currentTime: s.currentTime,
+      duration: s.duration,
+      setCurrentTime: s.setCurrentTime,
+      setDuration: s.setDuration,
+      setPlaying: s.setPlaying,
+    }))
+  );
+
   const { isDraggingZoomTarget, handleZoomTargetMouseDown, preview } = zoom;
   const {
     shouldApplyZoomPreview,
@@ -84,10 +110,10 @@ export default function EditorVideoStage({
           hasCanvasBackground={hasCanvasBackground}
           isDraggingTimelineRef={isDraggingTimelineRef}
           lastInteractionRef={lastInteractionRef}
-          setCurrentTime={editorState.setCurrentTime}
+          setCurrentTime={setCurrentTime}
           childHandleProgress={childHandleProgress}
-          setDuration={editorState.setDuration}
-          setPlaying={editorState.setPlaying}
+          setDuration={setDuration}
+          setPlaying={setPlaying}
           duration={duration}
         />
       </div>

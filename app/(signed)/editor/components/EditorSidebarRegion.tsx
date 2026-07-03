@@ -1,13 +1,14 @@
 import { X } from "lucide-react";
 import axios from "axios";
 import { toast } from "react-hot-toast";
+import { useShallow } from "zustand/react/shallow";
 
 import EditorSidebar from "@/app/components/EditorSidebar";
 import SidemenuDashboard from "@/app/components/SidemenuDashboard";
 import ZoomModal from "@/app/components/ZoomModal";
+import { useEditorStore } from "@/app/store/editor/editorStore";
 import type {
   CtaItem,
-  EditorState,
   ExportFlowApi,
   SubtitlesApi,
   TextOverlaysApi,
@@ -15,7 +16,6 @@ import type {
 } from "../apiTypes";
 
 interface EditorSidebarRegionProps {
-  editorState: EditorState;
   text: TextOverlaysApi;
   zoom: ZoomEditorApi;
   subtitles: SubtitlesApi;
@@ -24,22 +24,74 @@ interface EditorSidebarRegionProps {
 }
 
 export default function EditorSidebarRegion({
-  editorState,
   text,
   zoom,
   subtitles,
   exportFlow,
   thumbnailUrl,
 }: EditorSidebarRegionProps) {
-  const toggleDashboardMenu = () =>
-    editorState.setIsDashboardMenuOpen(!editorState.isDashboardMenuOpen);
-  const closeDashboardMenu = () => editorState.setIsDashboardMenuOpen(false);
+  const {
+    isSidebarOpen,
+    setIsSidebarOpen,
+    isDashboardMenuOpen,
+    setIsDashboardMenuOpen,
+    savedDemoId,
+    ctas,
+    setCtas,
+    sidebarTitle,
+    selectedBackground,
+    setSelectedBackground,
+    backgroundType,
+    setBackgroundType,
+    customBackground,
+    setCustomBackground,
+    aspectRatio,
+    setAspectRatio,
+    browserFrameMode,
+    setBrowserFrameMode,
+    browserFrameDrawShadow,
+    setBrowserFrameDrawShadow,
+    browserFrameDrawBorder,
+    setBrowserFrameDrawBorder,
+    savingDemo,
+    demoSaved,
+    setShowSaveDemoModal,
+  } = useEditorStore(
+    useShallow((s) => ({
+      isSidebarOpen: s.isSidebarOpen,
+      setIsSidebarOpen: s.setIsSidebarOpen,
+      isDashboardMenuOpen: s.isDashboardMenuOpen,
+      setIsDashboardMenuOpen: s.setIsDashboardMenuOpen,
+      savedDemoId: s.savedDemoId,
+      ctas: s.ctas,
+      setCtas: s.setCtas,
+      sidebarTitle: s.sidebarTitle,
+      selectedBackground: s.selectedBackground,
+      setSelectedBackground: s.setSelectedBackground,
+      backgroundType: s.backgroundType,
+      setBackgroundType: s.setBackgroundType,
+      customBackground: s.customBackground,
+      setCustomBackground: s.setCustomBackground,
+      aspectRatio: s.aspectRatio,
+      setAspectRatio: s.setAspectRatio,
+      browserFrameMode: s.browserFrameMode,
+      setBrowserFrameMode: s.setBrowserFrameMode,
+      browserFrameDrawShadow: s.browserFrameDrawShadow,
+      setBrowserFrameDrawShadow: s.setBrowserFrameDrawShadow,
+      browserFrameDrawBorder: s.browserFrameDrawBorder,
+      setBrowserFrameDrawBorder: s.setBrowserFrameDrawBorder,
+      savingDemo: s.savingDemo,
+      demoSaved: s.demoSaved,
+      setShowSaveDemoModal: s.setShowSaveDemoModal,
+    }))
+  );
+
+  const toggleDashboardMenu = () => setIsDashboardMenuOpen(!isDashboardMenuOpen);
+  const closeDashboardMenu = () => setIsDashboardMenuOpen(false);
 
   // CTA CRUD. Definitions live in the Cta table (not demo.editing) and are
   // managed over HTTP. Local state is updated optimistically and rolled back on
   // failure. The API enforces ownership (401 anon / 404 non-owner).
-  const { savedDemoId, ctas, setCtas } = editorState;
-
   const handleAddCta = async (data: { label: string; url: string; placement?: string }) => {
     if (!savedDemoId) {
       toast.error("Save the demo before adding a call to action");
@@ -137,23 +189,23 @@ export default function EditorSidebarRegion({
   };
 
   const sidebarProps = {
-    title: editorState.sidebarTitle,
+    title: sidebarTitle,
     onExportWebM: () => exportFlow.setShowExportSettings(true),
     thumbnailUrl: thumbnailUrl || undefined,
-    selectedBackground: editorState.selectedBackground,
-    setSelectedBackground: editorState.setSelectedBackground,
-    backgroundType: editorState.backgroundType,
-    setBackgroundType: editorState.setBackgroundType,
-    customBackground: editorState.customBackground,
-    setCustomBackground: editorState.setCustomBackground,
-    aspectRatio: editorState.aspectRatio,
-    setAspectRatio: editorState.setAspectRatio,
-    browserFrameMode: editorState.browserFrameMode,
-    setBrowserFrameMode: editorState.setBrowserFrameMode,
-    browserFrameDrawShadow: editorState.browserFrameDrawShadow,
-    setBrowserFrameDrawShadow: editorState.setBrowserFrameDrawShadow,
-    browserFrameDrawBorder: editorState.browserFrameDrawBorder,
-    setBrowserFrameDrawBorder: editorState.setBrowserFrameDrawBorder,
+    selectedBackground: selectedBackground,
+    setSelectedBackground: setSelectedBackground,
+    backgroundType: backgroundType,
+    setBackgroundType: setBackgroundType,
+    customBackground: customBackground,
+    setCustomBackground: setCustomBackground,
+    aspectRatio: aspectRatio,
+    setAspectRatio: setAspectRatio,
+    browserFrameMode: browserFrameMode,
+    setBrowserFrameMode: setBrowserFrameMode,
+    browserFrameDrawShadow: browserFrameDrawShadow,
+    setBrowserFrameDrawShadow: setBrowserFrameDrawShadow,
+    browserFrameDrawBorder: browserFrameDrawBorder,
+    setBrowserFrameDrawBorder: setBrowserFrameDrawBorder,
     textOverlayInput: text.textOverlayInput,
     setTextOverlayInput: text.handleTextOverlayInputChange,
     textOverlayFontFamily: text.textOverlayFontFamily,
@@ -167,11 +219,11 @@ export default function EditorSidebarRegion({
     onClearSubtitles: subtitles.handleSkipSubtitles,
     subtitlesLoading: subtitles.subtitlesLoading,
     hasSubtitles: subtitles.subtitleCues.length > 0,
-    onOpenSaveDemo: () => editorState.setShowSaveDemoModal(true),
-    savingDemo: editorState.savingDemo,
-    demoSaved: editorState.demoSaved,
+    onOpenSaveDemo: () => setShowSaveDemoModal(true),
+    savingDemo: savingDemo,
+    demoSaved: demoSaved,
     onToggleDashboardMenu: toggleDashboardMenu,
-    ctas: editorState.ctas,
+    ctas: ctas,
     onAddCta: handleAddCta,
     onUpdateCta: handleUpdateCta,
     onDeleteCta: handleDeleteCta,
@@ -196,16 +248,16 @@ export default function EditorSidebarRegion({
         </div>
       </div>
 
-      {editorState.isSidebarOpen && (
+      {isSidebarOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div
             className="fixed inset-0 bg-black bg-opacity-40"
-            onClick={() => editorState.setIsSidebarOpen(false)}
+            onClick={() => setIsSidebarOpen(false)}
           />
           <div className="relative w-full max-w-xs h-full bg-white shadow-lg z-50 animate-slide-in-left">
             <button
               className="absolute top-4 right-4 text-[#7C5CFC]"
-              onClick={() => editorState.setIsSidebarOpen(false)}
+              onClick={() => setIsSidebarOpen(false)}
               aria-label="Close sidebar"
             >
               <X size={28} />
@@ -215,7 +267,7 @@ export default function EditorSidebarRegion({
         </div>
       )}
 
-      {editorState.isDashboardMenuOpen && (
+      {isDashboardMenuOpen && (
         <div className="fixed inset-0 z-50 flex">
           <div
             className="fixed inset-0 bg-black/10"
