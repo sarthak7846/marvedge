@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSession, signOut } from "next-auth/react";
 import Image from "next/image";
+import { useUserStore } from "@/app/store/userStore";
 
 type RecorderTopbarProps = {
   onBack: () => void;
@@ -10,55 +11,18 @@ type RecorderTopbarProps = {
 function RecorderTopbar({ onBack, userInitials }: RecorderTopbarProps) {
   const { data: session } = useSession();
   const [showDropdown, setShowDropdown] = useState(false);
-  const [profileImage, setProfileImage] = useState<string | null | undefined>(null);
+  const profileImage = useUserStore((state) => state.profileImage);
+  const fetchProfileImage = useUserStore((state) => state.fetchProfileImage);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const username =
     session?.user?.name?.split(" ")[0] || session?.user?.email?.split("@")?.[0] || "User";
 
   useEffect(() => {
-    const fetchUserImage = async () => {
-      try {
-        const res = await fetch("/api/user/get");
-        const data = await res.json();
-        if (data.user?.image && data.user.image.trim()) {
-          setProfileImage(data.user.image + `?t=${Date.now()}`);
-        } else {
-          setProfileImage(null);
-        }
-      } catch (error) {
-        console.error("Error fetching user image:", error);
-        setProfileImage(null);
-      }
-    };
-
     if (session?.user) {
-      fetchUserImage();
+      fetchProfileImage();
     }
-  }, [session]);
-
-  useEffect(() => {
-    const handlePhotoUpdate = () => {
-      const fetchUserImage = async () => {
-        try {
-          const res = await fetch("/api/user/get");
-          const data = await res.json();
-          if (data.user?.image && data.user.image.trim()) {
-            setProfileImage(data.user.image + `?t=${Date.now()}`);
-          } else {
-            setProfileImage(null);
-          }
-        } catch (error) {
-          console.error("Error fetching user image:", error);
-          setProfileImage(null);
-        }
-      };
-      fetchUserImage();
-    };
-
-    window.addEventListener("photoUpdated", handlePhotoUpdate);
-    return () => window.removeEventListener("photoUpdated", handlePhotoUpdate);
-  }, []);
+  }, [session, fetchProfileImage]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { signOut } from "next-auth/react";
-import { SessionData } from "./useProfileImage";
+import type { Session } from "next-auth";
 
 interface UserMenuProps {
-  session: SessionData;
+  session: Session | null;
   isDark: boolean;
   profileImage: string | null | undefined;
 }

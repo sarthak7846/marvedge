@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useProfileForm } from "./useProfileForm";
 import { usePhotoUpload } from "./usePhotoUpload";
 import { useLoadUser } from "./useLoadUser";
+import { useUserStore } from "@/app/store/userStore";
 import {
   deleteAccountRequest,
   fetchUser,
@@ -21,6 +22,7 @@ export function useSettings() {
   const [activeTab, setActiveTab] = useState("Profile");
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingPasswordReset, setIsSendingPasswordReset] = useState(false);
+  const refreshProfileImage = useUserStore((state) => state.refreshProfileImage);
 
   const profile = useProfileForm(session);
   const photo = usePhotoUpload({ setForm: profile.setForm, setIsDirty: profile.setIsDirty });
@@ -61,7 +63,7 @@ export function useSettings() {
         profile.setOriginalForm({ ...profile.form, image: imageUrl });
         photo.setPhotoFile(null);
         photo.setAvatar(imageUrl || "");
-        window.dispatchEvent(new Event("photoUpdated"));
+        refreshProfileImage();
         if (photo.fileInputRef.current) {
           photo.fileInputRef.current.value = "";
         }

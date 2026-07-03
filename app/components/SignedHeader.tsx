@@ -1,7 +1,7 @@
 import { useSession } from "next-auth/react";
 import React, { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { useProfileImage } from "./signed-header/useProfileImage";
+import { useUserStore } from "@/app/store/userStore";
 import HeaderTitleIcon from "./signed-header/HeaderTitleIcon";
 import ThemeToggleButton from "./signed-header/ThemeToggleButton";
 import UserMenu from "./signed-header/UserMenu";
@@ -25,7 +25,14 @@ const SignedHeader = ({ titleText, iconSRC, iconALT, className }: SignedHeaderPr
   const effectiveTheme = theme === "system" ? resolvedTheme : theme;
   const isDark = mounted && effectiveTheme === "dark";
 
-  const profileImage = useProfileImage(session);
+  const profileImage = useUserStore((state) => state.profileImage);
+  const fetchProfileImage = useUserStore((state) => state.fetchProfileImage);
+
+  useEffect(() => {
+    if (session?.user) {
+      fetchProfileImage();
+    }
+  }, [session, fetchProfileImage]);
 
   return (
     <>
