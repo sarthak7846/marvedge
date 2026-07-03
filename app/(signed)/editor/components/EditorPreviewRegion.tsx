@@ -1,6 +1,8 @@
 import React from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import CustomVideoControls from "@/app/components/CustomVideoControls";
+import { useEditorStore } from "@/app/store/editor/editorStore";
 import EditorTimelineSection from "./EditorTimelineSection";
 import EditorVideoStage from "./EditorVideoStage";
 import TextColorToolbar from "./TextColorToolbar";
@@ -10,10 +12,12 @@ import type { EditorState, SubtitlesApi, TextOverlaysApi, ZoomEditorApi } from "
 type EditorMode = "main" | "trim" | "zoom" | "text";
 
 interface EditorPreviewRegionProps {
-  editorState: EditorState;
   text: TextOverlaysApi;
   zoom: ZoomEditorApi;
   subtitles: SubtitlesApi;
+  playerRef: EditorState["playerRef"];
+  canvasRef: EditorState["canvasRef"];
+  videoContainerRef: EditorState["videoContainerRef"];
   isDark: boolean;
   processing: boolean;
   nativeAspectRatio: string;
@@ -38,20 +42,60 @@ interface EditorPreviewRegionProps {
 }
 
 export default function EditorPreviewRegion(props: EditorPreviewRegionProps) {
-  const { editorState, text, zoom, subtitles, isDark, processing, nativeAspectRatio } = props;
+  const { text, zoom, subtitles, isDark, processing, nativeAspectRatio } = props;
+  const { playerRef, canvasRef, videoContainerRef } = props;
   const { resolvedDuration, playbackSpeed, setPlaybackSpeed, mode, setMode } = props;
   const { segments, setSegments, childHandleProgress, setChildHandleProgress } = props;
   const { handleMouseDown, handleMouseUp, handleFullscreen, getBackgroundStyle } = props;
   const { handleTimelineChange, handleResetTimeline } = props;
   const { zoomFocusStageRef, lastInteractionRef, isDraggingTimelineRef } = props;
-  const { videoUrl, selectedBackground, isFullscreen, tool, playerRef } = editorState;
+
+  const {
+    videoUrl,
+    selectedBackground,
+    isFullscreen,
+    tool,
+    aspectRatio,
+    browserFrameDrawBorder,
+    browserFrameDrawShadow,
+    currentTime,
+    setCurrentTime,
+    playing,
+    setPlaying,
+    volume,
+    setVolume,
+    textColor,
+    setTextColor,
+    textFont,
+    setTextFont,
+  } = useEditorStore(
+    useShallow((s) => ({
+      videoUrl: s.videoUrl,
+      selectedBackground: s.selectedBackground,
+      isFullscreen: s.isFullscreen,
+      tool: s.tool,
+      aspectRatio: s.aspectRatio,
+      browserFrameDrawBorder: s.browserFrameDrawBorder,
+      browserFrameDrawShadow: s.browserFrameDrawShadow,
+      currentTime: s.currentTime,
+      setCurrentTime: s.setCurrentTime,
+      playing: s.playing,
+      setPlaying: s.setPlaying,
+      volume: s.volume,
+      setVolume: s.setVolume,
+      textColor: s.textColor,
+      setTextColor: s.setTextColor,
+      textFont: s.textFont,
+      setTextFont: s.setTextFont,
+    }))
+  );
 
   const layout = computePreviewLayout({
     selectedBackground,
-    aspectRatio: editorState.aspectRatio,
+    aspectRatio,
     nativeAspectRatio,
-    browserFrameDrawBorder: editorState.browserFrameDrawBorder,
-    browserFrameDrawShadow: editorState.browserFrameDrawShadow,
+    browserFrameDrawBorder,
+    browserFrameDrawShadow,
     isFullscreen,
   });
   const { hasCanvasBackground, previewObjectFit, previewFrameAspectRatio } = layout;
@@ -63,7 +107,7 @@ export default function EditorPreviewRegion(props: EditorPreviewRegionProps) {
 
       <div className="flex flex-col items-center w-full max-w-[1200px] mx-auto rounded-2xl bg-transparent">
         <div
-          ref={editorState.videoContainerRef}
+          ref={videoContainerRef}
           className={`monitor-viewport relative w-full max-w-[1120px] sm:h-auto rounded-2xl border ${
             isFullscreen ? "border-[#7C5CFC] shadow-lg" : "border-[#E6E1FA]"
           } flex flex-col items-center justify-center mb-1 transition-all duration-300`}
@@ -101,10 +145,11 @@ export default function EditorPreviewRegion(props: EditorPreviewRegionProps) {
             }}
           >
             <EditorVideoStage
-              editorState={editorState}
               text={text}
               zoom={zoom}
               subtitles={subtitles}
+              canvasRef={canvasRef}
+              playerRef={playerRef}
               hasCanvasBackground={hasCanvasBackground}
               previewObjectFit={previewObjectFit}
               playbackSpeed={playbackSpeed}
@@ -123,16 +168,16 @@ export default function EditorPreviewRegion(props: EditorPreviewRegionProps) {
               <CustomVideoControls
                 playerRef={playerRef}
                 duration={resolvedDuration}
-                currentTime={editorState.currentTime}
+                currentTime={currentTime}
                 setCurrentTime={(t) => {
                   lastInteractionRef.current = Date.now();
-                  editorState.setCurrentTime(t);
+                  setCurrentTime(t);
                   playerRef.current?.seekTo(t, "seconds");
                 }}
-                setPlaying={editorState.setPlaying}
-                playing={editorState.playing}
-                volume={editorState.volume}
-                setVolume={editorState.setVolume}
+                setPlaying={setPlaying}
+                playing={playing}
+                volume={volume}
+                setVolume={setVolume}
                 playbackSpeed={playbackSpeed}
                 handleFullscreen={handleFullscreen}
               />
@@ -142,19 +187,19 @@ export default function EditorPreviewRegion(props: EditorPreviewRegionProps) {
       </div>
       {tool === "text" && (
         <TextColorToolbar
-          textColor={editorState.textColor}
-          setTextColor={editorState.setTextColor}
-          textFont={editorState.textFont}
-          setTextFont={editorState.setTextFont}
+          textColor={textColor}
+          setTextColor={setTextColor}
+          textFont={textFont}
+          setTextFont={setTextFont}
         />
       )}
 
       {videoUrl && (
         <div className="mr-2 mt-8 mb-5 pr-8 sm:mr-0 mx-4 sm:mx-8">
           <EditorTimelineSection
-            editorState={editorState}
             zoom={zoom}
             text={text}
+            playerRef={playerRef}
             resolvedDuration={resolvedDuration}
             playbackSpeed={playbackSpeed}
             setPlaybackSpeed={setPlaybackSpeed}

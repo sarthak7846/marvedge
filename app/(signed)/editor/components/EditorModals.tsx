@@ -1,25 +1,55 @@
 import axios from "axios";
 import { Toaster } from "react-hot-toast";
+import { useShallow } from "zustand/react/shallow";
 
 import ExportResultModal from "@/app/components/ExportResultModal";
 import ExportSettingsModal from "@/app/components/ExportSettingsModal";
 import SaveDemoModal from "@/app/components/SaveDemoModal";
 import ZoomEffectsPopup from "@/app/components/ZoomEffectsPopup";
+import { useEditorStore } from "@/app/store/editor/editorStore";
 import type { EditorState, ExportFlowApi } from "../apiTypes";
 
 interface EditorModalsProps {
-  editorState: EditorState;
   exportFlow: ExportFlowApi;
   onSaveDemo: (data: { title: string; description: string }) => Promise<void>;
   resolvedDuration: number;
+  playerRef: EditorState["playerRef"];
 }
 
 export default function EditorModals({
-  editorState,
   exportFlow,
   onSaveDemo,
   resolvedDuration,
+  playerRef,
 }: EditorModalsProps) {
+  const {
+    isZoomPopupOpen,
+    setIsZoomPopupOpen,
+    zoomEffects,
+    setZoomEffects,
+    currentTime,
+    showSaveDemoModal,
+    setShowSaveDemoModal,
+    sidebarTitle,
+    sidebarDescription,
+    savingDemo,
+    demoSaved,
+  } = useEditorStore(
+    useShallow((s) => ({
+      isZoomPopupOpen: s.isZoomPopupOpen,
+      setIsZoomPopupOpen: s.setIsZoomPopupOpen,
+      zoomEffects: s.zoomEffects,
+      setZoomEffects: s.setZoomEffects,
+      currentTime: s.currentTime,
+      showSaveDemoModal: s.showSaveDemoModal,
+      setShowSaveDemoModal: s.setShowSaveDemoModal,
+      sidebarTitle: s.sidebarTitle,
+      sidebarDescription: s.sidebarDescription,
+      savingDemo: s.savingDemo,
+      demoSaved: s.demoSaved,
+    }))
+  );
+
   const { pendingExport, shareLinkSaved, setShowExportResultModal, setPendingExport } = exportFlow;
 
   return (
@@ -75,32 +105,32 @@ export default function EditorModals({
       />
 
       <ZoomEffectsPopup
-        isOpen={editorState.isZoomPopupOpen}
-        onClose={() => editorState.setIsZoomPopupOpen(false)}
-        zoomEffects={editorState.zoomEffects}
-        onZoomEffectsChange={editorState.setZoomEffects}
-        currentTime={editorState.currentTime}
+        isOpen={isZoomPopupOpen}
+        onClose={() => setIsZoomPopupOpen(false)}
+        zoomEffects={zoomEffects}
+        onZoomEffectsChange={setZoomEffects}
+        currentTime={currentTime}
         duration={resolvedDuration}
         onSeek={(time) => {
-          if (editorState.playerRef.current) {
-            const player = editorState.playerRef.current.getInternalPlayer();
+          if (playerRef.current) {
+            const player = playerRef.current.getInternalPlayer();
             if (player) {
               player.currentTime = time;
               player.dispatchEvent(new Event("seeking"));
-              editorState.playerRef.current.seekTo(time, "seconds");
+              playerRef.current.seekTo(time, "seconds");
             }
           }
         }}
       />
 
       <SaveDemoModal
-        isOpen={editorState.showSaveDemoModal}
-        onClose={() => editorState.setShowSaveDemoModal(false)}
+        isOpen={showSaveDemoModal}
+        onClose={() => setShowSaveDemoModal(false)}
         onSave={onSaveDemo}
-        initialTitle={editorState.sidebarTitle}
-        initialDescription={editorState.sidebarDescription}
-        processing={editorState.savingDemo}
-        isSaved={editorState.demoSaved}
+        initialTitle={sidebarTitle}
+        initialDescription={sidebarDescription}
+        processing={savingDemo}
+        isSaved={demoSaved}
       />
     </>
   );
