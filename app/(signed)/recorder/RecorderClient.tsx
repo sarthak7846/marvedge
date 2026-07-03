@@ -20,33 +20,19 @@ export default function RecorderPage() {
   const videoPlayerRef = useRef<ReactPlayer>(null);
 
   const {
-    uploadMessage,
-    setUploadMessage,
     uploadedFileUrl,
-    setUploadedFileUrl,
-    uploadedFileType,
-    setUploadedFileType,
-    saveMessage,
-    recordingTimer,
     setRecordingTimer,
     showSavePopup,
     setShowSavePopup,
     processingDownload,
     setProcessingDownload,
-    videoPlaying,
-    setVideoPlaying,
-    videoCurrentTime,
-    setVideoCurrentTime,
     videoDuration,
     setVideoDuration,
-    sidebarOpen,
-    setSidebarOpen,
-
     fileInputRef,
     recordingIntervalRef,
   } = useRecorderState();
 
-  const { setBlob, blob, title, setTitle } = useBlobStore();
+  const { blob, title } = useBlobStore();
 
   const {
     stopRecording,
@@ -87,33 +73,16 @@ export default function RecorderPage() {
         isUploaded={isUploaded}
         onBack={handleBack}
         onEditVideo={handleEditVideo}
-        uploadedFileType={uploadedFileType}
-        uploadedFileUrl={uploadedFileUrl}
         videoUrl={videoUrl}
         screenStream={screenStream}
         recording={recording}
-        videoPlaying={videoPlaying}
-        setVideoPlaying={setVideoPlaying}
-        videoCurrentTime={videoCurrentTime}
-        setVideoCurrentTime={setVideoCurrentTime}
-        videoDuration={videoDuration}
-        setVideoDuration={setVideoDuration}
         recordingDuration={recordingDuration}
-        recordingTimer={recordingTimer}
         videoPlayerRef={videoPlayerRef}
-        saveMessage={saveMessage}
         startScreenShare={startScreenShare}
         stopRecording={stopRecording}
-        setUploadedFileUrl={setUploadedFileUrl}
-        setUploadedFileType={setUploadedFileType}
-        setBlob={setBlob}
         reset={reset}
         fileInputRef={fileInputRef}
-        showSavePopup={showSavePopup}
-        setShowSavePopup={setShowSavePopup}
         onPopupDownload={handlePopupDownload}
-        title={title}
-        processingDownload={processingDownload}
         isProcessingRef={isProcessingRef}
       />
     );
@@ -128,15 +97,6 @@ export default function RecorderPage() {
       <RecorderTopbar onBack={handleBack} userInitials={initials} />
 
       <InitialRecorderView
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        title={title}
-        setTitle={setTitle}
-        uploadedFileUrl={uploadedFileUrl}
-        setUploadedFileUrl={setUploadedFileUrl}
-        setUploadedFileType={setUploadedFileType}
-        setUploadMessage={setUploadMessage}
-        uploadMessage={uploadMessage}
         fileInputRef={fileInputRef}
         startScreenShare={startScreenShare}
         toggleMic={toggleMic}

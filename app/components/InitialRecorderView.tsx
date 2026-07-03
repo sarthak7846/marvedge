@@ -1,19 +1,12 @@
 import { Menu } from "lucide-react";
 import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
 import { useBlobStore } from "@/app/store/blobStore";
+import { useRecorderStore } from "@/app/store/recorderStore";
 import RecorderSettingsDialog from "@/app/components/RecorderSettingsDialog";
 import RecorderMainPanel from "@/app/components/RecorderMainPanel";
 
 interface InitialRecorderViewProps {
-  sidebarOpen: boolean;
-  setSidebarOpen: (open: boolean) => void;
-  title: string;
-  setTitle: (title: string) => void;
-  uploadedFileUrl: string | null;
-  setUploadedFileUrl: (url: string | null) => void;
-  setUploadedFileType: (type: string | null) => void;
-  setUploadMessage: (message: string) => void;
-  uploadMessage: string;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   startScreenShare: () => void;
   toggleMic: () => void;
@@ -21,21 +14,34 @@ interface InitialRecorderViewProps {
 }
 
 export default function InitialRecorderView({
-  sidebarOpen,
-  setSidebarOpen,
-  title,
-  setTitle,
-  uploadedFileUrl,
-  setUploadedFileUrl,
-  setUploadedFileType,
-  setUploadMessage,
-  uploadMessage,
   fileInputRef,
   startScreenShare,
   toggleMic,
   micEnabled,
 }: InitialRecorderViewProps) {
-  const { setBlob } = useBlobStore();
+  const { setBlob, title, setTitle } = useBlobStore(
+    useShallow((s) => ({ setBlob: s.setBlob, title: s.title, setTitle: s.setTitle }))
+  );
+
+  const {
+    sidebarOpen,
+    setSidebarOpen,
+    uploadedFileUrl,
+    setUploadedFileUrl,
+    setUploadedFileType,
+    setUploadMessage,
+    uploadMessage,
+  } = useRecorderStore(
+    useShallow((s) => ({
+      sidebarOpen: s.sidebarOpen,
+      setSidebarOpen: s.setSidebarOpen,
+      uploadedFileUrl: s.uploadedFileUrl,
+      setUploadedFileUrl: s.setUploadedFileUrl,
+      setUploadedFileType: s.setUploadedFileType,
+      setUploadMessage: s.setUploadMessage,
+      uploadMessage: s.uploadMessage,
+    }))
+  );
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
