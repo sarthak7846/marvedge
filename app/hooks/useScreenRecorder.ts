@@ -1,6 +1,8 @@
 "use client";
-import { useRef, useState } from "react";
+import { useRef } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useBlobStore } from "../store/blobStore";
+import { useRecordingStore } from "../store/recordingStore";
 import { toast } from "sonner";
 
 // Build a combined screen + audio MediaStream. A silent oscillator is added
@@ -85,13 +87,27 @@ export const useScreenRecorder = () => {
   const chunksRef = useRef<Blob[]>([]);
   const hasFinalizedRef = useRef(false);
   const recorderMimeTypeRef = useRef("video/webm");
-  const [recording, setRecording] = useState(false);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [micEnabled, setMicEnabled] = useState(false);
-  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const [showScreenShareModal, setShowScreenShareModal] = useState(false);
   const recordingStartTimeRef = useRef<number>(0);
+
+  const { recording, videoUrl, micEnabled, screenStream, recordingDuration, showScreenShareModal } =
+    useRecordingStore(
+      useShallow((state) => ({
+        recording: state.recording,
+        videoUrl: state.videoUrl,
+        micEnabled: state.micEnabled,
+        screenStream: state.screenStream,
+        recordingDuration: state.recordingDuration,
+        showScreenShareModal: state.showScreenShareModal,
+      }))
+    );
+  const setRecording = useRecordingStore((state) => state.setRecording);
+  const setVideoUrl = useRecordingStore((state) => state.setVideoUrl);
+  const toggleMic = useRecordingStore((state) => state.toggleMic);
+  const setScreenStream = useRecordingStore((state) => state.setScreenStream);
+  const setRecordingDuration = useRecordingStore((state) => state.setRecordingDuration);
+  const setShowScreenShareModal = useRecordingStore((state) => state.setShowScreenShareModal);
+  const resetRecordingState = useRecordingStore((state) => state.reset);
+
   const setBlob = useBlobStore((state) => state.setBlob);
   const setSourceDuration = useBlobStore((state) => state.setSourceDuration);
 
@@ -122,8 +138,6 @@ export const useScreenRecorder = () => {
     setScreenStream(null);
     setRecording(false);
   };
-
-  const toggleMic = () => setMicEnabled((prev) => !prev);
 
   const startRecording = async () => {
     try {
@@ -203,10 +217,8 @@ export const useScreenRecorder = () => {
   };
 
   const reset = () => {
-    setVideoUrl(null);
-    setScreenStream(null);
+    resetRecordingState();
     screenStreamRef.current = null;
-    setRecordingDuration(0);
     setSourceDuration(0);
   };
 
