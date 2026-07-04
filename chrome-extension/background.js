@@ -38,10 +38,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.log("[Marvedge Service Worker] Logged event at relative offset:", event.timestamp_ms, event);
 
       chrome.runtime.sendMessage({ type: "UPDATE_STATUS", data: { isRecording, currentDemoId, count: eventsTimeline.length } }).catch(() => {});
-
-      if (currentDemoId && !currentDemoId.startsWith("demo_")) {
-        sendEventToBackend(currentDemoId, event);
-      }
     }
   }
 
@@ -63,21 +59,3 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   return true;
 });
-
-async function sendEventToBackend(demoId, event) {
-  try {
-    const response = await fetch(`http://localhost:3000/api/demos/${demoId}/events`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ event })
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP error ${response.status}`);
-    }
-    console.log("[Marvedge Service Worker] Event synced successfully to backend");
-  } catch (error) {
-    console.warn("[Marvedge Service Worker] Failed to send event to backend, keeping local buffer. Error:", error.message);
-  }
-}
