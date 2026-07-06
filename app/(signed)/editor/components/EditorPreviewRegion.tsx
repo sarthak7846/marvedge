@@ -105,6 +105,37 @@ export default function EditorPreviewRegion(props: EditorPreviewRegionProps) {
     <div className="flex-1 min-h-0 overflow-hidden">
       <div className="mt-3" />
 
+      {zoom.extensionEvents && zoom.extensionEvents.length > 0 && !zoom.hasAppliedAutoZoom && (
+        <div className="w-full max-w-[1120px] mx-auto mb-4 p-4 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 border border-purple-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <span className="text-xl">🔍</span>
+            <div>
+              <h4 className="text-sm font-semibold text-purple-950">
+                Auto-Zoom suggestions available!
+              </h4>
+              <p className="text-xs text-purple-800">
+                We detected {zoom.extensionEvents.length} click event(s) in your recording. Apply
+                them to automatically zoom in on your clicks.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={zoom.applyAutoZoomSuggestions}
+              className="px-4 py-2 bg-[#8A76FC] hover:bg-[#7c66f5] text-white text-xs font-semibold rounded-lg shadow-sm transition-all duration-200 cursor-pointer"
+            >
+              Apply Zoom Highlights
+            </button>
+            <button
+              onClick={() => zoom.setExtensionEvents([])}
+              className="px-3 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-all cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col items-center w-full max-w-[1200px] mx-auto rounded-2xl bg-transparent">
         <div
           ref={videoContainerRef}

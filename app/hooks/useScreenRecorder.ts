@@ -137,6 +137,16 @@ export const useScreenRecorder = () => {
     screenStreamRef.current = null;
     setScreenStream(null);
     setRecording(false);
+
+    if (typeof window !== "undefined") {
+      window.postMessage(
+        {
+          source: "marvedge-web",
+          action: "STOP_CAPTURE",
+        },
+        "*"
+      );
+    }
   };
 
   const startRecording = async () => {
@@ -167,6 +177,17 @@ export const useScreenRecorder = () => {
       setRecording(true);
       recordingStartTimeRef.current = Date.now();
       setRecordingDuration(0);
+
+      if (typeof window !== "undefined") {
+        window.postMessage(
+          {
+            source: "marvedge-web",
+            action: "START_CAPTURE",
+            demoId: `rec_${Date.now()}`,
+          },
+          "*"
+        );
+      }
     } catch (err) {
       console.error("Recording failed:", err);
       toast.error("Recording failed to start.");
