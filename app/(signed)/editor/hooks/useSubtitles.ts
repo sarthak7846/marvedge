@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import axios from "axios";
 import { toast } from "react-hot-toast";
+import { useShallow } from "zustand/react/shallow";
 
 import { uploadBlobToGcs } from "@/app/lib/gcsUploadClient";
+import { useSubtitleStore } from "@/app/store/editor/subtitleStore";
 import { SubtitleCue } from "../types";
 import type { EditorState } from "../apiTypes";
 
@@ -12,8 +14,14 @@ interface UseSubtitlesProps {
 
 export function useSubtitles({ editorState }: UseSubtitlesProps) {
   const { params, videoUrl, currentTime, savedDemoId } = editorState;
-  const [subtitleCues, setSubtitleCues] = useState<SubtitleCue[]>([]);
-  const [subtitlesLoading, setSubtitlesLoading] = useState(false);
+  const { subtitleCues, subtitlesLoading, setSubtitleCues, setSubtitlesLoading } = useSubtitleStore(
+    useShallow((s) => ({
+      subtitleCues: s.subtitleCues,
+      subtitlesLoading: s.subtitlesLoading,
+      setSubtitleCues: s.setSubtitleCues,
+      setSubtitlesLoading: s.setSubtitlesLoading,
+    }))
+  );
 
   useEffect(() => {
     if (!params) {
@@ -57,7 +65,7 @@ export function useSubtitles({ editorState }: UseSubtitlesProps) {
     } catch (e) {
       console.error("Failed to parse subtitles from URL:", e);
     }
-  }, [params]);
+  }, [params, setSubtitleCues]);
 
   const activeSubtitleText = React.useMemo(() => {
     if (!subtitleCues.length) {
@@ -149,7 +157,7 @@ export function useSubtitles({ editorState }: UseSubtitlesProps) {
   const handleSkipSubtitles = React.useCallback(() => {
     setSubtitleCues([]);
     toast.success("Subtitles skipped for export");
-  }, []);
+  }, [setSubtitleCues]);
 
   return {
     subtitleCues,

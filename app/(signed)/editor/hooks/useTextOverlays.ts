@@ -1,5 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
 
+import { useTextOverlayStore } from "@/app/store/editor/textOverlayStore";
 import { TextOverlayItem } from "../types";
 import type { EditorState } from "../apiTypes";
 import { useTextOverlayInspector } from "./useTextOverlayInspector";
@@ -13,10 +15,27 @@ interface UseTextOverlaysProps {
 export function useTextOverlays({ editorState, zoomFocusStageRef }: UseTextOverlaysProps) {
   const { currentTime, duration, setTool } = editorState;
 
-  const [textOverlays, setTextOverlays] = useState<TextOverlayItem[]>([]);
-  const [selectedTextOverlayId, setSelectedTextOverlayId] = useState<string | null>(null);
-  const [draggingTextOverlayId, setDraggingTextOverlayId] = useState<string | null>(null);
-  const [resizingTextOverlayId, setResizingTextOverlayId] = useState<string | null>(null);
+  const {
+    textOverlays,
+    selectedTextOverlayId,
+    draggingTextOverlayId,
+    resizingTextOverlayId,
+    setTextOverlays,
+    setSelectedTextOverlayId,
+    setDraggingTextOverlayId,
+    setResizingTextOverlayId,
+  } = useTextOverlayStore(
+    useShallow((s) => ({
+      textOverlays: s.textOverlays,
+      selectedTextOverlayId: s.selectedTextOverlayId,
+      draggingTextOverlayId: s.draggingTextOverlayId,
+      resizingTextOverlayId: s.resizingTextOverlayId,
+      setTextOverlays: s.setTextOverlays,
+      setSelectedTextOverlayId: s.setSelectedTextOverlayId,
+      setDraggingTextOverlayId: s.setDraggingTextOverlayId,
+      setResizingTextOverlayId: s.setResizingTextOverlayId,
+    }))
+  );
 
   const inspector = useTextOverlayInspector({
     selectedTextOverlayId,
@@ -24,15 +43,18 @@ export function useTextOverlays({ editorState, zoomFocusStageRef }: UseTextOverl
     zoomFocusStageRef,
   });
 
-  const setTextOverlaysFromUrl = useCallback((overlays: unknown) => {
-    if (!overlays) {
-      setTextOverlays([]);
-      return;
-    }
-    if (Array.isArray(overlays)) {
-      setTextOverlays(overlays as TextOverlayItem[]);
-    }
-  }, []);
+  const setTextOverlaysFromUrl = useCallback(
+    (overlays: unknown) => {
+      if (!overlays) {
+        setTextOverlays([]);
+        return;
+      }
+      if (Array.isArray(overlays)) {
+        setTextOverlays(overlays as TextOverlayItem[]);
+      }
+    },
+    [setTextOverlays]
+  );
 
   const handleAddTextOverlay = useCallback(() => {
     const text = inspector.textOverlayInput.trim() || "Add text";
@@ -68,6 +90,8 @@ export function useTextOverlays({ editorState, zoomFocusStageRef }: UseTextOverl
     currentTime,
     duration,
     setTool,
+    setTextOverlays,
+    setSelectedTextOverlayId,
     inspector.textOverlayColor,
     inspector.textOverlayFontFamily,
     inspector.textOverlayFontSize,
@@ -96,7 +120,7 @@ export function useTextOverlays({ editorState, zoomFocusStageRef }: UseTextOverl
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedTextOverlayId]);
+  }, [selectedTextOverlayId, setTextOverlays, setSelectedTextOverlayId]);
 
   const interactions = useTextOverlayInteractions({
     textOverlays,
