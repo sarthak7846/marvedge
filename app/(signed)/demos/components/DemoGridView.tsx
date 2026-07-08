@@ -2,16 +2,18 @@
 import Image from "next/image";
 import { FaRegCalendarAlt, FaRegClock } from "react-icons/fa";
 import { formatDate } from "@/app/lib/dateTimeUtils";
+import { useDemosStore } from "@/app/store/demosStore";
 import type { Demo } from "../types";
 
 interface DemoGridViewProps {
   demos: Demo[];
-  durationMap: Record<string, string>;
   onEdit: (demo: Demo) => void;
   onDelete: (id: string) => void;
 }
 
-export default function DemoGridView({ demos, durationMap, onEdit, onDelete }: DemoGridViewProps) {
+export default function DemoGridView({ demos, onEdit, onDelete }: DemoGridViewProps) {
+  const durationMap = useDemosStore((s) => s.durationMap);
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-8">
       {demos.map((demo: Demo) => (
