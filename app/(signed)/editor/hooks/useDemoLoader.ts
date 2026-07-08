@@ -3,7 +3,8 @@ import axios from "axios";
 import { toast } from "react-hot-toast";
 
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
-import { BrowserFrameMode } from "./useEditorState";
+import { applyDemoEditing } from "../utils/editingDraft";
+import { resolvePlayableVideoUrl } from "./useURLParams";
 import { SubtitleCue, TextOverlayItem } from "../types";
 import type { EditorState } from "../apiTypes";
 
@@ -16,21 +17,6 @@ interface UseDemoLoaderProps {
   setTextOverlays: (overlays: TextOverlayItem[]) => void;
 }
 
-type DemoEditing = {
-  segments?: { start: string | number; end: string | number }[];
-  zoom?: ZoomEffect[];
-  background?: string | null;
-  backgroundType?: string;
-  subtitles?: SubtitleCue[];
-  textOverlays?: TextOverlayItem[];
-  aspectRatio?: string;
-  browserFrame?: {
-    mode?: BrowserFrameMode;
-    drawShadow?: boolean;
-    drawBorder?: boolean;
-  };
-};
-
 export function useDemoLoader({
   editorState,
   isEditorInitializedRef,
@@ -42,6 +28,8 @@ export function useDemoLoader({
   const {
     params,
     savedDemoId,
+    videoUrl,
+    setVideoUrl,
     setParams,
     setSavedDemoId,
     setSidebarTitle,
@@ -55,6 +43,11 @@ export function useDemoLoader({
     setBrowserFrameDrawBorder,
     setCtas,
   } = editorState;
+
+  // Read the freshest videoUrl inside async callbacks without re-running the
+  // demo-fetch effect every time the video changes.
+  const videoUrlRef = React.useRef(videoUrl);
+  videoUrlRef.current = videoUrl;
 
   useEffect(() => {
     const nextParams = new URLSearchParams(window.location.search);
@@ -90,55 +83,6 @@ export function useDemoLoader({
     isEditorInitializedRef.current = false;
     let isMounted = true;
 
-    const restoreDemoEditing = (ed: DemoEditing) => {
-      if (ed.segments) {
-        const numeric = ed.segments
-          .map((s) => ({
-            start: typeof s.start === "string" ? parseFloat(s.start) : Number(s.start),
-            end: typeof s.end === "string" ? parseFloat(s.end) : Number(s.end),
-          }))
-          .filter((s) => !isNaN(s.start) && !isNaN(s.end));
-        if (numeric.length > 0) {
-          setSegments(numeric);
-          setCurrentSegments(
-            ed.segments.map((s) => ({
-              start: String(s.start),
-              end: String(s.end),
-            }))
-          );
-        }
-      }
-      if (ed.zoom) {
-        setZoomSegments(ed.zoom);
-      }
-      if (ed.background) {
-        setSelectedBackground(ed.background);
-      }
-      if (ed.backgroundType) {
-        setBackgroundType(ed.backgroundType);
-      }
-      if (ed.subtitles) {
-        setSubtitleCues(ed.subtitles);
-      }
-      if (ed.textOverlays) {
-        setTextOverlays(ed.textOverlays);
-      }
-      if (ed.aspectRatio) {
-        setAspectRatio(ed.aspectRatio);
-      }
-      if (ed.browserFrame) {
-        if (ed.browserFrame.mode) {
-          setBrowserFrameMode(ed.browserFrame.mode);
-        }
-        if (typeof ed.browserFrame.drawShadow === "boolean") {
-          setBrowserFrameDrawShadow(ed.browserFrame.drawShadow);
-        }
-        if (typeof ed.browserFrame.drawBorder === "boolean") {
-          setBrowserFrameDrawBorder(ed.browserFrame.drawBorder);
-        }
-      }
-    };
-
     axios
       .get(`/api/demo?id=${demoId}`)
       .then((res) => {
@@ -155,8 +99,26 @@ export function useDemoLoader({
         if (demo.description) {
           setSidebarDescription(demo.description || "");
         }
+        // Restore the source video from the demo record. This covers the case
+        // where a demo was saved from inside the editor (its URL only carries a
+        // demoId, no `video=` param) and the page is then refreshed. See #226.
+        if (demo.videoUrl && !videoUrlRef.current && !params?.get("video")) {
+          void resolvePlayableVideoUrl(demo.videoUrl, setVideoUrl);
+        }
         if (demo.editing) {
-          restoreDemoEditing(demo.editing);
+          applyDemoEditing(demo.editing, {
+            setSegments,
+            setCurrentSegments,
+            setZoomSegments,
+            setSubtitleCues,
+            setTextOverlays,
+            setSelectedBackground,
+            setBackgroundType,
+            setAspectRatio,
+            setBrowserFrameMode,
+            setBrowserFrameDrawShadow,
+            setBrowserFrameDrawBorder,
+          });
         }
         setTimeout(() => {
           if (isMounted) {
@@ -172,6 +134,7 @@ export function useDemoLoader({
     savedDemoId,
     params,
     isEditorInitializedRef,
+    setVideoUrl,
     setSidebarDescription,
     setSidebarTitle,
     setCurrentSegments,

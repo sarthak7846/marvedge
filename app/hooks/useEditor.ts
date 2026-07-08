@@ -32,7 +32,14 @@ export const useEditor = () => {
   };
 
   useEffect(() => {
-    if (!blob) {
+    if (blob) {
+      return;
+    }
+    // Only rehydrate a persisted draft for a fresh, param-less editor session
+    // (an accidental refresh after upload). A video/demo opened from the URL
+    // provides its own source, so we must not resurrect an unrelated draft.
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get("video") && !params.get("demoId")) {
       restoreBlob();
     }
   }, [blob, restoreBlob]);

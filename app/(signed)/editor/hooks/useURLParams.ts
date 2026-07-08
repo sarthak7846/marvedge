@@ -51,7 +51,7 @@ function normalizeBrowserFrameMode(value: string | null): BrowserFrameMode | nul
 }
 
 // Resolves a gs:// video URL to a playable URL (or sets the URL directly).
-async function resolvePlayableVideoUrl(
+export async function resolvePlayableVideoUrl(
   urlVideo: string,
   setVideoUrl: (url: string | null) => void
 ): Promise<void> {
