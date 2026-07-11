@@ -16,6 +16,7 @@ import { useExportFlow } from "./hooks/useExportFlow";
 import { useSaveDemo } from "./hooks/useSaveDemo";
 import { useDemoLoader } from "./hooks/useDemoLoader";
 import { useAutosave } from "./hooks/useAutosave";
+import { useLocalDraft } from "./hooks/useLocalDraft";
 import { useEditorWiring } from "./hooks/useEditorWiring";
 import { useEditorSyncEffects } from "./hooks/useEditorSyncEffects";
 
@@ -29,6 +30,7 @@ export default function EditorPage() {
   const { videoUrl: recordedVideoUrl, thumbnailUrl, processing, resetVideo } = useEditor();
   const blob = useBlobStore((state) => state.blob);
   const sourceDuration = useBlobStore((state) => state.sourceDuration);
+  const draftId = useBlobStore((state) => state.draftId);
   const { formatTimeForInput } = useFormatTime();
 
   const isEditorInitializedRef = useRef(false);
@@ -93,6 +95,11 @@ export default function EditorPage() {
     subtitleCues: subtitles.subtitleCues,
     textOverlays: text.textOverlays,
   });
+
+  // Persist/restore an UNSAVED session (no demoId) to localStorage so an
+  // accidental refresh doesn't discard timeline edits. The uploaded video
+  // itself is restored from IndexedDB via the blob store. See issue #226.
+  useLocalDraft({ editorState, draftId, segments, setSegments, zoom, subtitles, text });
 
   useEditorSyncEffects({
     editorState,

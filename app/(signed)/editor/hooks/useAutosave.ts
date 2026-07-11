@@ -3,6 +3,7 @@ import axios from "axios";
 
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import { notifyAutosavePending } from "../utils/autosaveHelpers";
+import { buildEditingPayload } from "../utils/editingDraft";
 import { SubtitleCue, TextOverlayItem } from "../types";
 import type { EditorState } from "../apiTypes";
 
@@ -41,24 +42,19 @@ export function useAutosave({
   const lastAutosavePayloadRef = React.useRef<string>("");
   const autosaveInFlightRef = React.useRef(false);
 
-  const buildEditingPayload = React.useCallback(() => {
-    return {
-      segments: segments.map((s) => ({
-        start: String(s.start),
-        end: String(s.end),
-      })),
-      zoom: zoomSegments,
-      background: selectedBackground ?? null,
-      backgroundType: backgroundType || "",
-      subtitles: subtitleCues || [],
-      textOverlays: textOverlays || [],
-      aspectRatio: aspectRatio || "native",
-      browserFrame: {
-        mode: browserFrameMode,
-        drawShadow: browserFrameDrawShadow,
-        drawBorder: browserFrameDrawBorder,
-      },
-    };
+  const buildPayload = React.useCallback(() => {
+    return buildEditingPayload({
+      segments,
+      zoomSegments,
+      selectedBackground,
+      backgroundType,
+      subtitleCues,
+      textOverlays,
+      aspectRatio,
+      browserFrameMode,
+      browserFrameDrawShadow,
+      browserFrameDrawBorder,
+    });
   }, [
     segments,
     zoomSegments,
@@ -85,7 +81,7 @@ export function useAutosave({
       id: demoId,
       title: sidebarTitle || "",
       description: sidebarDescription || "",
-      editing: buildEditingPayload(),
+      editing: buildPayload(),
     };
     const serialized = JSON.stringify(payload);
     if (serialized === lastAutosavePayloadRef.current) {
@@ -101,7 +97,7 @@ export function useAutosave({
     } finally {
       autosaveInFlightRef.current = false;
     }
-  }, [buildEditingPayload, savedDemoId, sidebarTitle, sidebarDescription]);
+  }, [buildPayload, savedDemoId, sidebarTitle, sidebarDescription]);
 
   React.useEffect(() => {
     if (!savedDemoId) {
