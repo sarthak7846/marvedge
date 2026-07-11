@@ -1,13 +1,14 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
 import { useDemosData } from "./hooks/useDemosData";
+import { useDemosStore } from "@/app/store/demosStore";
 import { buildDemoEditorParams, filterAndSortDemos } from "./utils/demoHelpers";
 import DemosToolbar from "./components/DemosToolbar";
 import DemoGridView from "./components/DemoGridView";
 import DemoListView from "./components/DemoListView";
-import type { Demo, DemoSortOption } from "./types";
+import type { Demo } from "./types";
 
 export const metadata = {
   titleText: "My Demos",
@@ -20,31 +21,17 @@ interface DemosPageProps {
 
 export default function DemosPage({ initialDemos }: DemosPageProps) {
   const router = useRouter();
-  const [search, setSearch] = useState("");
-  const [view, setView] = useState("list");
-  const [, setStatusDropdownOpen] = useState(false);
-  const statusDropdownRef = useRef<HTMLDivElement>(null);
-  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
-  const sortDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Filters live in the demosStore so the toolbar reads/writes them directly.
+  const search = useDemosStore((s) => s.search);
+  const view = useDemosStore((s) => s.view);
+  const sortOption = useDemosStore((s) => s.sortOption);
+
+  // Local UI state for the delete modal stays as component state.
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [sortOption, setSortOption] = useState<DemoSortOption>("updatedAt");
 
-  const { demos, loading, error, durationMap, deleteDemo } = useDemosData(initialDemos);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
-        setStatusDropdownOpen(false);
-      }
-      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target as Node)) {
-        setSortDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  const { demos, loading, error, deleteDemo } = useDemosData(initialDemos);
 
   const filteredAndSortedDemos = filterAndSortDemos(demos, search, sortOption);
 
@@ -73,17 +60,7 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
           <h2 className="text-2xl font-normal text-[#8B8B8B] dark:text-[var(--text-muted)] mb-2">
             Manage and organize all your interactive demos.
           </h2>
-          <DemosToolbar
-            search={search}
-            setSearch={setSearch}
-            sortDropdownOpen={sortDropdownOpen}
-            setSortDropdownOpen={setSortDropdownOpen}
-            sortDropdownRef={sortDropdownRef}
-            sortOption={sortOption}
-            setSortOption={setSortOption}
-            view={view}
-            setView={setView}
-          />
+          <DemosToolbar />
         </div>
         <div className="mt-8">
           <h3 className="text-3xl font-semibold text-[#1A0033] dark:text-[var(--text-primary)] mb-6">
@@ -107,7 +84,6 @@ export default function DemosPage({ initialDemos }: DemosPageProps) {
           ) : view === "grid" ? (
             <DemoGridView
               demos={filteredAndSortedDemos}
-              durationMap={durationMap}
               onEdit={handleEditDemo}
               onDelete={handleDeleteDemo}
             />

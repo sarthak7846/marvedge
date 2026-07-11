@@ -1,51 +1,34 @@
-import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
-import { formatTime } from "@/app/lib/dateTimeUtils";
-import { probeVideoDuration } from "../utils/demoHelpers";
+import { useRef, useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { useDemosStore } from "@/app/store/demosStore";
 import type { Demo } from "../types";
 
+/**
+ * Thin shim over the demosStore (strangler pattern). Returns the same shape it
+ * always exposed so existing consumers keep working untouched, but the list
+ * data now lives in the Zustand store. The store is seeded once from the
+ * server-provided initial demos, then duration probing runs off store changes.
+ */
 export function useDemosData(initialDemos: Demo[]) {
-  const [demos, setDemos] = useState<Demo[]>(initialDemos);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Seed the store synchronously on first render so the initial list (and any
+  // cached durations) are available before paint — matching the old useState
+  // initializer, no empty flash.
+  const didInit = useRef(false);
+  if (!didInit.current) {
+    useDemosStore.getState().initialize(initialDemos);
+    didInit.current = true;
+  }
 
-  const [durationMap, setDurationMap] = useState<Record<string, string>>(() => {
-    const map: Record<string, string> = {};
-    for (const demo of initialDemos) {
-      if (demo.duration && demo.duration > 0) {
-        map[demo.id] = formatTime(demo.duration);
-      }
-    }
-    return map;
-  });
-
-  const fetchDurations = useCallback(async (demoList: Demo[]) => {
-    const uncached = demoList.filter((d) => !d.duration && d.videoUrl);
-    for (const demo of uncached) {
-      try {
-        let playableUrl = demo.videoUrl;
-        if (demo.videoUrl.startsWith("gs://")) {
-          const res = await fetch(`/api/gcs/resolve?url=${encodeURIComponent(demo.videoUrl)}`);
-          const data = await res.json();
-          if (data.ok && data.playableUrl) {
-            playableUrl = data.playableUrl;
-          } else {
-            continue;
-          }
-        }
-        const dur = await probeVideoDuration(playableUrl);
-        if (dur > 0) {
-          setDurationMap((prev) => ({ ...prev, [demo.id]: formatTime(dur) }));
-
-          fetch("/api/demo/duration", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: demo.id, duration: dur }),
-          }).catch(() => {});
-        }
-      } catch {}
-    }
-  }, []);
+  const { demos, loading, error, durationMap } = useDemosStore(
+    useShallow((s) => ({
+      demos: s.demos,
+      loading: s.loading,
+      error: s.error,
+      durationMap: s.durationMap,
+    }))
+  );
+  const deleteDemo = useDemosStore((s) => s.deleteDemo);
+  const fetchDurations = useDemosStore((s) => s.fetchDurations);
 
   useEffect(() => {
     if (demos.length > 0) {
@@ -53,36 +36,13 @@ export function useDemosData(initialDemos: Demo[]) {
     }
   }, [demos, fetchDurations]);
 
-  const fetchDemos = async () => {
-    setLoading(true);
-    try {
-      const response = await axios.get("/api/demo");
-      setDemos(response.data.demos || []);
-    } catch (err: unknown) {
-      console.error("Error fetching demos:", err);
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || "Failed to fetch demos");
-      } else {
-        setError("Failed to fetch demos");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteDemo = async (id: string) => {
-    try {
-      await axios.delete("/api/demo/", {
-        params: {
-          id,
-        },
-      });
-      await fetchDemos();
-    } catch (error) {
-      console.error("Error deleting demo:", error);
-      setError("Failed to delete demo");
-    }
-  };
+  // Reset the store when the route unmounts so data and filters start fresh on
+  // the next visit — matching the old per-mount useState lifecycle.
+  useEffect(() => {
+    return () => {
+      useDemosStore.getState().reset();
+    };
+  }, []);
 
   return { demos, loading, error, durationMap, deleteDemo };
 }

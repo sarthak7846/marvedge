@@ -1,30 +1,36 @@
 "use client";
+import { useState, useRef, useEffect } from "react";
 import { FaTh, FaThList, FaSort, FaEye, FaListUl, FaRegClock, FaPlusSquare } from "react-icons/fa";
+import { useShallow } from "zustand/react/shallow";
+import { useDemosStore } from "@/app/store/demosStore";
 import type { DemoSortOption } from "../types";
 
-interface DemosToolbarProps {
-  search: string;
-  setSearch: (value: string) => void;
-  sortDropdownOpen: boolean;
-  setSortDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  sortDropdownRef: React.RefObject<HTMLDivElement | null>;
-  sortOption: DemoSortOption;
-  setSortOption: (option: DemoSortOption) => void;
-  view: string;
-  setView: (view: string) => void;
-}
+export default function DemosToolbar() {
+  const { search, setSearch, sortOption, setSortOption, view, setView } = useDemosStore(
+    useShallow((s) => ({
+      search: s.search,
+      setSearch: s.setSearch,
+      sortOption: s.sortOption,
+      setSortOption: s.setSortOption,
+      view: s.view,
+      setView: s.setView,
+    }))
+  );
 
-export default function DemosToolbar({
-  search,
-  setSearch,
-  sortDropdownOpen,
-  setSortDropdownOpen,
-  sortDropdownRef,
-  sortOption,
-  setSortOption,
-  view,
-  setView,
-}: DemosToolbarProps) {
+  // Dropdown open/close is local UI state; its DOM node stays a ref.
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target as Node)) {
+        setSortDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const selectSort = (option: DemoSortOption) => {
     setSortOption(option);
     setSortDropdownOpen(false);
