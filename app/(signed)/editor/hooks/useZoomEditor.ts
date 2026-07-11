@@ -1,23 +1,14 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect } from "react";
 import { toast } from "react-hot-toast";
+import { useShallow } from "zustand/react/shallow";
 
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
+import { useZoomStore } from "@/app/store/editor/zoomStore";
 import { clamp } from "../utils/clamp";
 import { computeZoomPreview } from "../utils/zoomPreview";
 import type { EditorState } from "../apiTypes";
 
 type EditorMode = "main" | "trim" | "zoom" | "text";
-
-interface ExtensionClickEvent {
-  timestamp_ms: number;
-  event_type: string;
-  coordinates: {
-    x: number;
-    y: number;
-  };
-  screenshot_scale: number;
-  target_element: string;
-}
 
 interface UseZoomEditorProps {
   editorState: EditorState;
@@ -34,15 +25,36 @@ export function useZoomEditor({
 }: UseZoomEditorProps) {
   const { currentTime, playerRef } = editorState;
 
-  const [activeZoomIdx, setActiveZoomIdx] = useState<number>(-1);
-  const [zoomSegments, setZoomSegments] = useState<ZoomEffect[]>([]);
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [isDraggingZoomTarget, setIsDraggingZoomTarget] = useState(false);
-  const [showZoomModal, setShowZoomModal] = useState(false);
+  // Zoom state now lives in the zoom store (issue #150). This hook is a thin shim
+  // over it: it keeps the same effects/handlers and returns the same shape so
+  // EditorClient and every downstream consumer stay untouched.
+  const {
+    activeZoomIdx,
+    zoomSegments,
+    zoomLevel,
+    isDraggingZoomTarget,
+    showZoomModal,
+    extensionEvents,
+    hasAppliedAutoZoom,
+  } = useZoomStore(
+    useShallow((s) => ({
+      activeZoomIdx: s.activeZoomIdx,
+      zoomSegments: s.zoomSegments,
+      zoomLevel: s.zoomLevel,
+      isDraggingZoomTarget: s.isDraggingZoomTarget,
+      showZoomModal: s.showZoomModal,
+      extensionEvents: s.extensionEvents,
+      hasAppliedAutoZoom: s.hasAppliedAutoZoom,
+    }))
+  );
 
-  // States for Chrome Extension click events
-  const [extensionEvents, setExtensionEvents] = useState<ExtensionClickEvent[]>([]);
-  const [hasAppliedAutoZoom, setHasAppliedAutoZoom] = useState(false);
+  const setActiveZoomIdx = useZoomStore((s) => s.setActiveZoomIdx);
+  const setZoomSegments = useZoomStore((s) => s.setZoomSegments);
+  const setZoomLevel = useZoomStore((s) => s.setZoomLevel);
+  const setIsDraggingZoomTarget = useZoomStore((s) => s.setIsDraggingZoomTarget);
+  const setShowZoomModal = useZoomStore((s) => s.setShowZoomModal);
+  const setExtensionEvents = useZoomStore((s) => s.setExtensionEvents);
+  const setHasAppliedAutoZoom = useZoomStore((s) => s.setHasAppliedAutoZoom);
 
   // Listen for timeline messages from the extension content script
   useEffect(() => {
@@ -69,7 +81,7 @@ export function useZoomEditor({
       window.removeEventListener("message", handleExtensionMessage);
       clearTimeout(timer);
     };
-  }, []);
+  }, [setExtensionEvents]);
 
   // Convert click events to ZoomEffect segments
   const applyAutoZoomSuggestions = useCallback(() => {
@@ -115,7 +127,7 @@ export function useZoomEditor({
 
     setHasAppliedAutoZoom(true);
     toast.success(`Successfully applied ${debouncedSuggestions.length} auto-zoom highlights!`);
-  }, [extensionEvents]);
+  }, [extensionEvents, setZoomSegments, setHasAppliedAutoZoom]);
 
   const preview = computeZoomPreview({ zoomSegments, activeZoomIdx, currentTime });
   const { resolvedZoomIdx, activeEditedZoomSegment, shouldShowZoomFocusBox } = preview;
@@ -148,7 +160,7 @@ export function useZoomEditor({
         prev.map((segment, index) => (index === resolvedZoomIdx ? { ...segment, x, y } : segment))
       );
     },
-    [resolvedZoomIdx, shouldShowZoomFocusBox, zoomFocusStageRef]
+    [resolvedZoomIdx, shouldShowZoomFocusBox, zoomFocusStageRef, setZoomSegments]
   );
 
   const handleZoomTargetMouseDown = useCallback(
@@ -161,7 +173,7 @@ export function useZoomEditor({
       setIsDraggingZoomTarget(true);
       updateZoomTargetFromPointer(event.clientX, event.clientY);
     },
-    [activeEditedZoomSegment, updateZoomTargetFromPointer]
+    [activeEditedZoomSegment, updateZoomTargetFromPointer, setIsDraggingZoomTarget]
   );
 
   useEffect(() => {
@@ -182,13 +194,13 @@ export function useZoomEditor({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [isDraggingZoomTarget, updateZoomTargetFromPointer]);
+  }, [isDraggingZoomTarget, updateZoomTargetFromPointer, setIsDraggingZoomTarget]);
 
   useEffect(() => {
     if (activeZoomIdx === -1 && zoomSegments.length > 0) {
       setActiveZoomIdx(0);
     }
-  }, [activeZoomIdx, zoomSegments.length]);
+  }, [activeZoomIdx, zoomSegments.length, setActiveZoomIdx]);
 
   useEffect(() => {
     if (!currentTime) {
@@ -213,7 +225,7 @@ export function useZoomEditor({
         playerRef.current.seekTo(zoomInfo.startTime, "seconds");
       }
     }
-  }, [activeZoomIdx, currentTime, mode, playerRef, zoomSegments, lastInteractionRef]);
+  }, [activeZoomIdx, currentTime, mode, playerRef, zoomSegments, lastInteractionRef, setZoomLevel]);
 
   return {
     activeZoomIdx,
