@@ -106,6 +106,7 @@ export function useLocalDraft({
     browserFrameMode,
     browserFrameDrawShadow,
     browserFrameDrawBorder,
+    avs,
     sidebarTitle,
     sidebarDescription,
     setSidebarTitle,
@@ -117,6 +118,7 @@ export function useLocalDraft({
     setBrowserFrameMode,
     setBrowserFrameDrawShadow,
     setBrowserFrameDrawBorder,
+    setAvs,
   } = editorState;
 
   const restoredRef = React.useRef(false);
@@ -168,6 +170,7 @@ export function useLocalDraft({
       setBrowserFrameMode,
       setBrowserFrameDrawShadow,
       setBrowserFrameDrawBorder,
+      setAvs,
     });
   }, [
     draftId,
@@ -185,6 +188,7 @@ export function useLocalDraft({
     setBrowserFrameMode,
     setBrowserFrameDrawShadow,
     setBrowserFrameDrawBorder,
+    setAvs,
   ]);
 
   // Persist editing state to localStorage (debounced) for unsaved sessions only.
@@ -211,6 +215,7 @@ export function useLocalDraft({
         browserFrameMode,
         browserFrameDrawShadow,
         browserFrameDrawBorder,
+        avs,
       }),
     };
 
@@ -238,6 +243,7 @@ export function useLocalDraft({
     browserFrameMode,
     browserFrameDrawShadow,
     browserFrameDrawBorder,
+    avs,
     sidebarTitle,
     sidebarDescription,
   ]);

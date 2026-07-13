@@ -4,6 +4,8 @@ import SidebarHeader from "./editorSidebar/SidebarHeader";
 import BackgroundPanel from "./editorSidebar/BackgroundPanel";
 import ToolsPanel from "./editorSidebar/ToolsPanel";
 import CtaPanel from "./editorSidebar/CtaPanel";
+import AvsPanel from "./editorSidebar/AvsPanel";
+import { isAvsPanelEnabled } from "@/app/lib/avs/flags";
 import type { CtaItem } from "@/app/(signed)/editor/apiTypes";
 
 interface EditorSidebarProps {
@@ -158,6 +160,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
           onReorderCta={onReorderCta}
         />
       )}
+
+      {activeTab === "avs" && isAvsPanelEnabled() && <AvsPanel />}
     </aside>
   );
 };

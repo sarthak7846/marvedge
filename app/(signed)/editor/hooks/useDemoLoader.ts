@@ -41,6 +41,7 @@ export function useDemoLoader({
     setBrowserFrameMode,
     setBrowserFrameDrawShadow,
     setBrowserFrameDrawBorder,
+    setAvs,
     setCtas,
   } = editorState;
 
@@ -118,6 +119,7 @@ export function useDemoLoader({
             setBrowserFrameMode,
             setBrowserFrameDrawShadow,
             setBrowserFrameDrawBorder,
+            setAvs,
           });
         }
         setTimeout(() => {
@@ -144,6 +146,7 @@ export function useDemoLoader({
     setBrowserFrameMode,
     setBrowserFrameDrawShadow,
     setBrowserFrameDrawBorder,
+    setAvs,
     setSegments,
     setZoomSegments,
     setSubtitleCues,
