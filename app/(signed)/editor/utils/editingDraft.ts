@@ -1,4 +1,5 @@
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
+import { AvsState } from "@/app/types/avs";
 
 import { BrowserFrameMode } from "../hooks/useEditorState";
 import { SubtitleCue, TextOverlayItem } from "../types";
@@ -19,6 +20,9 @@ export type DemoEditing = {
     drawShadow?: boolean;
     drawBorder?: boolean;
   };
+  // AVS state (steps / script / voiceover / pronunciation). Absent on demos
+  // saved before AVS existed, or whenever the feature produced no state.
+  avs?: AvsState | null;
 };
 
 export interface EditingPayloadInput {
@@ -32,6 +36,7 @@ export interface EditingPayloadInput {
   browserFrameMode: BrowserFrameMode;
   browserFrameDrawShadow: boolean;
   browserFrameDrawBorder: boolean;
+  avs: AvsState | null;
 }
 
 // Builds the canonical editing payload shared by backend autosave and the local
@@ -53,6 +58,7 @@ export function buildEditingPayload(input: EditingPayloadInput): DemoEditing {
       drawShadow: input.browserFrameDrawShadow,
       drawBorder: input.browserFrameDrawBorder,
     },
+    avs: input.avs ?? null,
   };
 }
 
@@ -68,6 +74,7 @@ export interface EditingSetters {
   setBrowserFrameMode: (mode: BrowserFrameMode) => void;
   setBrowserFrameDrawShadow: (enabled: boolean) => void;
   setBrowserFrameDrawBorder: (enabled: boolean) => void;
+  setAvs: (avs: AvsState | null) => void;
 }
 
 // Applies a saved editing payload back into editor state. Shared by the backend
@@ -118,5 +125,8 @@ export function applyDemoEditing(ed: DemoEditing, setters: EditingSetters): void
     if (typeof ed.browserFrame.drawBorder === "boolean") {
       setters.setBrowserFrameDrawBorder(ed.browserFrame.drawBorder);
     }
+  }
+  if (ed.avs) {
+    setters.setAvs(ed.avs);
   }
 }

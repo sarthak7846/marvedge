@@ -1,4 +1,4 @@
-export type MainTab = "background" | "tools" | "cta";
+export type MainTab = "background" | "tools" | "cta" | "avs";
 export type BgSubTab = "image" | "gradient" | "color" | "hidden";
 
 export interface ImageBackgroundOption {

@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
 
 import type { ZoomEffect } from "@/app/types/editor/zoom-effect";
+import type { AvsState } from "@/app/types/avs";
 import type {
   BrowserFrameMode,
   CtaItem,
@@ -78,6 +79,10 @@ export interface EditorStoreState {
   browserFrameDrawShadow: boolean;
   browserFrameDrawBorder: boolean;
 
+  // AVS (AI Script, Voiceover & Audio Synchronization) — persisted to
+  // Demo.editing.avs. Null until the feature produces state for this demo.
+  avs: AvsState | null;
+
   // Setters
   setParams: Dispatch<SetStateAction<URLSearchParams | null>>;
   setVideoUrl: Dispatch<SetStateAction<string | null>>;
@@ -113,6 +118,7 @@ export interface EditorStoreState {
   setBrowserFrameMode: Dispatch<SetStateAction<BrowserFrameMode>>;
   setBrowserFrameDrawShadow: Dispatch<SetStateAction<boolean>>;
   setBrowserFrameDrawBorder: Dispatch<SetStateAction<boolean>>;
+  setAvs: Dispatch<SetStateAction<AvsState | null>>;
 
   reset: () => void;
 }
@@ -156,6 +162,7 @@ const initialState = {
   browserFrameMode: "default" as BrowserFrameMode,
   browserFrameDrawShadow: true,
   browserFrameDrawBorder: false,
+  avs: null as AvsState | null,
 };
 
 export const useEditorStore = create<EditorStoreState>((set) => ({
@@ -200,6 +207,7 @@ export const useEditorStore = create<EditorStoreState>((set) => ({
     set((s) => ({ browserFrameDrawShadow: resolve(v, s.browserFrameDrawShadow) })),
   setBrowserFrameDrawBorder: (v) =>
     set((s) => ({ browserFrameDrawBorder: resolve(v, s.browserFrameDrawBorder) })),
+  setAvs: (v) => set((s) => ({ avs: resolve(v, s.avs) })),
 
   reset: () => set({ ...initialState }),
 }));
