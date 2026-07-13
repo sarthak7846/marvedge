@@ -6,7 +6,7 @@ import { Analytics } from "@vercel/analytics/next";
 
 const raleway = Raleway({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "700"],
+  weight: ["300", "400", "500", "600", "700", "800"],
   variable: "--font-raleway",
 });
 

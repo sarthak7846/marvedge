@@ -1,69 +1,50 @@
 import React from "react";
-import {
-  Eye,
-  CheckCircle,
-  Clock,
-  Share2,
-  MousePointerClick,
-  Users,
-  Percent,
-  Trophy,
-} from "lucide-react";
+import { Eye, CheckCircle2, Clock, MousePointerClick, TrendingUp } from "lucide-react";
 
 interface AnalyticsCard {
   id: string;
   label: string;
   value: string;
-  trend?: string;
+  trend: string;
   trendLabel: string;
   icon: React.ReactNode;
-  bgColor: string;
-  hoverColor: string;
-  shadow: string;
-  textColor: string;
+  /** pastel card background (Figma card fill, light mode) */
+  cardBg: string;
+  /** rounded icon tile background (light mode) */
+  iconBg: string;
+  /** dark-mode hook consumed by app/styles/analytics-dark.css */
+  variant: string;
+  /** whether the value is rendered at the larger 64px size */
+  largeValue: boolean;
 }
 
 interface AnalyticsStatCardsProps {
   totalViews: number;
-  avgDuration: string;
   completionRate: string;
-  activeShares: number;
-  totalCtaClicks: number;
-  uniqueCtaClicks: number;
+  avgDuration: string;
   ctaClickRate: string;
-  topCta: { label: string; clicks: number } | null;
   isVisible: boolean;
-  hoveredCard: string | null;
-  onHover: (cardId: string) => void;
-  onLeave: () => void;
 }
 
 const AnalyticsStatCards = ({
   totalViews,
-  avgDuration,
   completionRate,
-  activeShares,
-  totalCtaClicks,
-  uniqueCtaClicks,
+  avgDuration,
   ctaClickRate,
-  topCta,
   isVisible,
-  hoveredCard,
-  onHover,
-  onLeave,
 }: AnalyticsStatCardsProps) => {
   const cards: AnalyticsCard[] = [
     {
       id: "views",
       label: "Total Views",
       value: totalViews.toString(),
-      trend: "+12%",
+      trend: "+23.2%",
       trendLabel: "vs last month",
-      icon: <Eye className="w-6 h-6 md:w-7 md:h-7 text-[#8A76FC]" />,
-      bgColor: "bg-[#C5B6F1]/19",
-      hoverColor: "from-[#C5B6F1] to-[#8A76FC]",
-      shadow: "shadow-[#8A76FC]/50",
-      textColor: "text-[#261753]",
+      icon: <Eye className="h-8 w-8 text-[#8A76FC] dark:text-[#8b55ff]" />,
+      cardBg: "bg-[rgba(197,182,241,0.19)]",
+      iconBg: "bg-[rgba(138,118,252,0.14)]",
+      variant: "stat-card",
+      largeValue: true,
     },
     {
       id: "completion",
@@ -71,177 +52,82 @@ const AnalyticsStatCards = ({
       value: completionRate,
       trend: "+5.2%",
       trendLabel: "vs last month",
-      icon: <CheckCircle className="w-6 h-6 md:w-7 md:h-7 text-[#2F80EC]" />,
-      bgColor: "bg-[#9BE1F8]/14",
-      hoverColor: "from-[#9BE1F8] to-[#2F80EC]",
-      shadow: "shadow-[#2F80EC]/50",
-      textColor: "text-[#261753]",
+      icon: <CheckCircle2 className="h-8 w-8 text-[#2F80EC] dark:text-[#3f9bff]" />,
+      cardBg: "bg-[rgba(155,225,248,0.14)]",
+      iconBg: "bg-[rgba(21,101,216,0.12)]",
+      variant: "stat-card blue",
+      largeValue: true,
     },
     {
       id: "duration",
       label: "Avg Duration",
       value: avgDuration,
-      trend: "+2s",
+      trend: "+12s",
       trendLabel: "vs last month",
-      icon: <Clock className="w-6 h-6 md:w-7 md:h-7 text-[#6356D7]" />,
-      bgColor: "bg-[#261753]/6",
-      hoverColor: "from-[#E6E1FA] to-[#C5B6F1]",
-      shadow: "shadow-[#6356D7]/50",
-      textColor: "text-[#261753]",
+      icon: <Clock className="h-8 w-8 text-[#62408F] dark:text-[#8b55ff]" />,
+      cardBg: "bg-[rgba(38,23,83,0.06)]",
+      iconBg: "bg-[rgba(98,64,143,0.13)]",
+      variant: "stat-card",
+      largeValue: false,
     },
     {
-      id: "shares",
-      label: "Active Shares",
-      value: activeShares.toString(),
-      trend: "+8.3%",
-      trendLabel: "vs last month",
-      icon: <Share2 className="w-6 h-6 md:w-7 md:h-7 text-[#E33629]" />,
-      bgColor: "bg-[#DE610E]/10",
-      hoverColor: "from-[#F9E6E6] to-[#E33629]",
-      shadow: "shadow-[#E33629]/50",
-      textColor: "text-[#261753]",
-    },
-    {
-      id: "ctaClicks",
-      label: "CTA Clicks",
-      value: totalCtaClicks.toString(),
-      trendLabel: "total clicks",
-      icon: <MousePointerClick className="w-6 h-6 md:w-7 md:h-7 text-[#8A76FC]" />,
-      bgColor: "bg-[#C5B6F1]/19",
-      hoverColor: "from-[#C5B6F1] to-[#8A76FC]",
-      shadow: "shadow-[#8A76FC]/50",
-      textColor: "text-[#261753]",
-    },
-    {
-      id: "uniqueClicks",
-      label: "Unique Clicks (per browser)",
-      value: uniqueCtaClicks.toString(),
-      trendLabel: "distinct viewers",
-      icon: <Users className="w-6 h-6 md:w-7 md:h-7 text-[#2F80EC]" />,
-      bgColor: "bg-[#9BE1F8]/14",
-      hoverColor: "from-[#9BE1F8] to-[#2F80EC]",
-      shadow: "shadow-[#2F80EC]/50",
-      textColor: "text-[#261753]",
-    },
-    {
-      id: "ctaRate",
-      label: "CTA Click Rate (per browser)",
+      id: "ctr",
+      label: "Click through rate",
       value: ctaClickRate,
-      trendLabel: "unique clicks ÷ views",
-      icon: <Percent className="w-6 h-6 md:w-7 md:h-7 text-[#6356D7]" />,
-      bgColor: "bg-[#261753]/6",
-      hoverColor: "from-[#E6E1FA] to-[#C5B6F1]",
-      shadow: "shadow-[#6356D7]/50",
-      textColor: "text-[#261753]",
-    },
-    {
-      id: "topCta",
-      label: "Top CTA",
-      value: topCta?.label ?? "—",
-      trendLabel: topCta ? `${topCta.clicks} clicks` : "no clicks yet",
-      icon: <Trophy className="w-6 h-6 md:w-7 md:h-7 text-[#E33629]" />,
-      bgColor: "bg-[#DE610E]/10",
-      hoverColor: "from-[#F9E6E6] to-[#E33629]",
-      shadow: "shadow-[#E33629]/50",
-      textColor: "text-[#261753]",
+      trend: "+0.3%",
+      trendLabel: "vs last month",
+      icon: <MousePointerClick className="h-8 w-8 text-[#E33629] dark:text-[#ff454b]" />,
+      cardBg: "bg-[rgba(222,97,14,0.10)]",
+      iconBg: "bg-[rgba(222,97,14,0.15)]",
+      variant: "stat-card red",
+      largeValue: false,
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-8">
+    <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 xl:grid-cols-4">
       {cards.map((card, idx) => (
-        <AnalyticsStatCard
+        <div
           key={card.id}
-          card={card}
-          idx={idx}
-          isVisible={isVisible}
-          hoveredCard={hoveredCard}
-          onHover={onHover}
-          onLeave={onLeave}
-        />
+          style={{ transitionDelay: `${idx * 90}ms` }}
+          className={`${card.variant} flex min-h-[220px] flex-col rounded-[15px] border border-transparent p-6 transition-all duration-700 ease-out md:min-h-[240px] md:p-7 ${
+            card.cardBg
+          } ${
+            isVisible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
+          } hover:-translate-y-1`}
+        >
+          <span
+            className={`stat-icon inline-flex h-16 w-16 items-center justify-center rounded-[9px] ${card.iconBg}`}
+          >
+            {card.icon}
+          </span>
+
+          <div className="mt-auto pt-6">
+            <p className="text-lg font-normal text-[#261753] dark:text-white/90 md:text-2xl">
+              {card.label}
+            </p>
+            <p
+              className={`mt-1 font-medium leading-none text-[rgba(38,23,83,0.72)] dark:text-white ${
+                card.largeValue ? "text-5xl lg:text-6xl" : "text-4xl lg:text-5xl"
+              }`}
+            >
+              {card.value}
+            </p>
+            <p className="mt-4 flex items-center gap-1.5 text-base font-semibold md:text-xl">
+              <TrendingUp
+                className="h-5 w-5 text-[#36B37E] dark:text-[#25ec7c]"
+                strokeWidth={2.4}
+              />
+              <span className="text-[#36B37E] dark:text-[#25ec7c]">{card.trend}</span>
+              <span className="font-normal text-gray-400 dark:text-white/50">
+                {card.trendLabel}
+              </span>
+            </p>
+          </div>
+        </div>
       ))}
     </div>
   );
 };
-
-interface AnalyticsStatCardProps {
-  card: AnalyticsCard;
-  idx: number;
-  isVisible: boolean;
-  hoveredCard: string | null;
-  onHover: (cardId: string) => void;
-  onLeave: () => void;
-}
-
-const AnalyticsStatCard = ({
-  card,
-  idx,
-  isVisible,
-  hoveredCard,
-  onHover,
-  onLeave,
-}: AnalyticsStatCardProps) => (
-  <div
-    onMouseEnter={() => onHover(card.id)}
-    onMouseLeave={onLeave}
-    className={`
-              stat-card
-              ${card.id === "completion" ? "blue" : card.id === "shares" ? "red" : ""}
-              ${
-                card.bgColor
-              } rounded-xl p-4 md:p-6 flex flex-col items-start shadow-sm min-h-[120px] md:min-h-[140px]
-              transition-all duration-700 delay-${idx * 100}
-              cursor-pointer
-              ${
-                isVisible
-                  ? "opacity-100 translate-y-0 scale-100"
-                  : "opacity-0 translate-y-8 scale-95"
-              }
-              ${
-                hoveredCard === card.id
-                  ? `scale-110 shadow-2xl ${card.shadow} rotate-2 bg-linear-to-br ${card.hoverColor}`
-                  : "hover:scale-105 hover:shadow-lg"
-              }
-            `}
-  >
-    <div className="mb-2">
-      <span
-        className={`
-                  stat-icon
-                  inline-block p-2 rounded-lg transition-all duration-300
-                  ${hoveredCard === card.id ? `scale-110 ${card.bgColor}` : card.bgColor}
-                `}
-      >
-        {card.icon}
-      </span>
-    </div>
-    <div className="stat-label text-sm md:text-lg font-medium text-[#261753]">{card.label}</div>
-    <div
-      className={`stat-value text-2xl md:text-3xl font-bold text-[#261753] truncate max-w-full ${
-        hoveredCard === card.id ? card.textColor : ""
-      }`}
-    >
-      {card.value}
-    </div>
-    <div className="trend text-sm text-green-600 font-semibold mt-1 flex items-center">
-      {card.trend ? (
-        <>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="w-5 h-5 mr-1 text-green-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 17l6-6 4 4 8-8" />
-          </svg>
-          <strong>{card.trend}</strong>{" "}
-        </>
-      ) : null}
-      <span className="text-gray-500 font-normal ml-1">{card.trendLabel}</span>
-    </div>
-  </div>
-);
 
 export default AnalyticsStatCards;
