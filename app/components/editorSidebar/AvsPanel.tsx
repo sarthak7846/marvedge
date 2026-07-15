@@ -1,7 +1,9 @@
 import React from "react";
 
 import StepTimeline from "./avs/StepTimeline";
+import ScriptEditor from "./avs/ScriptEditor";
 import { useStepEditing } from "./avs/useStepEditing";
+import { useScriptEditing } from "./avs/useScriptEditing";
 
 /**
  * AVS ("AI Voice & Script") sidebar panel.
@@ -11,6 +13,10 @@ import { useStepEditing } from "./avs/useStepEditing";
  * on a timeline where the user can split at the playhead, merge adjacent steps,
  * and drag boundaries. Steps persist to `Demo.editing.avs.steps` via the
  * existing autosave (it already serializes the store's `avs` field).
+ *
+ * PR 3 adds the AI script (AVS-2.1): per-step narration seeded from the Deepgram
+ * transcript, editable, and rewritable into a tone via OpenAI. It persists to
+ * `Demo.editing.avs.script`.
  *
  * The whole panel is gated behind NEXT_PUBLIC_AVS_ENABLED by its parents
  * (EditorSidebar / SidebarHeader), so nothing here runs when the flag is off.
@@ -30,6 +36,8 @@ const AvsPanel: React.FC = () => {
     handleAutoSlice,
     handleAdjustBoundary,
   } = useStepEditing();
+
+  const script = useScriptEditing();
 
   const btnBase =
     "flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
@@ -88,6 +96,10 @@ const AvsPanel: React.FC = () => {
           {steps.length} step{steps.length === 1 ? "" : "s"}
           {" · select a step to merge, or drag a boundary to adjust."}
         </p>
+      </div>
+
+      <div className="border-t border-[#ede7fa] pt-6">
+        <ScriptEditor {...script} />
       </div>
     </div>
   );
