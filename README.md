@@ -20,6 +20,57 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## AI Script, Voiceover & Audio Sync (AVS)
+
+AVS turns a recorded demo into an AI-voiced, time-synced, subtitled video. It is
+**PRO/ENTERPRISE only** and ships behind a feature flag, so it is completely
+invisible and no-op when the flag is off — existing (non-AVS) demos and exports
+are never affected.
+
+### The flow
+
+Open a saved demo in the editor, switch to the **AI Voice** sidebar tab, and use
+**Generate AI Voiceover Demo** to run the full pipeline in one click:
+
+1. **Steps** — the demo is auto-sliced into steps from the Chrome-extension
+   click-capture timestamps (falling back to one full-length step if there are no
+   clicks). Split / merge / adjust boundaries in the panel timeline.
+2. **AI script** — per-step narration is seeded from the Deepgram transcript and
+   rewritten into a tone (Sales / Onboarding / Support / Marketing) via OpenAI.
+3. **Voiceover** — the script is synthesized into one continuous MP3 with
+   Deepgram Aura TTS in the Cloud Run worker, recording each step's timing.
+4. **Captions** — the voiceover is transcribed and stabilized into flicker-free
+   captions (also exportable as `.vtt`).
+5. **Time-alignment** — a pre-pass freeze-frames video where the audio is longer
+   than its step and pads silence where it is shorter, muxing the voiceover into
+   one aligned source MP4.
+6. **Export** — the aligned source (AI voice already muxed in) plus the stabilized
+   captions are fed into the **existing** export route, so the final render carries
+   the AI voice, freeze-frame timing, and clean captions.
+
+Every stage persists to `Demo.editing.avs` via the normal autosave (there is no
+DB migration — all AVS state lives in the existing `editing` JSON). Each stage
+also has its own editor in the panel for fine-tuning before or after a full run.
+
+### Environment variables
+
+AVS keys are **server-side only** — never expose them with a `NEXT_PUBLIC_`
+prefix.
+
+| Variable | Where | Purpose |
+| :-- | :-- | :-- |
+| `AVS_ENABLED` | Next app (server) | Master switch for the AVS server routes. Set to `true` to enable. |
+| `NEXT_PUBLIC_AVS_ENABLED` | Next app (client) | Shows the "AI Voice" sidebar panel. Set to `true` to enable. |
+| `OPENAI_API_KEY` | Next app (server) | OpenAI script tone rewrite (`/api/avs/script`). |
+| `GCP_VIDEO_WORKER_URL` | Next app (server) | Reaches the Cloud Run worker for Aura TTS, subtitles, and alignment. |
+| `DEEPGRAM_API_KEY` | **Cloud Run worker only** | Deepgram transcription + Aura TTS. The Next app never holds this key. |
+
+To enable AVS for a staging/QA environment, set both `AVS_ENABLED=true` and
+`NEXT_PUBLIC_AVS_ENABLED=true` there (plus `OPENAI_API_KEY` and
+`GCP_VIDEO_WORKER_URL`), and make sure the worker has `DEEPGRAM_API_KEY`. Leave
+all of these blank/unset in production until the feature is signed off. See
+`.env.example` for the full list.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

@@ -4,10 +4,12 @@ import StepTimeline from "./avs/StepTimeline";
 import ScriptEditor from "./avs/ScriptEditor";
 import VoiceoverEditor from "./avs/VoiceoverEditor";
 import CaptionsEditor from "./avs/CaptionsEditor";
+import AvsPipeline from "./avs/AvsPipeline";
 import { useStepEditing } from "./avs/useStepEditing";
 import { useScriptEditing } from "./avs/useScriptEditing";
 import { useVoiceoverGeneration } from "./avs/useVoiceoverGeneration";
 import { useCaptions } from "./avs/useCaptions";
+import { useAvsPipeline } from "./avs/useAvsPipeline";
 
 /**
  * AVS ("AI Voice & Script") sidebar panel.
@@ -32,6 +34,12 @@ import { useCaptions } from "./avs/useCaptions";
  * they stop flickering, plus a `.vtt` export. It persists to
  * `Demo.editing.avs.captions` and never touches the non-AVS subtitle flow.
  *
+ * PR 7 adds the end-to-end orchestration: a single "Generate AI Voiceover Demo"
+ * action (AvsPipeline) that runs every stage in sequence — steps → script →
+ * voiceover → subtitles → time-alignment → export — and feeds the aligned source
+ * plus stabilized captions into the existing export route. The stage editors
+ * below stay available for fine-tuning any individual step.
+ *
  * The whole panel is gated behind NEXT_PUBLIC_AVS_ENABLED by its parents
  * (EditorSidebar / SidebarHeader), so nothing here runs when the flag is off.
  */
@@ -54,6 +62,7 @@ const AvsPanel: React.FC = () => {
   const script = useScriptEditing();
   const voiceover = useVoiceoverGeneration();
   const captions = useCaptions();
+  const pipeline = useAvsPipeline();
 
   const btnBase =
     "flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
@@ -68,6 +77,17 @@ const AvsPanel: React.FC = () => {
           Break the demo into steps. Each step becomes a unit for the AI script and synced
           voiceover.
         </p>
+
+        <div className="mb-6">
+          <AvsPipeline
+            stages={pipeline.stages}
+            running={pipeline.running}
+            canRun={pipeline.canRun}
+            blockedReason={pipeline.blockedReason}
+            exportedUrl={pipeline.exportedUrl}
+            onRun={pipeline.run}
+          />
+        </div>
 
         <StepTimeline
           steps={steps}

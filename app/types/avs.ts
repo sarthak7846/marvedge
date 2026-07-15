@@ -60,6 +60,17 @@ export interface CaptionCue {
   text: string;
 }
 
+/**
+ * The intermediate source produced by the time-alignment pre-pass (AVS-2.4): the
+ * original video re-timed with freeze-frames / silence and the continuous
+ * voiceover muxed in. This URL becomes the source the normal export processes,
+ * so the final render carries the AI voice and freeze-frame timing.
+ */
+export interface AlignedSource {
+  videoUrl: string;
+  duration: number;
+}
+
 /** The complete AVS state stored under Demo.editing.avs. */
 export interface AvsState {
   steps: Step[];
@@ -68,4 +79,6 @@ export interface AvsState {
   pronunciation?: PronunciationRule[];
   /** Flicker-free captions generated from the voiceover audio (AVS-2.3). */
   captions?: CaptionCue[];
+  /** Freeze-frame/silence aligned source with the voiceover muxed in (AVS-2.4). */
+  aligned?: AlignedSource;
 }
