@@ -12,6 +12,10 @@ export type GcpWorkerPayload = {
   lines?: Array<{ stepId: string; text: string }>;
   voiceId?: string;
   pronunciation?: Array<{ term: string; phonetic: string }>;
+  // AVS time-alignment (`/avs-sync`).
+  audioUrl?: string;
+  steps?: Array<{ id: string; index?: number; startTime: number; endTime: number }>;
+  stepTimings?: Array<{ stepId: string; start: number; end: number }>;
 };
 
 export type GcpWorkerResponse = {
@@ -28,6 +32,8 @@ export type GcpWorkerResponse = {
     audioUrl?: string;
     duration?: number;
     stepTimings?: Array<{ stepId: string; start: number; end: number }>;
+    // AVS time-alignment (`/avs-sync`).
+    alignedVideoUrl?: string;
   };
   error?: string;
 };
@@ -43,12 +49,16 @@ function normalizeWorkerBaseUrl(rawUrl: string) {
   }
   url = url.replace(/\/+$/, "");
   // Accept env values ending with a known endpoint (/process, /subtitles,
-  // /avs-voiceover) so we always POST against the worker's base URL.
-  url = url.replace(/\/(process|subtitles|avs-voiceover)$/i, "");
+  // /avs-voiceover, /avs-sync) so we always POST against the worker's base URL.
+  url = url.replace(/\/(process|subtitles|avs-voiceover|avs-sync)$/i, "");
   return url;
 }
 
-export async function invokeGcpWorker(payload: GcpWorkerPayload, endpoint = "/process") {
+export async function invokeGcpWorker(
+  payload: GcpWorkerPayload,
+  endpoint = "/process",
+  options: { timeoutMs?: number } = {}
+) {
   const rawUrl = getGcpWorkerUrl();
   if (!rawUrl) {
     throw new Error("GCP_VIDEO_WORKER_URL is not configured");
@@ -61,11 +71,15 @@ export async function invokeGcpWorker(payload: GcpWorkerPayload, endpoint = "/pr
   const url = `${baseUrl}${cleanEndpoint}`;
 
   const controller = new AbortController();
-  const timeoutMs = Number.parseInt(process.env.GCP_VIDEO_WORKER_TIMEOUT_MS || "180000", 10);
-  const timer = setTimeout(
-    () => controller.abort(),
-    Number.isFinite(timeoutMs) ? timeoutMs : 180000
-  );
+  // Callers with a heavier round-trip (e.g. ffmpeg alignment) can raise the
+  // per-request timeout; otherwise fall back to the shared env default.
+  const envTimeoutMs = Number.parseInt(process.env.GCP_VIDEO_WORKER_TIMEOUT_MS || "180000", 10);
+  const defaultTimeoutMs = Number.isFinite(envTimeoutMs) ? envTimeoutMs : 180000;
+  const timeoutMs =
+    typeof options.timeoutMs === "number" && Number.isFinite(options.timeoutMs)
+      ? options.timeoutMs
+      : defaultTimeoutMs;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let attempt = 0;
   const maxAttempts = 3;
@@ -184,4 +198,47 @@ export async function invokeGcpVoiceover(
   const duration = typeof result?.duration === "number" ? result.duration : 0;
   const stepTimings = Array.isArray(result?.stepTimings) ? result.stepTimings : [];
   return { audioUrl, duration, stepTimings };
+}
+
+export type GcpSyncPayload = {
+  videoUrl: string;
+  audioUrl: string;
+  steps: Array<{ id: string; index?: number; startTime: number; endTime: number }>;
+  stepTimings: Array<{ stepId: string; start: number; end: number }>;
+};
+
+export type GcpSyncResult = {
+  alignedVideoUrl: string;
+  duration: number;
+};
+
+// ffmpeg alignment (download → per-step re-encode → concat → mux) is heavier
+// than a normal chunk render, so give the worker round-trip generous headroom.
+const AVS_SYNC_TIMEOUT_MS = 15 * 60 * 1000;
+
+/**
+ * Trigger the Cloud Run worker's `/avs-sync` endpoint: freeze-frame / silence
+ * time-alignment of the continuous voiceover to the video, producing one
+ * aligned MP4 the normal export can then process. Mirrors `invokeGcpVoiceover`.
+ */
+export async function invokeGcpSync(payload: GcpSyncPayload): Promise<GcpSyncResult> {
+  const body = await invokeGcpWorker(
+    {
+      recipeId: "avs-sync",
+      videoUrl: payload.videoUrl,
+      audioUrl: payload.audioUrl,
+      steps: payload.steps,
+      stepTimings: payload.stepTimings,
+    },
+    "/avs-sync",
+    { timeoutMs: AVS_SYNC_TIMEOUT_MS }
+  );
+
+  const result = body.result;
+  const alignedVideoUrl = typeof result?.alignedVideoUrl === "string" ? result.alignedVideoUrl : "";
+  if (!alignedVideoUrl) {
+    throw new Error("Sync worker returned no aligned video URL");
+  }
+  const duration = typeof result?.duration === "number" ? result.duration : 0;
+  return { alignedVideoUrl, duration };
 }

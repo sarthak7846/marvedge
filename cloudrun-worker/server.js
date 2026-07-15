@@ -25,6 +25,10 @@ const CHUNKS_COLLECTION = process.env.CHUNKS_COLLECTION || "chunks";
 const CHUNK_DURATION_SECS = Number(process.env.CHUNK_DURATION_SECS || 10);
 // GCS object prefix for AVS voiceover MP3s (in the processed bucket).
 const AVS_VOICEOVER_PREFIX = process.env.AVS_VOICEOVER_PREFIX || "avs-voiceover/";
+// GCS object prefix for AVS time-aligned MP4s (in the processed bucket).
+const AVS_ALIGNED_PREFIX = process.env.AVS_ALIGNED_PREFIX || "avs-aligned/";
+// Frame rate the aligned segments are normalized to so they concat with -c copy.
+const AVS_SYNC_FPS = Number(process.env.AVS_SYNC_FPS || 30);
 // Deepgram Aura per-request text cap. The API rejects very long text, so we
 // split a step's narration at sentence boundaries to stay comfortably under it.
 const AURA_CHAR_LIMIT = Number(process.env.AURA_CHAR_LIMIT || 1800);
@@ -520,6 +524,281 @@ async function processVoiceoverJob({ lines, voiceId, pronunciation }) {
   }
 }
 
+// --- AVS time-alignment (freeze-frame / silence) ---------------------------
+
+/** Sanitize + time-sort the incoming steps, dropping ones with an invalid span. */
+function normalizeSyncSteps(steps) {
+  return (Array.isArray(steps) ? steps : [])
+    .map((s) => ({
+      id: String((s && s.id) || "").trim(),
+      startTime: Number(s && s.startTime),
+      endTime: Number(s && s.endTime),
+    }))
+    .filter(
+      (s) =>
+        s.id &&
+        Number.isFinite(s.startTime) &&
+        Number.isFinite(s.endTime) &&
+        s.endTime > s.startTime,
+    )
+    .sort((a, b) => a.startTime - b.startTime);
+}
+
+/** Build a stepId -> {start,end} lookup from the voiceover stepTimings. */
+function buildTimingMap(stepTimings) {
+  const map = new Map();
+  for (const t of Array.isArray(stepTimings) ? stepTimings : []) {
+    const stepId = String((t && t.stepId) || "").trim();
+    const start = Number(t && t.start);
+    const end = Number(t && t.end);
+    if (stepId && Number.isFinite(start) && Number.isFinite(end) && end > start) {
+      map.set(stepId, { start, end });
+    }
+  }
+  return map;
+}
+
+/**
+ * Build one step's ALIGNED VIDEO segment (video-only, re-encoded to a uniform
+ * H.264 so segments concat with -c copy). The [start, start+videoDur] slice of
+ * the source is extended by `freeze` seconds of the cloned last frame (tpad) so
+ * the segment lasts exactly max(T_video, T_audio).
+ */
+async function buildAlignedVideoSegment({ sourcePath, start, videoDur, freeze, outputPath }) {
+  const filters = [`fps=${AVS_SYNC_FPS}`, "format=yuv420p", "setsar=1"];
+  if (freeze > 0.001) {
+    filters.push(`tpad=stop_mode=clone:stop_duration=${round3(freeze)}`);
+  }
+  await execFileAsync("/usr/bin/ffmpeg", [
+    "-y",
+    "-ss",
+    String(round3(start)),
+    "-t",
+    String(round3(videoDur)),
+    "-i",
+    sourcePath,
+    "-an",
+    "-vf",
+    filters.join(","),
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "20",
+    "-pix_fmt",
+    "yuv420p",
+    "-r",
+    String(AVS_SYNC_FPS),
+    "-video_track_timescale",
+    "15360",
+    outputPath,
+  ]);
+}
+
+/**
+ * Build one step's ALIGNED AUDIO segment as a PCM WAV of length `totalDur`.
+ * When the step has voiceover, its [audioStart, audioStart+audioDur] slice is
+ * padded with trailing silence (apad) up to totalDur; otherwise the whole
+ * segment is silence. PCM avoids the per-boundary priming drift that repeated
+ * AAC concat would introduce, so A/V stay in sync across many steps.
+ */
+async function buildAlignedAudioSegment({ voicePath, audioStart, audioDur, totalDur, outputPath }) {
+  if (voicePath && audioDur > 0.001) {
+    await execFileAsync("/usr/bin/ffmpeg", [
+      "-y",
+      "-ss",
+      String(round3(audioStart)),
+      "-t",
+      String(round3(audioDur)),
+      "-i",
+      voicePath,
+      "-af",
+      `aformat=sample_rates=48000:channel_layouts=stereo,apad=whole_dur=${round3(totalDur)}`,
+      "-c:a",
+      "pcm_s16le",
+      outputPath,
+    ]);
+    return;
+  }
+  await execFileAsync("/usr/bin/ffmpeg", [
+    "-y",
+    "-f",
+    "lavfi",
+    "-t",
+    String(round3(totalDur)),
+    "-i",
+    "anullsrc=channel_layout=stereo:sample_rate=48000",
+    "-c:a",
+    "pcm_s16le",
+    outputPath,
+  ]);
+}
+
+/** Concatenate media files of identical codecs via the ffmpeg concat demuxer (stream copy). */
+async function concatByDemuxer(inputPaths, outputPath, workDir, tag) {
+  if (inputPaths.length === 1) {
+    await fs.copyFile(inputPaths[0], outputPath);
+    return;
+  }
+  const listPath = path.join(workDir, `concat-${tag}.txt`);
+  const listContent = inputPaths
+    .map((p) => `file '${p.replace(/'/g, "'\\''")}'`)
+    .join("\n");
+  await fs.writeFile(listPath, listContent);
+  await execFileAsync("/usr/bin/ffmpeg", [
+    "-y",
+    "-f",
+    "concat",
+    "-safe",
+    "0",
+    "-i",
+    listPath,
+    "-c",
+    "copy",
+    outputPath,
+  ]);
+}
+
+async function downloadToPath(url, destinationPath) {
+  if (String(url).startsWith("gs://")) {
+    await downloadFromGsUri({ uri: String(url), destinationPath });
+  } else {
+    await downloadFromUrl({ url: String(url), destinationPath });
+  }
+}
+
+/**
+ * Time-align the continuous voiceover to the video per step (AVS-2.4):
+ *  - T_audio > T_video → freeze the step's last frame for the overflow;
+ *  - T_video > T_audio → pad the step's voiceover with trailing silence;
+ * so each step lasts max(T_video, T_audio) and audio/video stay in sync
+ * end-to-end. Video segments (with freeze) and audio segments (with silence)
+ * are concatenated separately, then the continuous aligned audio is muxed onto
+ * the continuous video → ONE aligned MP4 (the source the normal export then
+ * processes). Returns { alignedVideoUrl, duration }. FALLBACK: no voiceover /
+ * steps → the original source is returned unchanged.
+ */
+async function processSyncJob({ videoUrl, audioUrl, steps, stepTimings }) {
+  if (!videoUrl) throw new Error("videoUrl is required");
+
+  const stepList = normalizeSyncSteps(steps);
+  const timingMap = buildTimingMap(stepTimings);
+
+  // Fallback: nothing to align → hand back the original source untouched.
+  if (!audioUrl || stepList.length === 0 || timingMap.size === 0) {
+    return { alignedVideoUrl: videoUrl, duration: 0 };
+  }
+
+  const processedBucket = must("PROCESSED_BUCKET", PROCESSED_BUCKET);
+  const startedAt = Date.now();
+  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "marvedge-avs-sync-"));
+  try {
+    const sourcePath = path.join(workDir, "source.mp4");
+    await downloadToPath(videoUrl, sourcePath);
+    const voicePath = path.join(workDir, "voiceover.mp3");
+    await downloadToPath(audioUrl, voicePath);
+
+    const videoSegments = [];
+    const audioSegments = [];
+    let frozen = 0;
+    let padded = 0;
+
+    for (let i = 0; i < stepList.length; i++) {
+      const step = stepList[i];
+      const tVideo = round3(step.endTime - step.startTime);
+      if (tVideo <= 0) continue;
+
+      const timing = timingMap.get(step.id);
+      const tAudio = timing ? round3(timing.end - timing.start) : 0;
+      const total = Math.max(tVideo, tAudio);
+      const freeze = Math.max(0, round3(tAudio - tVideo));
+      if (freeze > 0) frozen++;
+      if (tVideo > tAudio) padded++;
+
+      const vSeg = path.join(workDir, `vseg-${i}.mp4`);
+      await buildAlignedVideoSegment({
+        sourcePath,
+        start: step.startTime,
+        videoDur: tVideo,
+        freeze,
+        outputPath: vSeg,
+      });
+      videoSegments.push(vSeg);
+
+      const aSeg = path.join(workDir, `aseg-${i}.wav`);
+      await buildAlignedAudioSegment({
+        voicePath,
+        audioStart: timing ? timing.start : 0,
+        audioDur: tAudio,
+        totalDur: total,
+        outputPath: aSeg,
+      });
+      audioSegments.push(aSeg);
+    }
+
+    if (videoSegments.length === 0) {
+      throw new Error("No alignable steps were produced");
+    }
+
+    const videoPath = path.join(workDir, "aligned-video.mp4");
+    await concatByDemuxer(videoSegments, videoPath, workDir, "video");
+    const audioPath = path.join(workDir, "aligned-audio.wav");
+    await concatByDemuxer(audioSegments, audioPath, workDir, "audio");
+
+    const alignedPath = path.join(workDir, "aligned.mp4");
+    await execFileAsync("/usr/bin/ffmpeg", [
+      "-y",
+      "-i",
+      videoPath,
+      "-i",
+      audioPath,
+      "-map",
+      "0:v:0",
+      "-map",
+      "1:a:0",
+      "-c:v",
+      "copy",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "160k",
+      "-ar",
+      "48000",
+      "-ac",
+      "2",
+      "-movflags",
+      "+faststart",
+      alignedPath,
+    ]);
+
+    const duration = round3(await probeDurationSeconds(alignedPath));
+
+    const objectName = `${AVS_ALIGNED_PREFIX}${randomUUID()}.mp4`;
+    await uploadProcessedChunkToGcs({
+      bucketName: processedBucket,
+      objectName,
+      sourcePath: alignedPath,
+    });
+    const fileRef = storage.bucket(processedBucket).file(objectName);
+    try {
+      await fileRef.makePublic();
+    } catch (e) {
+      /* Ignore if UBLA is enforced; a signed/authorized URL still works. */
+    }
+    const alignedVideoUrl = `https://storage.googleapis.com/${processedBucket}/${objectName}`;
+
+    console.log(
+      `[avs-sync] steps=${videoSegments.length} frozen=${frozen} padded=${padded} ` +
+        `duration=${duration}s total_ms=${Date.now() - startedAt}`,
+    );
+
+    return { alignedVideoUrl, duration };
+  } finally {
+    await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 async function getRecipeById(recipeId) {
   const snap = await firestore
     .collection(RECIPES_COLLECTION)
@@ -780,6 +1059,29 @@ app.post("/avs-voiceover", async (req, res) => {
     });
   } catch (err) {
     console.error("[worker] avs-voiceover failed:", err);
+    return res.status(500).json({
+      ok: false,
+      error: err?.message || "unknown_error",
+    });
+  }
+});
+
+app.post("/avs-sync", async (req, res) => {
+  const { videoUrl, audioUrl, steps, stepTimings } = req.body || {};
+  if (!videoUrl) {
+    return res.status(400).json({ ok: false, error: "videoUrl is required" });
+  }
+  try {
+    const result = await processSyncJob({ videoUrl, audioUrl, steps, stepTimings });
+    return res.status(200).json({
+      ok: true,
+      result: {
+        recipeId: "avs-sync",
+        ...result,
+      },
+    });
+  } catch (err) {
+    console.error("[worker] avs-sync failed:", err);
     return res.status(500).json({
       ok: false,
       error: err?.message || "unknown_error",
