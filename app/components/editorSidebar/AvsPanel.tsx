@@ -2,8 +2,12 @@ import React from "react";
 
 import StepTimeline from "./avs/StepTimeline";
 import ScriptEditor from "./avs/ScriptEditor";
+import VoiceoverEditor from "./avs/VoiceoverEditor";
+import CaptionsEditor from "./avs/CaptionsEditor";
 import { useStepEditing } from "./avs/useStepEditing";
 import { useScriptEditing } from "./avs/useScriptEditing";
+import { useVoiceoverGeneration } from "./avs/useVoiceoverGeneration";
+import { useCaptions } from "./avs/useCaptions";
 
 /**
  * AVS ("AI Voice & Script") sidebar panel.
@@ -17,6 +21,16 @@ import { useScriptEditing } from "./avs/useScriptEditing";
  * PR 3 adds the AI script (AVS-2.1): per-step narration seeded from the Deepgram
  * transcript, editable, and rewritable into a tone via OpenAI. It persists to
  * `Demo.editing.avs.script`.
+ *
+ * PR 4 adds the voiceover (AVS-2.2): a Deepgram Aura voice picker, an optional
+ * pronunciation dictionary, and a "Generate Voiceover" action that calls the
+ * Cloud Run worker to produce ONE continuous MP3 (with per-step timings). It
+ * persists to `Demo.editing.avs.voiceover`.
+ *
+ * PR 5 adds captions (AVS-2.3): a "Generate Captions" action transcribes the
+ * voiceover audio (via the existing subtitle route) and stabilizes the cues so
+ * they stop flickering, plus a `.vtt` export. It persists to
+ * `Demo.editing.avs.captions` and never touches the non-AVS subtitle flow.
  *
  * The whole panel is gated behind NEXT_PUBLIC_AVS_ENABLED by its parents
  * (EditorSidebar / SidebarHeader), so nothing here runs when the flag is off.
@@ -38,6 +52,8 @@ const AvsPanel: React.FC = () => {
   } = useStepEditing();
 
   const script = useScriptEditing();
+  const voiceover = useVoiceoverGeneration();
+  const captions = useCaptions();
 
   const btnBase =
     "flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
@@ -100,6 +116,14 @@ const AvsPanel: React.FC = () => {
 
       <div className="border-t border-[#ede7fa] pt-6">
         <ScriptEditor {...script} />
+      </div>
+
+      <div className="border-t border-[#ede7fa] pt-6">
+        <VoiceoverEditor {...voiceover} />
+      </div>
+
+      <div className="border-t border-[#ede7fa] pt-6">
+        <CaptionsEditor {...captions} />
       </div>
     </div>
   );

@@ -55,10 +55,18 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
     const jobData = job.jobData as unknown;
     let subtitles: unknown = null;
+    // AVS time-alignment (kind: "AVS_SYNC") surfaces its aligned source here so
+    // the client can poll for it; additive and inert for every other job kind.
+    let aligned: { alignedVideoUrl: unknown; duration: unknown } | null = null;
     if (jobData && typeof jobData === "object") {
       const rec = jobData as Record<string, unknown>;
       if (rec.kind === "SUBTITLES") {
         subtitles = rec.subtitles ?? null;
+      } else if (rec.kind === "AVS_SYNC") {
+        aligned = {
+          alignedVideoUrl: rec.alignedVideoUrl ?? null,
+          duration: rec.duration ?? null,
+        };
       }
     }
 
@@ -69,6 +77,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       exportedUrl,
       error,
       subtitles,
+      ...(aligned ? { aligned } : {}),
     });
   } catch (err) {
     console.error("Fetch Job Error:", err);
