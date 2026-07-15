@@ -49,10 +49,23 @@ export interface PronunciationRule {
   phonetic: string;
 }
 
+/**
+ * A stabilized caption cue transcribed from the voiceover: `text` shown from
+ * `start` to `end` (seconds). Structurally identical to the `Cue` produced by
+ * `app/lib/avs/karaoke.ts`, so the two are interchangeable without coupling.
+ */
+export interface CaptionCue {
+  start: number;
+  end: number;
+  text: string;
+}
+
 /** The complete AVS state stored under Demo.editing.avs. */
 export interface AvsState {
   steps: Step[];
   script?: ScriptDoc;
   voiceover?: VoiceoverTrack;
   pronunciation?: PronunciationRule[];
+  /** Flicker-free captions generated from the voiceover audio (AVS-2.3). */
+  captions?: CaptionCue[];
 }
