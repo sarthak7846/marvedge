@@ -8,6 +8,10 @@ export type GcpWorkerPayload = {
   startTime?: number;
   duration?: number;
   chunkFilenames?: string[];
+  // AVS voiceover (`/avs-voiceover`).
+  lines?: Array<{ stepId: string; text: string }>;
+  voiceId?: string;
+  pronunciation?: Array<{ term: string; phonetic: string }>;
 };
 
 export type GcpWorkerResponse = {
@@ -20,6 +24,10 @@ export type GcpWorkerResponse = {
     processedObject?: string;
     mergedObject?: string;
     exportedUrl?: string;
+    // AVS voiceover (`/avs-voiceover`).
+    audioUrl?: string;
+    duration?: number;
+    stepTimings?: Array<{ stepId: string; start: number; end: number }>;
   };
   error?: string;
 };
@@ -34,8 +42,9 @@ function normalizeWorkerBaseUrl(rawUrl: string) {
     return "";
   }
   url = url.replace(/\/+$/, "");
-  // Accept env values ending with /process, /process/, /subtitles, /subtitles/
-  url = url.replace(/\/(process|subtitles)$/i, "");
+  // Accept env values ending with a known endpoint (/process, /subtitles,
+  // /avs-voiceover) so we always POST against the worker's base URL.
+  url = url.replace(/\/(process|subtitles|avs-voiceover)$/i, "");
   return url;
 }
 
@@ -135,4 +144,44 @@ export async function invokeGcpSubtitles(payload: GcpSubtitlesPayload) {
     body.result as { cues?: Array<{ start: number; end: number; text: string }> } | undefined
   )?.cues;
   return Array.isArray(cues) ? cues : [];
+}
+
+export type GcpVoiceoverPayload = {
+  lines: Array<{ stepId: string; text: string }>;
+  voiceId: string;
+  pronunciation?: Array<{ term: string; phonetic: string }>;
+};
+
+export type GcpVoiceoverResult = {
+  audioUrl: string;
+  duration: number;
+  stepTimings: Array<{ stepId: string; start: number; end: number }>;
+};
+
+/**
+ * Trigger the Cloud Run worker's `/avs-voiceover` endpoint (Deepgram Aura TTS →
+ * one continuous MP3). The Deepgram key lives in the worker, so the Next app only
+ * needs GCP_VIDEO_WORKER_URL. Mirrors `invokeGcpSubtitles`.
+ */
+export async function invokeGcpVoiceover(
+  payload: GcpVoiceoverPayload
+): Promise<GcpVoiceoverResult> {
+  const body = await invokeGcpWorker(
+    {
+      recipeId: "avs-voiceover",
+      lines: payload.lines,
+      voiceId: payload.voiceId,
+      pronunciation: payload.pronunciation,
+    },
+    "/avs-voiceover"
+  );
+
+  const result = body.result;
+  const audioUrl = typeof result?.audioUrl === "string" ? result.audioUrl : "";
+  if (!audioUrl) {
+    throw new Error("Voiceover worker returned no audio URL");
+  }
+  const duration = typeof result?.duration === "number" ? result.duration : 0;
+  const stepTimings = Array.isArray(result?.stepTimings) ? result.stepTimings : [];
+  return { audioUrl, duration, stepTimings };
 }
