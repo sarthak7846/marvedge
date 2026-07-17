@@ -11,6 +11,24 @@ export async function DELETE() {
   }
 
   try {
+    // Retrieve user and their hub settings for Cloudflare cleanup
+    const userWithHubSettings = await prisma.user.findFirst({
+      where: { email: session.user.email },
+      include: { hubSettings: true },
+    });
+
+    if (userWithHubSettings?.hubSettings?.cloudflareId) {
+      try {
+        const { deleteCustomDomain } = await import("@/app/lib/cloudflare");
+        await deleteCustomDomain(userWithHubSettings.hubSettings.cloudflareId);
+      } catch (cfError) {
+        console.error(
+          "Failed to delete Cloudflare custom hostname during account deletion:",
+          cfError
+        );
+      }
+    }
+
     // Delete sessions
     await prisma.session.deleteMany({
       where: { user: { email: session.user.email } },

@@ -75,7 +75,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { title, description, videoUrl, editing } = await req.json();
+    const { title, description, videoUrl, editing, tags, integrations, userRoles, featured } =
+      await req.json();
 
     if (!title || !videoUrl) {
       return NextResponse.json({ error: "Title, videoUrl are required" }, { status: 400 });
@@ -110,6 +111,10 @@ export async function POST(req: NextRequest) {
         videoUrl,
         editing: editing || null,
         userId, // attach logged-in user
+        tags: Array.isArray(tags) ? tags : [],
+        integrations: Array.isArray(integrations) ? integrations : [],
+        userRoles: Array.isArray(userRoles) ? userRoles : [],
+        featured: typeof featured === "boolean" ? featured : false,
       },
     });
 
@@ -132,25 +137,45 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id, exportedUrl, editing, title, description } = await req.json();
+    const {
+      id,
+      exportedUrl,
+      editing,
+      title,
+      description,
+      tags,
+      integrations,
+      userRoles,
+      featured,
+    } = await req.json();
 
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
 
-    if (typeof exportedUrl !== "string" && typeof editing === "undefined") {
-      return NextResponse.json(
-        { error: "Nothing to update: provide exportedUrl or editing" },
-        { status: 400 }
-      );
+    if (
+      typeof exportedUrl !== "string" &&
+      typeof editing === "undefined" &&
+      typeof title !== "string" &&
+      typeof description !== "string" &&
+      !Array.isArray(tags) &&
+      !Array.isArray(integrations) &&
+      !Array.isArray(userRoles) &&
+      typeof featured !== "boolean"
+    ) {
+      return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
     }
 
     // Use a single write to both enforce ownership and avoid extra round trips.
-    const updateData = {
+    const updateData: Record<string, unknown> = {
       ...(typeof exportedUrl === "string" ? { exportedUrl } : {}),
       ...(typeof editing !== "undefined" ? { editing } : {}),
       ...(typeof title === "string" ? { title } : {}),
       ...(typeof description === "string" ? { description } : {}),
+      ...(Array.isArray(tags) ? { tags } : {}),
+      ...(Array.isArray(integrations) ? { integrations } : {}),
+      ...(Array.isArray(userRoles) ? { userRoles } : {}),
+      ...(typeof featured === "boolean" ? { featured } : {}),
     };
 
     const result = await prisma.demo.updateMany({
