@@ -3,6 +3,9 @@ import { prisma } from "@/app/lib/prisma";
 import { invokeGcpWorker } from "@/app/lib/gcpWorker";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
+import { isWtmEnabled } from "@/app/lib/wtm/flags";
+import { isWtmAllowed } from "@/app/lib/wtm/access";
+import type { WatermarkConfig, WtmPosition } from "@/app/types/wtm";
 export const maxDuration = 300;
 
 const EXEMPT_EMAILS = [
@@ -38,6 +41,75 @@ async function isExportAllowed(
   const exportCount = Math.max(jobCount, savedCount);
 
   return exportCount < 3;
+}
+
+// --- WTM (watermark) -------------------------------------------------------
+// The watermark baked into an export is decided here by plan — never by the
+// worker, which only renders whatever `recipe.watermark` it is handed. The
+// whole path is a no-op unless WTM_ENABLED is set, so prod behavior (and
+// existing recipes) are unchanged until enablement.
+
+const WTM_POSITIONS: readonly WtmPosition[] = ["br", "bl", "tr", "tl"];
+
+// FREE / anonymous default: a small, semi-transparent blue Marvedge badge in
+// the bottom-right. assetUrl omitted → the worker uses its bundled default logo.
+const FREE_TIER_WATERMARK: WatermarkConfig = {
+  enabled: true,
+  opacity: 0.55,
+  position: "br",
+  scale: 0.08,
+};
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, n));
+}
+
+function toHttpsUrl(url: string): string {
+  return url.startsWith("gs://") ? url.replace("gs://", "https://storage.googleapis.com/") : url;
+}
+
+// Validate + clamp a PRO/ENTERPRISE user's watermark config from the client.
+// enabled:false is preserved (a PRO user removing the watermark entirely).
+function sanitizeWatermarkConfig(raw: unknown): WatermarkConfig | undefined {
+  if (!raw || typeof raw !== "object") {
+    return undefined;
+  }
+  const w = raw as Record<string, unknown>;
+  const position = WTM_POSITIONS.includes(w.position as WtmPosition)
+    ? (w.position as WtmPosition)
+    : "br";
+  const assetUrl =
+    typeof w.assetUrl === "string" && w.assetUrl.trim().length > 0
+      ? toHttpsUrl(w.assetUrl.trim())
+      : undefined;
+  return {
+    enabled: Boolean(w.enabled),
+    ...(assetUrl ? { assetUrl } : {}),
+    opacity: clampNumber(w.opacity, 0, 1, 0.55),
+    position,
+    scale: clampNumber(w.scale, 0.01, 0.5, 0.08),
+  };
+}
+
+// Resolve the effective watermark for an export:
+//   flag off         → undefined (no watermark; existing behavior preserved)
+//   FREE / anonymous → forced Marvedge badge (the monetization path)
+//   PRO / ENTERPRISE → the client's editing.wtm.watermark (incl. enabled:false), else none
+function resolveWatermarkForPlan(
+  plan: string | null,
+  clientWatermark: unknown
+): WatermarkConfig | undefined {
+  if (!isWtmEnabled()) {
+    return undefined;
+  }
+  if (!isWtmAllowed(plan)) {
+    return { ...FREE_TIER_WATERMARK };
+  }
+  return sanitizeWatermarkConfig(clientWatermark);
 }
 
 // Dispatches chunked processing to GCP Cloud Run workers and merges the result.
@@ -213,6 +285,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Decide the watermark from the user's plan (free → forced badge, PRO →
+    // their config or none). undefined when the flag is off, so the recipe is
+    // identical to today and non-WTM exports are unchanged.
+    const watermark = resolveWatermarkForPlan(user.plan, data.watermark);
+
     // 1. Create a job record in the database
     const jobRecord = await prisma.videoJob.create({
       data: {
@@ -235,6 +312,9 @@ export async function POST(req: NextRequest) {
             drawShadow: true,
             drawBorder: false,
           },
+          // Spread into a fresh object literal so the Prisma Json field accepts
+          // it (a named interface lacks the implicit index signature Prisma wants).
+          ...(watermark ? { watermark: { ...watermark } } : {}),
         },
       },
     });
@@ -258,6 +338,7 @@ export async function POST(req: NextRequest) {
         drawShadow: true,
         drawBorder: false,
       },
+      ...(watermark ? { watermark } : {}),
     };
 
     // 2. Dispatch to GCP Cloud Run workers (Scatter-Gather)
