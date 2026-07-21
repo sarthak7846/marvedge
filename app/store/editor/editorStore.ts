@@ -3,6 +3,7 @@ import { create } from "zustand";
 
 import type { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import type { AvsState } from "@/app/types/avs";
+import type { WtmState } from "@/app/types/wtm";
 import type {
   BrowserFrameMode,
   CtaItem,
@@ -83,6 +84,10 @@ export interface EditorStoreState {
   // Demo.editing.avs. Null until the feature produces state for this demo.
   avs: AvsState | null;
 
+  // WTM (Automated Video Watermarking & Compositing) — persisted to
+  // Demo.editing.wtm. Null until the branding panel produces state for this demo.
+  wtm: WtmState | null;
+
   // Setters
   setParams: Dispatch<SetStateAction<URLSearchParams | null>>;
   setVideoUrl: Dispatch<SetStateAction<string | null>>;
@@ -119,6 +124,7 @@ export interface EditorStoreState {
   setBrowserFrameDrawShadow: Dispatch<SetStateAction<boolean>>;
   setBrowserFrameDrawBorder: Dispatch<SetStateAction<boolean>>;
   setAvs: Dispatch<SetStateAction<AvsState | null>>;
+  setWtm: Dispatch<SetStateAction<WtmState | null>>;
 
   reset: () => void;
 }
@@ -163,6 +169,7 @@ const initialState = {
   browserFrameDrawShadow: true,
   browserFrameDrawBorder: false,
   avs: null as AvsState | null,
+  wtm: null as WtmState | null,
 };
 
 export const useEditorStore = create<EditorStoreState>((set) => ({
@@ -208,6 +215,7 @@ export const useEditorStore = create<EditorStoreState>((set) => ({
   setBrowserFrameDrawBorder: (v) =>
     set((s) => ({ browserFrameDrawBorder: resolve(v, s.browserFrameDrawBorder) })),
   setAvs: (v) => set((s) => ({ avs: resolve(v, s.avs) })),
+  setWtm: (v) => set((s) => ({ wtm: resolve(v, s.wtm) })),
 
   reset: () => set({ ...initialState }),
 }));

@@ -1,5 +1,6 @@
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import { AvsState } from "@/app/types/avs";
+import { WtmState } from "@/app/types/wtm";
 
 import { BrowserFrameMode } from "../hooks/useEditorState";
 import { SubtitleCue, TextOverlayItem } from "../types";
@@ -23,6 +24,9 @@ export type DemoEditing = {
   // AVS state (steps / script / voiceover / pronunciation). Absent on demos
   // saved before AVS existed, or whenever the feature produced no state.
   avs?: AvsState | null;
+  // WTM state (watermark / webcam branding). Absent on demos saved before WTM
+  // existed, or whenever the branding panel produced no state.
+  wtm?: WtmState | null;
 };
 
 export interface EditingPayloadInput {
@@ -37,6 +41,7 @@ export interface EditingPayloadInput {
   browserFrameDrawShadow: boolean;
   browserFrameDrawBorder: boolean;
   avs: AvsState | null;
+  wtm: WtmState | null;
 }
 
 // Builds the canonical editing payload shared by backend autosave and the local
@@ -59,6 +64,7 @@ export function buildEditingPayload(input: EditingPayloadInput): DemoEditing {
       drawBorder: input.browserFrameDrawBorder,
     },
     avs: input.avs ?? null,
+    wtm: input.wtm ?? null,
   };
 }
 
@@ -75,6 +81,7 @@ export interface EditingSetters {
   setBrowserFrameDrawShadow: (enabled: boolean) => void;
   setBrowserFrameDrawBorder: (enabled: boolean) => void;
   setAvs: (avs: AvsState | null) => void;
+  setWtm: (wtm: WtmState | null) => void;
 }
 
 // Applies a saved editing payload back into editor state. Shared by the backend
@@ -128,5 +135,8 @@ export function applyDemoEditing(ed: DemoEditing, setters: EditingSetters): void
   }
   if (ed.avs) {
     setters.setAvs(ed.avs);
+  }
+  if (ed.wtm) {
+    setters.setWtm(ed.wtm);
   }
 }

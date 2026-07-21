@@ -11,6 +11,12 @@ RUN npm install
 
 COPY . .
 
+# Bundle the default watermark badge into the image (like the fonts under
+# fonts/, this lands via COPY . . above; the explicit COPY keeps it in the image
+# even if a .dockerignore is later added). It is Logo.png as-is — the solid blue
+# Marvedge badge — resolved by render.js at /app/assets/marvedge-watermark.png.
+COPY assets ./assets
+
 ENV NODE_ENV=production
 ENV PORT=8080
 

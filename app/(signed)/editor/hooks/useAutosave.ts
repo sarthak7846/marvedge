@@ -35,6 +35,7 @@ export function useAutosave({
     browserFrameDrawShadow,
     browserFrameDrawBorder,
     avs,
+    wtm,
     sidebarTitle,
     sidebarDescription,
   } = editorState;
@@ -56,6 +57,7 @@ export function useAutosave({
       browserFrameDrawShadow,
       browserFrameDrawBorder,
       avs,
+      wtm,
     });
   }, [
     segments,
@@ -69,6 +71,7 @@ export function useAutosave({
     browserFrameDrawShadow,
     browserFrameDrawBorder,
     avs,
+    wtm,
   ]);
 
   const flushAutosave = React.useCallback(async () => {
@@ -139,6 +142,7 @@ export function useAutosave({
     browserFrameDrawShadow,
     browserFrameDrawBorder,
     avs,
+    wtm,
     sidebarTitle,
     sidebarDescription,
     flushAutosave,
