@@ -2,6 +2,7 @@ import React from "react";
 import Image from "next/image";
 import { MainTab } from "./backgroundOptions";
 import { isAvsPanelEnabled } from "@/app/lib/avs/flags";
+import { isWtmPanelEnabled } from "@/app/lib/wtm/flags";
 
 interface SidebarHeaderProps {
   title: string;
@@ -108,6 +109,16 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({
             onClick={() => setActiveTab("avs")}
           >
             AI Voice
+          </button>
+        )}
+        {isWtmPanelEnabled() && (
+          <button
+            className={`tab-item flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
+              activeTab === "branding" ? "active bg-white text-[#7C5CFC] shadow" : "text-gray-600"
+            }`}
+            onClick={() => setActiveTab("branding")}
+          >
+            Branding
           </button>
         )}
       </div>
