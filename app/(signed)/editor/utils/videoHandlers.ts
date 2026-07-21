@@ -168,7 +168,14 @@ async function handleDemoConflict({
 }
 
 export async function handleSaveDemo(
-  data: { title: string; description: string },
+  data: {
+    title: string;
+    description: string;
+    tags?: string[];
+    integrations?: string[];
+    userRoles?: string[];
+    featured?: boolean;
+  },
   params: SaveDemoParams
 ) {
   const {
@@ -250,12 +257,20 @@ export async function handleSaveDemo(
             id: existingDemoId,
             title: data.title,
             description: data.description,
+            tags: data.tags || [],
+            integrations: data.integrations || [],
+            userRoles: data.userRoles || [],
+            featured: typeof data.featured === "boolean" ? data.featured : false,
             editing: editingToSave,
           })
         : await axios.post("/api/demo", {
             title: data.title,
             description: data.description,
             videoUrl: sourceVideoUrl,
+            tags: data.tags || [],
+            integrations: data.integrations || [],
+            userRoles: data.userRoles || [],
+            featured: typeof data.featured === "boolean" ? data.featured : false,
             editing: editingToSave,
           });
       console.log("Demo saved/updated:", response.data);

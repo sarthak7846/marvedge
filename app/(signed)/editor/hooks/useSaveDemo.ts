@@ -23,7 +23,14 @@ export function useSaveDemo({
 }: UseSaveDemoProps) {
   const savedDemosRef = useRef<Set<string>>(new Set());
 
-  const onSaveDemo = async (data: { title: string; description: string }) => {
+  const onSaveDemo = async (data: {
+    title: string;
+    description: string;
+    tags?: string[];
+    integrations?: string[];
+    userRoles?: string[];
+    featured?: boolean;
+  }) => {
     const effectiveDemoId = editorState.savedDemoId || editorState.params?.get("demoId") || null;
     const isExistingDemo = !!effectiveDemoId;
     if (editorState.demoSaved && !isExistingDemo) {

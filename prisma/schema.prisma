@@ -28,6 +28,7 @@ model User {
   sessions       Session[]
   tutorials      Tutorial[]      @relation("UserTutorials")
   videoJobs      VideoJob[]
+  hubSettings    HubSettings?
 }
 
 model Account {
@@ -98,6 +99,10 @@ model Demo {
   exportedUrl   String?
   duration      Float?
   user          User           @relation(fields: [userId], references: [id])
+  tags          String[]       @default([])
+  integrations  String[]       @default([])
+  userRoles     String[]       @default([])
+  featured      Boolean        @default(false)
   exportedVideo ExportedVideo?
   videoJobs     VideoJob[]
   views         View[]
@@ -214,3 +219,23 @@ model CtaClick {
   @@index([demoId, timestamp])
   @@index([ctaId])
 }
+
+model HubSettings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  subdomain       String?  @unique
+  customDomain    String?  @unique
+  sslStatus       String   @default("pending") // pending, active, failed
+  dnsVerification Json?    // To store TXT/CNAME records for verification
+  logoUrl         String?
+  brandColor      String   @default("#7C5CFC")
+  textColor       String   @default("#111827")
+  accentColor     String   @default("#F3F0FC")
+  hubTitle        String?
+  hubDescription  String?
+  cloudflareId    String?  // Cloudflare custom hostname ID
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+

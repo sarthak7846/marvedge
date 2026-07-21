@@ -7,7 +7,14 @@ import Image from "next/image";
 interface SaveDemoModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { title: string; description: string }) => void;
+  onSave: (data: {
+    title: string;
+    description: string;
+    tags?: string[];
+    integrations?: string[];
+    userRoles?: string[];
+    featured?: boolean;
+  }) => void;
   initialTitle?: string;
   initialDescription?: string;
   processing?: boolean;
@@ -25,6 +32,10 @@ export default function SaveDemoModal({
 }: SaveDemoModalProps) {
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
+  const [tags, setTags] = useState("");
+  const [integrations, setIntegrations] = useState("");
+  const [userRoles, setUserRoles] = useState("");
+  const [featured, setFeatured] = useState(false);
 
   // Update internal state when props change
   useEffect(() => {
@@ -32,8 +43,49 @@ export default function SaveDemoModal({
     setDescription(initialDescription);
   }, [initialTitle, initialDescription]);
 
+  // Load existing metadata if editing an existing demo
+  useEffect(() => {
+    if (isOpen) {
+      const demoId = new URLSearchParams(window.location.search).get("demoId");
+      if (demoId) {
+        fetch(`/api/demo?id=${demoId}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success && data.demo) {
+              setTags((data.demo.tags || []).join(", "));
+              setIntegrations((data.demo.integrations || []).join(", "));
+              setUserRoles((data.demo.userRoles || []).join(", "));
+              setFeatured(!!data.demo.featured);
+            }
+          })
+          .catch((err) => console.error("Error loading demo metadata:", err));
+      } else {
+        setTags("");
+        setIntegrations("");
+        setUserRoles("");
+        setFeatured(false);
+      }
+    }
+  }, [isOpen]);
+
   const handleSave = () => {
-    onSave({ title, description });
+    onSave({
+      title,
+      description,
+      tags: tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean),
+      integrations: integrations
+        .split(",")
+        .map((i) => i.trim())
+        .filter(Boolean),
+      userRoles: userRoles
+        .split(",")
+        .map((r) => r.trim())
+        .filter(Boolean),
+      featured,
+    });
   };
 
   // Prevent body scroll when modal is open
@@ -59,7 +111,7 @@ export default function SaveDemoModal({
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 transform transition-all duration-300 scale-100">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 transform transition-all duration-300 scale-100 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-800">Save Demo</h2>
@@ -97,6 +149,67 @@ export default function SaveDemoModal({
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] focus:border-[#7C5CFC] transition-all resize-none text-black"
               disabled={processing}
             />
+          </div>
+
+          {/* Tags Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+            <input
+              type="text"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="e.g. analytics, pricing (comma-separated)"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] focus:border-[#7C5CFC] transition-all text-black"
+              disabled={processing}
+            />
+          </div>
+
+          {/* Integrations Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Target Integrations
+            </label>
+            <input
+              type="text"
+              value={integrations}
+              onChange={(e) => setIntegrations(e.target.value)}
+              placeholder="e.g. Slack, HubSpot, Zoom (comma-separated)"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] focus:border-[#7C5CFC] transition-all text-black"
+              disabled={processing}
+            />
+          </div>
+
+          {/* User Roles Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Target User Roles
+            </label>
+            <input
+              type="text"
+              value={userRoles}
+              onChange={(e) => setUserRoles(e.target.value)}
+              placeholder="e.g. Manager, Developer, Admin (comma-separated)"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] focus:border-[#7C5CFC] transition-all text-black"
+              disabled={processing}
+            />
+          </div>
+
+          {/* Featured Checkbox */}
+          <div className="flex items-center gap-2 pt-2">
+            <input
+              type="checkbox"
+              id="featured"
+              checked={featured}
+              onChange={(e) => setFeatured(e.target.checked)}
+              className="w-4 h-4 rounded text-[#7C5CFC] border-gray-300 focus:ring-[#7C5CFC]"
+              disabled={processing}
+            />
+            <label
+              htmlFor="featured"
+              className="text-sm font-medium text-gray-700 cursor-pointer select-none"
+            >
+              Mark as Featured Demo
+            </label>
           </div>
         </div>
 
