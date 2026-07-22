@@ -1,11 +1,10 @@
 import React from "react";
-import axios from "axios";
 import { toast } from "react-hot-toast";
 import { useShallow } from "zustand/react/shallow";
 
 import type { WatermarkConfig, WtmPosition, WtmState } from "@/app/types/wtm";
 import { useEditorStore } from "@/app/store/editor/editorStore";
-import { isWtmAllowed } from "@/app/lib/wtm/access";
+import { useWtmPlan } from "@/app/hooks/useWtmPlan";
 import {
   DEFAULT_WATERMARK,
   WTM_OPACITY_MAX,
@@ -58,33 +57,11 @@ export function useWatermarkSettings(): WatermarkSettings {
     }))
   );
 
-  const [plan, setPlan] = React.useState<string | null>(null);
-  const [planLoading, setPlanLoading] = React.useState(true);
+  const { isPro, planLoading } = useWtmPlan();
   const [uploading, setUploading] = React.useState(false);
   // Local preview for a file the user just picked: the upload bucket may be
   // private, so the persisted https URL is not always renderable in the browser.
   const [localPreviewUrl, setLocalPreviewUrl] = React.useState<string | null>(null);
-
-  // Same source of truth as the export modal's plan check (/api/user/export-count).
-  React.useEffect(() => {
-    let cancelled = false;
-    axios
-      .get("/api/user/export-count")
-      .then((res) => {
-        if (!cancelled && res.data && typeof res.data.plan === "string") {
-          setPlan(res.data.plan);
-        }
-      })
-      .catch((err) => console.error("Could not fetch plan for branding panel", err))
-      .finally(() => {
-        if (!cancelled) {
-          setPlanLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   React.useEffect(() => {
     return () => {
@@ -94,7 +71,6 @@ export function useWatermarkSettings(): WatermarkSettings {
     };
   }, [localPreviewUrl]);
 
-  const isPro = isWtmAllowed(plan);
   const persisted = wtm?.watermark;
   const watermark = persisted ?? DEFAULT_WATERMARK;
 

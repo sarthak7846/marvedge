@@ -540,6 +540,22 @@ interface ExportVideoParams {
   // WTM: the demo's `editing.wtm.watermark`, if any. Only a *request* — the
   // server re-resolves the effective watermark from the user's plan.
   watermark?: WatermarkConfig;
+  // WTM: optional pre-pass over the resolved source, run after any blob upload
+  // (so it always receives a URL the worker can fetch) and before the job is
+  // created. The camera-bubble compositor uses it to hand the chunked export an
+  // already-composited MP4 — see useExportFlow. Omitted → nothing changes.
+  //
+  // `setStatus` writes to the export's own progress toast, so a slow pre-pass
+  // can say what it is doing without the caller needing to know which toaster
+  // this module uses.
+  //
+  // Contract: must resolve, never reject. A pre-pass that fails is expected to
+  // return the URL it was given so the export still runs, just without whatever
+  // the pre-pass would have added.
+  prepareSourceUrl?: (
+    sourceVideoUrl: string,
+    ctx: { setStatus: (message: string) => void }
+  ) => Promise<string>;
 }
 
 interface ExportVideoResult {
@@ -783,6 +799,7 @@ export const exportVideo = async ({
   savedDemoId,
   settings,
   watermark,
+  prepareSourceUrl,
 }: ExportVideoParams): Promise<ExportVideoResult | null> => {
   const toastId = toast.loading("Preparing to export...");
   const exportSettings = settings || {
@@ -828,11 +845,24 @@ export const exportVideo = async ({
       }
     }
 
+    // WTM: give a pre-pass the chance to swap in a derived source (the webcam
+    // bubble is composited into one MP4 before the chunked export ever sees it).
+    // `sourceVideoUrl` deliberately stays pointing at the original upload — it
+    // is what the exported-video record stores and what cleanup deletes, so
+    // that bookkeeping is unchanged by a pre-pass.
+    let renderSourceUrl = sourceVideoUrl;
+    if (prepareSourceUrl) {
+      const prepared = await prepareSourceUrl(sourceVideoUrl, {
+        setStatus: (message: string) => toast.loading(message, { id: toastId }),
+      });
+      renderSourceUrl = prepared || sourceVideoUrl;
+    }
+
     // 1. Initiate job on the backend
     toast.loading("Sending job to server...", { id: toastId });
 
     const createRes = await axios.post("/api/jobs/create", {
-      videoUrl: sourceVideoUrl,
+      videoUrl: renderSourceUrl,
       title: sidebarTitle || "Untitled Demo",
       description: sidebarDescription || "",
       demoId: savedDemoId || null,

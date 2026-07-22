@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
 import { isWtmEnabled } from "@/app/lib/wtm/flags";
 import { isWtmAllowed } from "@/app/lib/wtm/access";
-import { DEFAULT_WATERMARK, sanitizeWatermarkConfig } from "@/app/lib/wtm/watermark";
+import { resolveWatermarkForPlan as resolveWatermarkForIsPro } from "@/app/lib/wtm/watermark";
 import type { WatermarkConfig } from "@/app/types/wtm";
 export const maxDuration = 300;
 
@@ -57,6 +57,10 @@ async function isExportAllowed(
 //                      (they cannot upload a logo, change opacity, or remove it)
 //   PRO / ENTERPRISE → the client's editing.wtm.watermark, validated and clamped
 //                      (incl. enabled:false — removing the watermark), else none
+//
+// Only the flag check is local: the plan branch lives in app/lib/wtm/watermark.ts
+// so the editor's WYSIWYG preview resolves the watermark exactly the way this
+// route does, rather than reimplementing the rule and drifting from it.
 function resolveWatermarkForPlan(
   plan: string | null,
   clientWatermark: unknown
@@ -64,10 +68,7 @@ function resolveWatermarkForPlan(
   if (!isWtmEnabled()) {
     return undefined;
   }
-  if (!isWtmAllowed(plan)) {
-    return { ...DEFAULT_WATERMARK };
-  }
-  return sanitizeWatermarkConfig(clientWatermark);
+  return resolveWatermarkForIsPro(isWtmAllowed(plan), clientWatermark);
 }
 
 // Dispatches chunked processing to GCP Cloud Run workers and merges the result.

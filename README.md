@@ -71,6 +71,63 @@ To enable AVS for a staging/QA environment, set both `AVS_ENABLED=true` and
 all of these blank/unset in production until the feature is signed off. See
 `.env.example` for the full list.
 
+## Watermarking & Camera Bubble (WTM)
+
+WTM brands an exported demo: a corner watermark on every export, and an optional
+circular webcam bubble composited into the video. It ships behind a feature flag
+and is a complete no-op when the flag is off — including the free-tier
+watermark, so existing exports are unchanged until enablement.
+
+### Plan behavior
+
+| | FREE / anonymous | PRO / ENTERPRISE |
+| :-- | :-- | :-- |
+| Watermark | Forced Marvedge badge (bottom-right, 55% opacity). Cannot be customized or removed. | Custom PNG, adjustable opacity + corner, or switched off entirely. |
+| Camera bubble | Recorded and configurable, but not composited into the export. | Composited into the export. |
+
+Recording the camera is free for everyone — creation features are not gated. The
+gate sits at export: `app/api/jobs/create/route.ts` re-resolves the watermark
+from the user's real plan (so a FREE user gets the badge no matter what the
+client sends), and `/api/wtm/composite` rejects a non-PRO bubble.
+
+### The flow
+
+1. **Record** — the recorder offers a camera toggle with a live preview. With it
+   on, a second `MediaRecorder` captures the camera **video only** (the screen
+   recording already carries mic/tab audio, so muxing the camera too would
+   double it), uploads the clip, and stores its URL.
+2. **Arrange** — the editor's **Branding** sidebar tab places and sizes both
+   overlays, and the editor preview draws them over the video card so what you
+   arrange is what gets baked in. Preview and export share their corner math and
+   margins via `app/lib/wtm/geometry.ts`.
+3. **Composite (pre-pass)** — on export, if a camera clip exists,
+   `/api/wtm/composite` runs the Cloud Run worker's `/wtm-composite` first: it
+   normalizes both inputs to 30 FPS, center-square crops the camera (so a
+   non-16:9 webcam is cropped, not squished), applies a circular alpha mask, and
+   overlays it in the chosen corner, producing **one** composited MP4. Original
+   audio is passed through untouched.
+4. **Export** — that composited MP4 becomes the source for the existing chunked
+   export, which applies trim / zoom / background / text / subtitles and the
+   watermark on top. The pre-pass never fails an export: no clip, a non-PRO
+   user, or a worker error all fall back to the original source with a toast.
+
+All WTM state persists to `Demo.editing.wtm` (`watermark` + `webcam`) through the
+normal autosave — there is no DB migration.
+
+### Environment variables
+
+| Variable | Where | Purpose |
+| :-- | :-- | :-- |
+| `WTM_ENABLED` | Next app (server) | Master switch for the watermark render/plan logic and the composite route. Set to `true` to enable. |
+| `NEXT_PUBLIC_WTM_ENABLED` | Next app (client) | Shows the "Branding" sidebar panel and the preview overlays. Set to `true` to enable. |
+| `GCP_VIDEO_WORKER_URL` | Next app (server) | Reaches the Cloud Run worker for the compositing pre-pass. |
+| `WTM_COMPOSITE_FPS` | **Cloud Run worker only** | Frame rate both inputs are normalized to. Optional, defaults to `30`. |
+| `WTM_COMPOSITE_PREFIX` | **Cloud Run worker only** | GCS prefix for composited sources. Optional, defaults to `wtm-composite/`. |
+
+WTM needs no new vendor or API key — it is pure ffmpeg on the existing GCS /
+Cloud Run worker. Both flags are enabled on staging/QA; leave them blank in
+production until the feature is signed off. See `.env.example` for the full list.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

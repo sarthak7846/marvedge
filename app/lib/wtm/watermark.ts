@@ -35,6 +35,15 @@ export const DEFAULT_WATERMARK: WatermarkConfig = {
   scale: 0.08,
 };
 
+/**
+ * Browser-servable copy of the badge the worker bundles at
+ * `cloudrun-worker/assets/marvedge-watermark.png`. The worker reads its own copy
+ * from the container image; the editor preview cannot, so the same PNG is also
+ * shipped in `public/wtm/` — replace both together or preview stops matching
+ * export.
+ */
+export const WTM_DEFAULT_BADGE_URL = "/wtm/marvedge-watermark.png";
+
 /** Bounds the render engine also clamps to (see cloudrun-worker/render.js). */
 export const WTM_OPACITY_MIN = 0;
 export const WTM_OPACITY_MAX = 1;
@@ -81,4 +90,25 @@ export function sanitizeWatermarkConfig(raw: unknown): WatermarkConfig | undefin
     position: isWtmPosition(w.position) ? w.position : DEFAULT_WATERMARK.position,
     scale: clampNumber(w.scale, WTM_SCALE_MIN, WTM_SCALE_MAX, DEFAULT_WATERMARK.scale),
   };
+}
+
+/**
+ * The watermark an export will actually carry, given the user's plan:
+ *   FREE / anonymous → the forced Marvedge badge, client input ignored entirely
+ *                      (they cannot upload a logo, change opacity, or remove it)
+ *   PRO / ENTERPRISE → their own config, validated and clamped (including
+ *                      `enabled: false` — a PRO user removing the watermark)
+ *
+ * app/api/jobs/create/route.ts is the authority and calls this after its own
+ * flag check; the editor preview calls it too so what a user sees is what the
+ * server will bake in, for both plans.
+ */
+export function resolveWatermarkForPlan(
+  isPro: boolean,
+  clientWatermark: unknown
+): WatermarkConfig | undefined {
+  if (!isPro) {
+    return { ...DEFAULT_WATERMARK };
+  }
+  return sanitizeWatermarkConfig(clientWatermark);
 }

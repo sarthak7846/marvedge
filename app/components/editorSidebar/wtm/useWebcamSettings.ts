@@ -1,10 +1,9 @@
 import React from "react";
-import axios from "axios";
 import { useShallow } from "zustand/react/shallow";
 
 import type { WebcamOverlay, WtmPosition, WtmState } from "@/app/types/wtm";
 import { useEditorStore } from "@/app/store/editor/editorStore";
-import { isWtmAllowed } from "@/app/lib/wtm/access";
+import { useWtmPlan } from "@/app/hooks/useWtmPlan";
 import { clampNumber } from "@/app/lib/wtm/watermark";
 import { DEFAULT_WEBCAM, WTM_WEBCAM_SIZE_MAX, WTM_WEBCAM_SIZE_MIN } from "@/app/lib/wtm/webcam";
 
@@ -45,29 +44,7 @@ export function useWebcamSettings(): WebcamSettings {
     }))
   );
 
-  const [plan, setPlan] = React.useState<string | null>(null);
-  const [planLoading, setPlanLoading] = React.useState(true);
-
-  // Same source of truth as the export modal's plan check (/api/user/export-count).
-  React.useEffect(() => {
-    let cancelled = false;
-    axios
-      .get("/api/user/export-count")
-      .then((res) => {
-        if (!cancelled && res.data && typeof res.data.plan === "string") {
-          setPlan(res.data.plan);
-        }
-      })
-      .catch((err) => console.error("Could not fetch plan for branding panel", err))
-      .finally(() => {
-        if (!cancelled) {
-          setPlanLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { isPro, planLoading } = useWtmPlan();
 
   const persisted = wtm?.webcam;
   const webcam = persisted ?? DEFAULT_WEBCAM;
@@ -107,7 +84,7 @@ export function useWebcamSettings(): WebcamSettings {
 
   return {
     planLoading,
-    isPro: isWtmAllowed(plan),
+    isPro,
     webcam,
     hasConfig: Boolean(persisted),
     hasClip: Boolean(webcam.sourceUrl),
