@@ -1,3 +1,5 @@
+import type { WebcamOverlay, WtmPosition } from "@/app/types/wtm";
+
 export type GcpWorkerPayload = {
   chunkId?: string;
   recipeId: string;
@@ -16,6 +18,11 @@ export type GcpWorkerPayload = {
   audioUrl?: string;
   steps?: Array<{ id: string; index?: number; startTime: number; endTime: number }>;
   stepTimings?: Array<{ stepId: string; start: number; end: number }>;
+  // WTM webcam-bubble compositing (`/wtm-composite`).
+  webcamUrl?: string;
+  position?: string;
+  size?: number;
+  shape?: string;
 };
 
 export type GcpWorkerResponse = {
@@ -34,6 +41,8 @@ export type GcpWorkerResponse = {
     stepTimings?: Array<{ stepId: string; start: number; end: number }>;
     // AVS time-alignment (`/avs-sync`).
     alignedVideoUrl?: string;
+    // WTM webcam-bubble compositing (`/wtm-composite`).
+    compositedVideoUrl?: string;
   };
   error?: string;
 };
@@ -49,8 +58,9 @@ function normalizeWorkerBaseUrl(rawUrl: string) {
   }
   url = url.replace(/\/+$/, "");
   // Accept env values ending with a known endpoint (/process, /subtitles,
-  // /avs-voiceover, /avs-sync) so we always POST against the worker's base URL.
-  url = url.replace(/\/(process|subtitles|avs-voiceover|avs-sync)$/i, "");
+  // /avs-voiceover, /avs-sync, /wtm-composite) so we always POST against the
+  // worker's base URL.
+  url = url.replace(/\/(process|subtitles|avs-voiceover|avs-sync|wtm-composite)$/i, "");
   return url;
 }
 
@@ -241,4 +251,54 @@ export async function invokeGcpSync(payload: GcpSyncPayload): Promise<GcpSyncRes
   }
   const duration = typeof result?.duration === "number" ? result.duration : 0;
   return { alignedVideoUrl, duration };
+}
+
+export type GcpCompositePayload = {
+  videoUrl: string;
+  webcamUrl?: string;
+  position?: WtmPosition;
+  size?: number;
+  shape?: WebcamOverlay["shape"];
+};
+
+export type GcpCompositeResult = {
+  compositedVideoUrl: string;
+  duration: number;
+};
+
+// The compositor decodes both inputs, runs a per-pixel geq mask and re-encodes
+// the whole source in one pass — heavier than a chunk render, so it gets the
+// same generous headroom as the AVS alignment.
+const WTM_COMPOSITE_TIMEOUT_MS = 15 * 60 * 1000;
+
+/**
+ * Trigger the Cloud Run worker's `/wtm-composite` endpoint: mask the webcam clip
+ * into a circle and overlay it as a corner bubble on the source, producing ONE
+ * composited MP4 the normal export can then process. Mirrors `invokeGcpSync`.
+ * With no `webcamUrl` the worker degrades to returning the source unchanged.
+ */
+export async function invokeGcpComposite(
+  payload: GcpCompositePayload
+): Promise<GcpCompositeResult> {
+  const body = await invokeGcpWorker(
+    {
+      recipeId: "wtm-composite",
+      videoUrl: payload.videoUrl,
+      webcamUrl: payload.webcamUrl,
+      position: payload.position,
+      size: payload.size,
+      shape: payload.shape,
+    },
+    "/wtm-composite",
+    { timeoutMs: WTM_COMPOSITE_TIMEOUT_MS }
+  );
+
+  const result = body.result;
+  const compositedVideoUrl =
+    typeof result?.compositedVideoUrl === "string" ? result.compositedVideoUrl : "";
+  if (!compositedVideoUrl) {
+    throw new Error("Composite worker returned no video URL");
+  }
+  const duration = typeof result?.duration === "number" ? result.duration : 0;
+  return { compositedVideoUrl, duration };
 }
