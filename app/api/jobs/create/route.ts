@@ -5,7 +5,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
 import { isWtmEnabled } from "@/app/lib/wtm/flags";
 import { isWtmAllowed } from "@/app/lib/wtm/access";
-import type { WatermarkConfig, WtmPosition } from "@/app/types/wtm";
+import { DEFAULT_WATERMARK, sanitizeWatermarkConfig } from "@/app/lib/wtm/watermark";
+import type { WatermarkConfig } from "@/app/types/wtm";
 export const maxDuration = 300;
 
 const EXEMPT_EMAILS = [
@@ -45,60 +46,17 @@ async function isExportAllowed(
 
 // --- WTM (watermark) -------------------------------------------------------
 // The watermark baked into an export is decided here by plan — never by the
-// worker, which only renders whatever `recipe.watermark` it is handed. The
-// whole path is a no-op unless WTM_ENABLED is set, so prod behavior (and
-// existing recipes) are unchanged until enablement.
-
-const WTM_POSITIONS: readonly WtmPosition[] = ["br", "bl", "tr", "tl"];
-
-// FREE / anonymous default: a small, semi-transparent blue Marvedge badge in
-// the bottom-right. assetUrl omitted → the worker uses its bundled default logo.
-const FREE_TIER_WATERMARK: WatermarkConfig = {
-  enabled: true,
-  opacity: 0.55,
-  position: "br",
-  scale: 0.08,
-};
-
-function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
-  const n = Number(value);
-  if (!Number.isFinite(n)) {
-    return fallback;
-  }
-  return Math.min(max, Math.max(min, n));
-}
-
-function toHttpsUrl(url: string): string {
-  return url.startsWith("gs://") ? url.replace("gs://", "https://storage.googleapis.com/") : url;
-}
-
-// Validate + clamp a PRO/ENTERPRISE user's watermark config from the client.
-// enabled:false is preserved (a PRO user removing the watermark entirely).
-function sanitizeWatermarkConfig(raw: unknown): WatermarkConfig | undefined {
-  if (!raw || typeof raw !== "object") {
-    return undefined;
-  }
-  const w = raw as Record<string, unknown>;
-  const position = WTM_POSITIONS.includes(w.position as WtmPosition)
-    ? (w.position as WtmPosition)
-    : "br";
-  const assetUrl =
-    typeof w.assetUrl === "string" && w.assetUrl.trim().length > 0
-      ? toHttpsUrl(w.assetUrl.trim())
-      : undefined;
-  return {
-    enabled: Boolean(w.enabled),
-    ...(assetUrl ? { assetUrl } : {}),
-    opacity: clampNumber(w.opacity, 0, 1, 0.55),
-    position,
-    scale: clampNumber(w.scale, 0.01, 0.5, 0.08),
-  };
-}
+// worker, which only renders whatever `recipe.watermark` it is handed, and never
+// by the client, whose config is only ever a request. The whole path is a no-op
+// unless WTM_ENABLED is set, so prod behavior (and existing recipes) are
+// unchanged until enablement.
 
 // Resolve the effective watermark for an export:
 //   flag off         → undefined (no watermark; existing behavior preserved)
-//   FREE / anonymous → forced Marvedge badge (the monetization path)
-//   PRO / ENTERPRISE → the client's editing.wtm.watermark (incl. enabled:false), else none
+//   FREE / anonymous → forced Marvedge badge, client input ignored entirely
+//                      (they cannot upload a logo, change opacity, or remove it)
+//   PRO / ENTERPRISE → the client's editing.wtm.watermark, validated and clamped
+//                      (incl. enabled:false — removing the watermark), else none
 function resolveWatermarkForPlan(
   plan: string | null,
   clientWatermark: unknown
@@ -107,7 +65,7 @@ function resolveWatermarkForPlan(
     return undefined;
   }
   if (!isWtmAllowed(plan)) {
-    return { ...FREE_TIER_WATERMARK };
+    return { ...DEFAULT_WATERMARK };
   }
   return sanitizeWatermarkConfig(clientWatermark);
 }
