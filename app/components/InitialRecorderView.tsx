@@ -11,6 +11,11 @@ interface InitialRecorderViewProps {
   startScreenShare: () => void;
   toggleMic: () => void;
   micEnabled: boolean;
+  /** WTM-6.4 camera bubble controls (hidden when the feature flag is off). */
+  cameraAvailable: boolean;
+  toggleCamera: () => void;
+  cameraEnabled: boolean;
+  cameraStarting: boolean;
 }
 
 export default function InitialRecorderView({
@@ -18,6 +23,10 @@ export default function InitialRecorderView({
   startScreenShare,
   toggleMic,
   micEnabled,
+  cameraAvailable,
+  toggleCamera,
+  cameraEnabled,
+  cameraStarting,
 }: InitialRecorderViewProps) {
   const { setBlob, title, setTitle } = useBlobStore(
     useShallow((s) => ({ setBlob: s.setBlob, title: s.title, setTitle: s.setTitle }))
@@ -88,6 +97,10 @@ export default function InitialRecorderView({
         startScreenShare={startScreenShare}
         toggleMic={toggleMic}
         micEnabled={micEnabled}
+        cameraAvailable={cameraAvailable}
+        toggleCamera={toggleCamera}
+        cameraEnabled={cameraEnabled}
+        cameraStarting={cameraStarting}
       />
     </div>
   );

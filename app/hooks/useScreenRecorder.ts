@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useBlobStore } from "../store/blobStore";
 import { useRecordingStore } from "../store/recordingStore";
 import { toast } from "sonner";
+import { useWebcamRecorder } from "./useWebcamRecorder";
 
 // Build a combined screen + audio MediaStream. A silent oscillator is added
 // when no real audio source exists so the recording always has a valid audio
@@ -89,6 +90,10 @@ export const useScreenRecorder = () => {
   const recorderMimeTypeRef = useRef("video/webm");
   const recordingStartTimeRef = useRef<number>(0);
 
+  // Camera bubble (WTM-6.4): a self-contained second recorder that no-ops when
+  // the feature flag is off or the user never enabled the camera.
+  const webcamRecorder = useWebcamRecorder();
+
   const { recording, videoUrl, micEnabled, screenStream, recordingDuration, showScreenShareModal } =
     useRecordingStore(
       useShallow((state) => ({
@@ -116,6 +121,8 @@ export const useScreenRecorder = () => {
       return;
     }
     hasFinalizedRef.current = true;
+    // Stop the camera in lockstep with the screen recorder.
+    webcamRecorder.stop();
 
     if (chunksRef.current.length > 0) {
       const blob = new Blob(chunksRef.current, { type: recorderMimeTypeRef.current });
@@ -173,7 +180,11 @@ export const useScreenRecorder = () => {
         finalizeRecording();
       };
 
+      // Armed before the screen recorder starts so both begin in the same tick.
+      const startCameraRecorder = webcamRecorder.prepare();
+
       mediaRecorder.current.start(250);
+      startCameraRecorder?.();
       setRecording(true);
       recordingStartTimeRef.current = Date.now();
       setRecordingDuration(0);
@@ -241,6 +252,8 @@ export const useScreenRecorder = () => {
     resetRecordingState();
     screenStreamRef.current = null;
     setSourceDuration(0);
+    // The take was discarded, so its webcam clip must not survive into the next.
+    webcamRecorder.discard();
   };
 
   return {

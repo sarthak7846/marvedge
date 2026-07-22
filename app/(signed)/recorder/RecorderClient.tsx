@@ -12,6 +12,8 @@ import SavePopupForm from "@/app/components/SavePopupForm";
 import { useRecorderState, useRecordingTimer } from "./hooks/useRecorderState";
 import { useVideoDuration } from "./hooks/useVideoDuration";
 import { useRecorderActions, getUserInitials } from "./hooks/useRecorderActions";
+import { useCameraControls } from "./hooks/useCameraControls";
+import { isWtmPanelEnabled } from "@/app/lib/wtm/flags";
 
 import InitialRecorderView from "@/app/components/InitialRecorderView";
 import RecorderWorkspaceView from "./RecorderWorkspaceView";
@@ -45,6 +47,11 @@ export default function RecorderPage() {
     recordingDuration,
     reset,
   } = useScreenRecorder();
+
+  // WTM-6.4: optional webcam capture. The stream lands in the recording store,
+  // where useScreenRecorder picks it up for its second (video-only) recorder.
+  const cameraAvailable = isWtmPanelEnabled();
+  const { cameraEnabled, cameraStarting, toggleCamera } = useCameraControls();
 
   const { data: session } = useSession();
   const initials = getUserInitials(session);
@@ -84,6 +91,7 @@ export default function RecorderPage() {
         fileInputRef={fileInputRef}
         onPopupDownload={handlePopupDownload}
         isProcessingRef={isProcessingRef}
+        cameraAvailable={cameraAvailable}
       />
     );
   }
@@ -101,6 +109,10 @@ export default function RecorderPage() {
         startScreenShare={startScreenShare}
         toggleMic={toggleMic}
         micEnabled={micEnabled}
+        cameraAvailable={cameraAvailable}
+        toggleCamera={toggleCamera}
+        cameraEnabled={cameraEnabled}
+        cameraStarting={cameraStarting}
       />
 
       <SavePopupForm

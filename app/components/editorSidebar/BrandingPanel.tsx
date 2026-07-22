@@ -2,6 +2,8 @@ import React from "react";
 
 import WatermarkEditor from "./wtm/WatermarkEditor";
 import { useWatermarkSettings } from "./wtm/useWatermarkSettings";
+import WebcamEditor from "./wtm/WebcamEditor";
+import { useWebcamSettings } from "./wtm/useWebcamSettings";
 
 /**
  * WTM ("Branding") sidebar panel.
@@ -13,6 +15,12 @@ import { useWatermarkSettings } from "./wtm/useWatermarkSettings";
  * existing autosave (it already serializes the store's `wtm` field) and are
  * carried into the export payload by useExportFlow.
  *
+ * PR 4 adds the camera bubble (WTM-6.4) below it: the recorder captures and
+ * uploads a webcam clip to `Demo.editing.wtm.webcam.sourceUrl`, and these
+ * controls place and size the circular bubble that gets composited over the
+ * export. Configuring it is free for everyone; only the composited output is
+ * PRO, and that is enforced server-side.
+ *
  * The panel only decides what a user is *offered*: jobs/create re-resolves the
  * watermark from the user's real plan, so FREE/anonymous exports always get the
  * forced Marvedge badge no matter what is persisted here.
@@ -22,6 +30,7 @@ import { useWatermarkSettings } from "./wtm/useWatermarkSettings";
  */
 const BrandingPanel: React.FC = () => {
   const watermarkSettings = useWatermarkSettings();
+  const webcamSettings = useWebcamSettings();
 
   return (
     <div className="space-y-6">
@@ -33,6 +42,10 @@ const BrandingPanel: React.FC = () => {
         </p>
 
         <WatermarkEditor {...watermarkSettings} />
+      </div>
+
+      <div className="border-t border-[#ede7fa] pt-6">
+        <WebcamEditor {...webcamSettings} />
       </div>
     </div>
   );

@@ -1,22 +1,9 @@
 import React from "react";
 import { Lock, Trash2, Upload } from "lucide-react";
 
-import type { WtmPosition } from "@/app/types/wtm";
-import {
-  WTM_OPACITY_MAX,
-  WTM_OPACITY_MIN,
-  WTM_POSITIONS,
-  WTM_POSITION_LABELS,
-} from "@/app/lib/wtm/watermark";
+import { WTM_OPACITY_MAX, WTM_OPACITY_MIN } from "@/app/lib/wtm/watermark";
+import CornerPicker from "./CornerPicker";
 import type { WatermarkSettings } from "./useWatermarkSettings";
-
-// Where the little dot sits inside the corner-picker preview box.
-const CORNER_DOT_CLASS: Record<WtmPosition, string> = {
-  tl: "top-1 left-1",
-  tr: "top-1 right-1",
-  bl: "bottom-1 left-1",
-  br: "bottom-1 right-1",
-};
 
 /**
  * Watermark controls (WTM-6.3): enable/disable, custom PNG upload + preview,
@@ -150,32 +137,7 @@ const WatermarkEditor: React.FC<WatermarkSettings> = ({
           <span className="control-block-label block text-[#A594F9] font-semibold mb-2 text-xs">
             Placement
           </span>
-          <div className="grid grid-cols-4 gap-2">
-            {WTM_POSITIONS.map((position) => {
-              const isActive = watermark.position === position;
-              return (
-                <button
-                  key={position}
-                  type="button"
-                  onClick={() => setPosition(position)}
-                  title={WTM_POSITION_LABELS[position]}
-                  aria-label={WTM_POSITION_LABELS[position]}
-                  aria-pressed={isActive}
-                  className={`relative h-10 rounded-lg border-2 bg-white transition-all disabled:cursor-not-allowed ${
-                    isActive
-                      ? "border-[#7C5CFC] shadow-md"
-                      : "border-[#ede7fa] hover:border-[#A594F9]"
-                  }`}
-                >
-                  <span
-                    className={`absolute h-2.5 w-2.5 rounded-sm ${CORNER_DOT_CLASS[position]} ${
-                      isActive ? "bg-[#7C5CFC]" : "bg-[#D6CCF7]"
-                    }`}
-                  />
-                </button>
-              );
-            })}
-          </div>
+          <CornerPicker value={watermark.position} onChange={setPosition} />
         </div>
       </fieldset>
     </div>

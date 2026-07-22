@@ -1,3 +1,5 @@
+import CameraBubblePreview from "@/app/components/CameraBubblePreview";
+
 interface RecorderMainPanelProps {
   uploadedFileUrl: string | null;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -5,6 +7,11 @@ interface RecorderMainPanelProps {
   startScreenShare: () => void;
   toggleMic: () => void;
   micEnabled: boolean;
+  /** WTM-6.4: false hides the camera controls entirely (feature flag off). */
+  cameraAvailable: boolean;
+  toggleCamera: () => void;
+  cameraEnabled: boolean;
+  cameraStarting: boolean;
 }
 
 export default function RecorderMainPanel({
@@ -14,6 +21,10 @@ export default function RecorderMainPanel({
   startScreenShare,
   toggleMic,
   micEnabled,
+  cameraAvailable,
+  toggleCamera,
+  cameraEnabled,
+  cameraStarting,
 }: RecorderMainPanelProps) {
   return (
     <main className="flex-1 flex flex-col h-full overflow-hidden">
@@ -66,6 +77,15 @@ export default function RecorderMainPanel({
               </div>
             </>
           )}
+          {cameraAvailable && cameraEnabled && (
+            <div className="flex flex-col items-center gap-2 mt-4">
+              <CameraBubblePreview className="h-24 w-24 sm:h-28 sm:w-28" />
+              <span className="text-xs text-gray-400">
+                This bubble is recorded alongside your screen
+              </span>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-4 sm:mt-6 justify-center items-center w-full">
             <button
               onClick={startScreenShare}
@@ -90,6 +110,22 @@ export default function RecorderMainPanel({
                 />
               </button>
             </div>
+            {cameraAvailable && (
+              <div className="camera flex items-center gap-2 sm:gap-3 ml-0 sm:ml-4 mt-2 sm:mt-0 w-full sm:w-auto justify-center">
+                <span className="text-[#888] font-medium text-sm sm:text-base">Camera</span>
+                <button
+                  onClick={toggleCamera}
+                  disabled={cameraStarting}
+                  aria-pressed={cameraEnabled}
+                  aria-label={cameraEnabled ? "Turn camera off" : "Turn camera on"}
+                  className={`toggle w-10 sm:w-12 h-6 rounded-full flex items-center px-1 transition ${cameraEnabled ? "bg-[#6C63FF]" : "bg-gray-300"} cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed`}
+                >
+                  <span
+                    className={`toggle-circle w-4 h-4 bg-white rounded-full shadow transition-transform ${cameraEnabled ? "translate-x-4 sm:translate-x-6" : ""}`}
+                  />
+                </button>
+              </div>
+            )}
           </div>
 
           <input
