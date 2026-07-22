@@ -4,6 +4,7 @@ import { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import { Segment } from "../hooks/useEditorState";
 import { uploadBlobToGcs } from "@/app/lib/gcsUploadClient";
 import { fixWebmDurationIfNeeded } from "@/app/lib/fixWebmDuration";
+import type { WatermarkConfig } from "@/app/types/wtm";
 
 function getDemoIdFromApiResponse(data: unknown): string | null {
   if (!data || typeof data !== "object") {
@@ -536,6 +537,9 @@ interface ExportVideoParams {
   savedDemoId?: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   settings?: any; // The new export settings
+  // WTM: the demo's `editing.wtm.watermark`, if any. Only a *request* — the
+  // server re-resolves the effective watermark from the user's plan.
+  watermark?: WatermarkConfig;
 }
 
 interface ExportVideoResult {
@@ -778,6 +782,7 @@ export const exportVideo = async ({
   duration,
   savedDemoId,
   settings,
+  watermark,
 }: ExportVideoParams): Promise<ExportVideoResult | null> => {
   const toastId = toast.loading("Preparing to export...");
   const exportSettings = settings || {
@@ -846,6 +851,9 @@ export const exportVideo = async ({
       imageMap,
       settings: exportSettings,
       subtitles: subtitles || [],
+      // WTM: omitted entirely when the demo has no watermark config, so the
+      // request body is identical to today for non-WTM demos.
+      ...(watermark ? { watermark } : {}),
     });
 
     const { jobId } = createRes.data;

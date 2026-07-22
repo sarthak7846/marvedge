@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { ExportSettings } from "@/app/components/ExportSettingsModal";
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import { exportVideo } from "../utils/videoHandlers";
+import { sanitizeWatermarkConfig } from "@/app/lib/wtm/watermark";
 import { buildExportSpeed, resolveExportBackgroundSelection } from "../utils/exportHelpers";
 import { SubtitleCue, TextOverlayItem } from "../types";
 import type { EditorState } from "../apiTypes";
@@ -50,6 +51,7 @@ export function useExportFlow({
     browserFrameDrawBorder,
     duration,
     savedDemoId,
+    wtm,
   } = editorState;
 
   const [showExportSettings, setShowExportSettings] = useState(false);
@@ -110,6 +112,11 @@ export function useExportFlow({
         fps: "24 FPS",
         speed: buildExportSpeed(playbackSpeed),
       },
+      // WTM: hand the demo's persisted watermark config to the export. The
+      // server decides the effective watermark from the user's plan (FREE →
+      // forced Marvedge badge), so this is a request, not the final word.
+      // Undefined for demos with no branding config → payload unchanged.
+      watermark: sanitizeWatermarkConfig(wtm?.watermark),
     });
 
     if (result) {

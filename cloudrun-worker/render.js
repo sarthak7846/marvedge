@@ -12,6 +12,36 @@ ffmpeg.setFfprobePath("/usr/bin/ffprobe");
 
 const EPS = 0.001;
 
+// WTM (watermark): the bundled default Marvedge badge shipped in the image (see
+// Dockerfile `COPY assets ./assets`). Resolved relative to this file so it works
+// both in the container (/app/assets/...) and locally. Used when a chunk's
+// recipe.watermark is enabled with no custom assetUrl.
+const DEFAULT_WATERMARK_PATH = path.join(__dirname, "assets", "marvedge-watermark.png");
+const WTM_POSITIONS = ["br", "bl", "tr", "tl"];
+
+// Overlay x:y expressions per corner (W/H = canvas, w/h = watermark, m = margin).
+function watermarkOverlayXY(position, margin) {
+  switch (position) {
+    case "bl":
+      return `${margin}:H-h-${margin}`;
+    case "tr":
+      return `W-w-${margin}:${margin}`;
+    case "tl":
+      return `${margin}:${margin}`;
+    case "br":
+    default:
+      return `W-w-${margin}:H-h-${margin}`;
+  }
+}
+
+function clampRange(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, n));
+}
+
 function runFfmpeg(command) {
   return new Promise((resolve, reject) => {
     command
@@ -598,6 +628,25 @@ async function renderChunkFromRecipe({
     await downloadFile(recipe.customBackgroundUrl, bgPath);
   }
 
+  // WTM: plan is decided upstream in jobs/create — the worker only renders
+  // recipe.watermark when present and enabled. A custom assetUrl is downloaded
+  // like the custom background; otherwise the bundled default badge is used.
+  // Absent/disabled → the filter chain and output are byte-for-byte unchanged.
+  const watermarkConfig =
+    recipe.watermark && recipe.watermark.enabled === true ? recipe.watermark : null;
+  let watermarkPath = null;
+  if (watermarkConfig) {
+    if (watermarkConfig.assetUrl) {
+      watermarkPath = path.join(tempDir, "watermark.png");
+      await downloadFile(watermarkConfig.assetUrl, watermarkPath);
+    } else if (fs.existsSync(DEFAULT_WATERMARK_PATH)) {
+      watermarkPath = DEFAULT_WATERMARK_PATH;
+    }
+  }
+  const hasWatermark = Boolean(watermarkPath);
+  // Input index: source=0, custom background=1 (if any), watermark=next.
+  const watermarkInputIndex = hasCustomBackground ? 2 : 1;
+
   const qSettings = recipe.settings || {
     quality: "720p",
     fps: "24 FPS",
@@ -1037,6 +1086,33 @@ async function renderChunkFromRecipe({
     videoOut = "[subv]";
   }
 
+  // Watermark overlays LAST among the visual layers (after bg/zoom/text/subs) so
+  // it sits on top of everything. Sized responsively via scale2ref against the
+  // composed canvas (height ≈ canvas height * scale), made semi-transparent via
+  // colorchannelmixer, and anchored to a corner (bottom-right default). The
+  // canvas is identical across chunks, so the badge is uniform in the merged out.
+  if (hasWatermark) {
+    const opacity = clampRange(watermarkConfig.opacity, 0, 1, 0.55);
+    const scale = clampRange(watermarkConfig.scale, 0.01, 0.5, 0.08);
+    const position = WTM_POSITIONS.includes(watermarkConfig.position)
+      ? watermarkConfig.position
+      : "br";
+    // ~15px at 1080p, scaled proportionally with the output height.
+    const margin = Math.max(1, Math.round((targetHeight * 15) / 1080));
+    const wmSrc = `[${watermarkInputIndex}:v]`;
+    filters.push(`${wmSrc}format=rgba,colorchannelmixer=aa=${opacity.toFixed(3)}[wmlogo]`);
+    // scale2ref: scale the logo (1st) using the composed video (2nd) as reference;
+    // it passes the reference through unchanged as [wmbase]. w=-2 keeps the
+    // logo's aspect ratio and rounds to an even width.
+    filters.push(
+      `[wmlogo]${videoOut}scale2ref=w=-2:h=main_h*${scale.toFixed(4)}[wmscaled][wmbase]`
+    );
+    filters.push(
+      `[wmbase][wmscaled]overlay=${watermarkOverlayXY(position, margin)}:format=auto[wmv]`
+    );
+    videoOut = "[wmv]";
+  }
+
   if (speedFactor !== 1.0) {
     const pts = (1 / speedFactor).toFixed(4);
     filters.push(`${videoOut}setpts=${pts}*PTS[speedv]`);
@@ -1070,6 +1146,11 @@ async function renderChunkFromRecipe({
   }
   if (hasCustomBackground) {
     finalCmd.input(bgPath);
+  }
+  // Added after the optional custom background so the watermark's input index is
+  // deterministic (hasCustomBackground ? 2 : 1), matching watermarkInputIndex.
+  if (hasWatermark) {
+    finalCmd.input(watermarkPath);
   }
 
   finalCmd

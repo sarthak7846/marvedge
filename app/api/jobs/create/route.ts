@@ -3,6 +3,10 @@ import { prisma } from "@/app/lib/prisma";
 import { invokeGcpWorker } from "@/app/lib/gcpWorker";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
+import { isWtmEnabled } from "@/app/lib/wtm/flags";
+import { isWtmAllowed } from "@/app/lib/wtm/access";
+import { DEFAULT_WATERMARK, sanitizeWatermarkConfig } from "@/app/lib/wtm/watermark";
+import type { WatermarkConfig } from "@/app/types/wtm";
 export const maxDuration = 300;
 
 const EXEMPT_EMAILS = [
@@ -38,6 +42,32 @@ async function isExportAllowed(
   const exportCount = Math.max(jobCount, savedCount);
 
   return exportCount < 3;
+}
+
+// --- WTM (watermark) -------------------------------------------------------
+// The watermark baked into an export is decided here by plan — never by the
+// worker, which only renders whatever `recipe.watermark` it is handed, and never
+// by the client, whose config is only ever a request. The whole path is a no-op
+// unless WTM_ENABLED is set, so prod behavior (and existing recipes) are
+// unchanged until enablement.
+
+// Resolve the effective watermark for an export:
+//   flag off         → undefined (no watermark; existing behavior preserved)
+//   FREE / anonymous → forced Marvedge badge, client input ignored entirely
+//                      (they cannot upload a logo, change opacity, or remove it)
+//   PRO / ENTERPRISE → the client's editing.wtm.watermark, validated and clamped
+//                      (incl. enabled:false — removing the watermark), else none
+function resolveWatermarkForPlan(
+  plan: string | null,
+  clientWatermark: unknown
+): WatermarkConfig | undefined {
+  if (!isWtmEnabled()) {
+    return undefined;
+  }
+  if (!isWtmAllowed(plan)) {
+    return { ...DEFAULT_WATERMARK };
+  }
+  return sanitizeWatermarkConfig(clientWatermark);
 }
 
 // Dispatches chunked processing to GCP Cloud Run workers and merges the result.
@@ -213,6 +243,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Decide the watermark from the user's plan (free → forced badge, PRO →
+    // their config or none). undefined when the flag is off, so the recipe is
+    // identical to today and non-WTM exports are unchanged.
+    const watermark = resolveWatermarkForPlan(user.plan, data.watermark);
+
     // 1. Create a job record in the database
     const jobRecord = await prisma.videoJob.create({
       data: {
@@ -235,6 +270,9 @@ export async function POST(req: NextRequest) {
             drawShadow: true,
             drawBorder: false,
           },
+          // Spread into a fresh object literal so the Prisma Json field accepts
+          // it (a named interface lacks the implicit index signature Prisma wants).
+          ...(watermark ? { watermark: { ...watermark } } : {}),
         },
       },
     });
@@ -258,6 +296,7 @@ export async function POST(req: NextRequest) {
         drawShadow: true,
         drawBorder: false,
       },
+      ...(watermark ? { watermark } : {}),
     };
 
     // 2. Dispatch to GCP Cloud Run workers (Scatter-Gather)

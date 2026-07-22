@@ -2,6 +2,8 @@ export type GcsUploadKind =
   | "demo-source"
   | "export-source"
   | "background"
+  // WTM: a PRO user's custom watermark PNG (app/components/editorSidebar/wtm).
+  | "watermark"
   | "subtitle-source"
   | "generic";
 
