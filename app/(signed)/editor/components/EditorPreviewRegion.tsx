@@ -6,6 +6,7 @@ import { useEditorStore } from "@/app/store/editor/editorStore";
 import EditorTimelineSection from "./EditorTimelineSection";
 import EditorVideoStage from "./EditorVideoStage";
 import TextColorToolbar from "./TextColorToolbar";
+import WtmPreviewOverlay from "./WtmPreviewOverlay";
 import { computePreviewLayout } from "../utils/previewLayout";
 import type { EditorState, SubtitlesApi, TextOverlaysApi, ZoomEditorApi } from "../apiTypes";
 
@@ -192,6 +193,12 @@ export default function EditorPreviewRegion(props: EditorPreviewRegionProps) {
               lastInteractionRef={lastInteractionRef}
               isDraggingTimelineRef={isDraggingTimelineRef}
             />
+
+            {/* WTM: the watermark + camera bubble the export will bake in,
+                drawn over the card — which carries the export's aspect ratio,
+                so the shared corner math lands where ffmpeg will put it.
+                Renders nothing unless NEXT_PUBLIC_WTM_ENABLED is on. */}
+            <WtmPreviewOverlay playbackSpeed={playbackSpeed} />
           </div>
 
           {videoUrl && (
