@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { ExportSettings } from "@/app/components/ExportSettingsModal";
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import { exportVideo } from "../utils/videoHandlers";
+import { useWebcamComposite } from "./useWebcamComposite";
 import { sanitizeWatermarkConfig } from "@/app/lib/wtm/watermark";
 import { buildExportSpeed, resolveExportBackgroundSelection } from "../utils/exportHelpers";
 import { SubtitleCue, TextOverlayItem } from "../types";
@@ -80,6 +81,10 @@ export function useExportFlow({
     return res.data?.exportedVideo?.id;
   };
 
+  // WTM: the camera-bubble pre-pass, run over the source before the chunked
+  // export (see useWebcamComposite). A no-op without a recorded clip.
+  const compositeWebcamBubble = useWebcamComposite(wtm);
+
   const onExportVideo = async (settings: ExportSettings) => {
     setShowExportSettings(false);
 
@@ -117,6 +122,10 @@ export function useExportFlow({
       // forced Marvedge badge), so this is a request, not the final word.
       // Undefined for demos with no branding config → payload unchanged.
       watermark: sanitizeWatermarkConfig(wtm?.watermark),
+      // WTM: composite the camera bubble into the source first (a no-op for
+      // demos without a recorded clip), so the chunked export renders the
+      // already-composited MP4.
+      prepareSourceUrl: compositeWebcamBubble,
     });
 
     if (result) {

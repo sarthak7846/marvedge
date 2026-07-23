@@ -5,6 +5,7 @@ import RecorderTopbar from "@/app/components/RecorderTopbar";
 import SavePopupForm from "@/app/components/SavePopupForm";
 import VideoPlayerSection from "@/app/components/VideoPlayerSection";
 import RecordingControls from "@/app/components/RecordingControls";
+import CameraBubblePreview from "@/app/components/CameraBubblePreview";
 import { useRecorderStore } from "@/app/store/recorderStore";
 import { useBlobStore } from "@/app/store/blobStore";
 
@@ -24,6 +25,8 @@ interface RecorderWorkspaceViewProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onPopupDownload: (data: { title: string; format: string }) => void;
   isProcessingRef: React.MutableRefObject<boolean>;
+  /** WTM-6.4: false hides the floating camera self-view (feature flag off). */
+  cameraAvailable: boolean;
 }
 
 // saveMessage was always "" (no setter was ever exposed); kept for parity.
@@ -45,6 +48,7 @@ export default function RecorderWorkspaceView({
   fileInputRef,
   onPopupDownload,
   isProcessingRef,
+  cameraAvailable,
 }: RecorderWorkspaceViewProps) {
   const {
     uploadedFileType,
@@ -135,6 +139,10 @@ export default function RecorderWorkspaceView({
           </div>
         </main>
       </div>
+
+      {/* Floating self-view: shows what the camera bubble is capturing while the
+          screen is being recorded. Renders nothing when the camera is off. */}
+      {cameraAvailable && <CameraBubblePreview className="fixed bottom-6 left-6 z-40 h-28 w-28" />}
 
       <input
         type="file"

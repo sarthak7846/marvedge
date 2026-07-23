@@ -27,9 +27,14 @@ export interface WatermarkConfig {
 }
 
 /**
- * Circular webcam bubble overlay. Forward-compat only — WTM-6.4 is deferred
- * pending a product decision on where webcam footage comes from, so this type
- * exists to shape the state without any UI or pipeline in the active PRs.
+ * Circular webcam bubble overlay persisted to Demo.editing.wtm.webcam.
+ *
+ * `sourceUrl` is the webcam clip captured alongside the screen recording (see
+ * app/hooks/useScreenRecorder.ts) and uploaded with `kind: "webcam-source"`;
+ * absent → nothing was recorded and the compositor is a no-op. `size` is the
+ * bubble diameter as a fraction of the output height (0.28 ≈ 28%). Capture is
+ * free for everyone — the PRO gate (app/lib/wtm/access.ts) is enforced server
+ * side when the bubble is composited into the export.
  */
 export interface WebcamOverlay {
   enabled: boolean;
@@ -42,6 +47,6 @@ export interface WebcamOverlay {
 /** The complete WTM state stored under Demo.editing.wtm. */
 export interface WtmState {
   watermark?: WatermarkConfig;
-  /** Deferred (WTM-6.4); shaped for forward-compat, no UI/pipeline yet. */
+  /** Circular webcam bubble (WTM-6.4). Absent until a camera clip is captured. */
   webcam?: WebcamOverlay;
 }

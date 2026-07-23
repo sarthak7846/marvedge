@@ -4,6 +4,8 @@ export type GcsUploadKind =
   | "background"
   // WTM: a PRO user's custom watermark PNG (app/components/editorSidebar/wtm).
   | "watermark"
+  // WTM: the webcam clip captured alongside a screen recording (WTM-6.4).
+  | "webcam-source"
   | "subtitle-source"
   | "generic";
 

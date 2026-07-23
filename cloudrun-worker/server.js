@@ -29,6 +29,22 @@ const AVS_VOICEOVER_PREFIX = process.env.AVS_VOICEOVER_PREFIX || "avs-voiceover/
 const AVS_ALIGNED_PREFIX = process.env.AVS_ALIGNED_PREFIX || "avs-aligned/";
 // Frame rate the aligned segments are normalized to so they concat with -c copy.
 const AVS_SYNC_FPS = Number(process.env.AVS_SYNC_FPS || 30);
+// GCS object prefix for WTM webcam-bubble composited MP4s (processed bucket).
+const WTM_COMPOSITE_PREFIX = process.env.WTM_COMPOSITE_PREFIX || "wtm-composite/";
+// BOTH compositor inputs are normalized to this frame rate first: a 60 FPS
+// screen capture overlaid with a 24 FPS webcam otherwise drifts apart over a
+// long recording (PRD §6.4 edge case).
+const WTM_COMPOSITE_FPS = Number(process.env.WTM_COMPOSITE_FPS || 30);
+// Bubble inset from its corner, in px at 1080p and scaled with the source
+// height — mirrors the watermark margin logic in render.js.
+const WTM_BUBBLE_MARGIN_PX = 25;
+// Bubble diameter as a fraction of the source height. Mirrors
+// DEFAULT_WEBCAM.size / WTM_WEBCAM_SIZE_MIN / MAX in app/lib/wtm/webcam.ts.
+const WTM_BUBBLE_SIZE_MIN = 0.05;
+const WTM_BUBBLE_SIZE_MAX = 0.6;
+const WTM_BUBBLE_SIZE_DEFAULT = 0.28;
+// Corners an overlay can be anchored to (same set as render.js / WtmPosition).
+const WTM_POSITIONS = ["br", "bl", "tr", "tl"];
 // Deepgram Aura per-request text cap. The API rejects very long text, so we
 // split a step's narration at sentence boundaries to stay comfortably under it.
 const AURA_CHAR_LIMIT = Number(process.env.AURA_CHAR_LIMIT || 1800);
@@ -799,6 +815,208 @@ async function processSyncJob({ videoUrl, audioUrl, steps, stepTimings }) {
   }
 }
 
+// --- WTM webcam bubble compositing (WTM-6.4) -------------------------------
+
+function clampRange(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, n));
+}
+
+/** x264 needs even dimensions on both axes for yuv420p chroma subsampling. */
+function evenDimension(value) {
+  return Math.max(2, Math.round(value / 2) * 2);
+}
+
+/** Probe the first video stream's pixel dimensions via ffprobe. */
+async function probeVideoDimensions(filePath) {
+  const { stdout } = await execFileAsync("/usr/bin/ffprobe", [
+    "-v",
+    "error",
+    "-select_streams",
+    "v:0",
+    "-show_entries",
+    "stream=width,height",
+    "-of",
+    "default=noprint_wrappers=1:nokey=1",
+    filePath,
+  ]);
+  const [width, height] = String(stdout)
+    .trim()
+    .split(/\s+/)
+    .map((n) => Number(n));
+  return {
+    width: Number.isFinite(width) && width > 0 ? width : 0,
+    height: Number.isFinite(height) && height > 0 ? height : 0,
+  };
+}
+
+/**
+ * Overlay x:y expressions per corner (W/H = source, w/h = bubble, m = margin).
+ * Mirrors `watermarkOverlayXY` in render.js; the default here is bottom-LEFT so
+ * the bubble keeps clear of the bottom-right watermark.
+ */
+function bubbleOverlayXY(position, margin) {
+  switch (position) {
+    case "br":
+      return `W-w-${margin}:H-h-${margin}`;
+    case "tr":
+      return `W-w-${margin}:${margin}`;
+    case "tl":
+      return `${margin}:${margin}`;
+    case "bl":
+    default:
+      return `${margin}:H-h-${margin}`;
+  }
+}
+
+/**
+ * Composite the webcam clip onto the source as a circular corner bubble
+ * (WTM-6.4) — a PRE-PASS producing ONE MP4 that the normal chunked export then
+ * processes, exactly like /avs-sync. The filter chain:
+ *   - `fps` on BOTH inputs first, so a 60 FPS capture + a 24 FPS webcam can't
+ *     drift apart;
+ *   - a dynamic bounding crop to the largest centered square (`min(iw,ih)`)
+ *     before scaling, so a non-16:9 webcam is cropped rather than squished;
+ *   - a `geq` luma mask (255 inside the inscribed circle, 0 outside) merged in
+ *     as the alpha channel, giving a clean circular cutout;
+ *   - `overlay` at the requested corner.
+ * The ORIGINAL SOURCE AUDIO is mapped through untouched and the webcam's audio
+ * is never mapped — the screen recording already carries mic/tab audio, so
+ * muxing the webcam too would double it. Returns { compositedVideoUrl,
+ * duration }. FALLBACK: no webcam → the source is returned unchanged.
+ */
+async function processCompositeJob({ videoUrl, webcamUrl, position, size, shape }) {
+  if (!videoUrl) throw new Error("videoUrl is required");
+
+  // Fallback: nothing to composite → hand the source straight back, no ffmpeg.
+  if (!webcamUrl) {
+    return { compositedVideoUrl: videoUrl, duration: 0 };
+  }
+
+  const processedBucket = must("PROCESSED_BUCKET", PROCESSED_BUCKET);
+  const startedAt = Date.now();
+  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "marvedge-wtm-composite-"));
+  try {
+    const sourcePath = path.join(workDir, "source.mp4");
+    await downloadToPath(videoUrl, sourcePath);
+    const webcamPath = path.join(workDir, "webcam.mp4");
+    await downloadToPath(webcamUrl, webcamPath);
+
+    // The bubble is sized against the SOURCE height, so it lands at the same
+    // relative size the editor preview shows regardless of the webcam's own
+    // resolution. A failed probe falls back to 1080p.
+    const { height: probedHeight } = await probeVideoDimensions(sourcePath);
+    const sourceHeight = probedHeight > 0 ? probedHeight : 1080;
+    const fraction = clampRange(
+      size,
+      WTM_BUBBLE_SIZE_MIN,
+      WTM_BUBBLE_SIZE_MAX,
+      WTM_BUBBLE_SIZE_DEFAULT,
+    );
+    const diameter = evenDimension(Math.min(sourceHeight, fraction * sourceHeight));
+    const corner = WTM_POSITIONS.includes(position) ? position : "bl";
+    const margin = Math.max(1, Math.round((sourceHeight * WTM_BUBBLE_MARGIN_PX) / 1080));
+    // v1 is circle-only (PRD §6.4). An unknown shape degrades to a circle
+    // rather than failing the export; the field stays for future shapes.
+    const bubbleShape = "circle";
+    if (shape && shape !== bubbleShape) {
+      console.warn(`[wtm-composite] unsupported shape "${shape}", using circle`);
+    }
+
+    // `split` is required because the squared webcam feeds BOTH the mask
+    // generator and alphamerge — a filtergraph label can only be consumed once.
+    const filterComplex = [
+      `[1:v]fps=${WTM_COMPOSITE_FPS},crop='min(iw,ih)':'min(iw,ih)',` +
+        `scale=${diameter}:${diameter},setsar=1,split=2[sqa][sqb]`,
+      `[sqb]geq='st(3,pow(X-(W/2),2)+pow(Y-(H/2),2));` +
+        `if(lte(ld(3),pow(min(W/2,H/2),2)),255,0)':128:128,format=gray[mask]`,
+      `[sqa]format=yuva420p[camsrc]`,
+      `[camsrc][mask]alphamerge[cam]`,
+      `[0:v]fps=${WTM_COMPOSITE_FPS}[base]`,
+      // eof_action=pass is load-bearing: overlay's DEFAULT (repeat) keeps the
+      // graph alive until BOTH inputs end, so a webcam clip even slightly
+      // longer than the screen capture would extend the output past the source
+      // (freezing its last frame) and leave the audio ending early. With
+      // `pass`, the output always ends with the source and the bubble simply
+      // stops if the webcam runs out first.
+      `[base][cam]overlay=${bubbleOverlayXY(corner, margin)}:format=auto:eof_action=pass[out]`,
+    ].join(";");
+
+    const compositedPath = path.join(workDir, "composited.mp4");
+    await execFileAsync(
+      "/usr/bin/ffmpeg",
+      [
+        "-y",
+        "-i",
+        sourcePath,
+        "-i",
+        webcamPath,
+        "-filter_complex",
+        filterComplex,
+        "-map",
+        "[out]",
+        // Source audio only, and optional so a silent screen capture still
+        // succeeds. The webcam input's audio is never mapped (see above).
+        "-map",
+        "0:a?",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "20",
+        "-pix_fmt",
+        "yuv420p",
+        "-r",
+        String(WTM_COMPOSITE_FPS),
+        "-c:a",
+        "aac",
+        "-b:a",
+        "160k",
+        "-ar",
+        "48000",
+        "-ac",
+        "2",
+        "-movflags",
+        "+faststart",
+        compositedPath,
+      ],
+      // geq runs per pixel per frame, so a long source produces a lot of
+      // ffmpeg stderr; give the buffer headroom.
+      { maxBuffer: 32 * 1024 * 1024 },
+    );
+
+    const duration = round3(await probeDurationSeconds(compositedPath));
+
+    const objectName = `${WTM_COMPOSITE_PREFIX}${randomUUID()}.mp4`;
+    await uploadProcessedChunkToGcs({
+      bucketName: processedBucket,
+      objectName,
+      sourcePath: compositedPath,
+    });
+    const fileRef = storage.bucket(processedBucket).file(objectName);
+    try {
+      await fileRef.makePublic();
+    } catch (e) {
+      /* Ignore if UBLA is enforced; a signed/authorized URL still works. */
+    }
+    const compositedVideoUrl = `https://storage.googleapis.com/${processedBucket}/${objectName}`;
+
+    console.log(
+      `[wtm-composite] shape=${bubbleShape} corner=${corner} d=${diameter}px ` +
+        `margin=${margin}px fps=${WTM_COMPOSITE_FPS} duration=${duration}s ` +
+        `total_ms=${Date.now() - startedAt}`,
+    );
+
+    return { compositedVideoUrl, duration };
+  } finally {
+    await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 async function getRecipeById(recipeId) {
   const snap = await firestore
     .collection(RECIPES_COLLECTION)
@@ -1082,6 +1300,29 @@ app.post("/avs-sync", async (req, res) => {
     });
   } catch (err) {
     console.error("[worker] avs-sync failed:", err);
+    return res.status(500).json({
+      ok: false,
+      error: err?.message || "unknown_error",
+    });
+  }
+});
+
+app.post("/wtm-composite", async (req, res) => {
+  const { videoUrl, webcamUrl, position, size, shape } = req.body || {};
+  if (!videoUrl) {
+    return res.status(400).json({ ok: false, error: "videoUrl is required" });
+  }
+  try {
+    const result = await processCompositeJob({ videoUrl, webcamUrl, position, size, shape });
+    return res.status(200).json({
+      ok: true,
+      result: {
+        recipeId: "wtm-composite",
+        ...result,
+      },
+    });
+  } catch (err) {
+    console.error("[worker] wtm-composite failed:", err);
     return res.status(500).json({
       ok: false,
       error: err?.message || "unknown_error",
