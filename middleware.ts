@@ -21,11 +21,21 @@ export default async function middleware(req: NextRequest, event: NextFetchEvent
   }
 
   // 2. Subdomain & Custom domain routing
-  const mainDomains = ["marvedge.io", "localhost:3000", "marvedge.vercel.app"];
-  const isMainDomain = mainDomains.includes(hostname);
-  const isSubdomain = hostname.endsWith(".localhost:3000") || hostname.endsWith(".marvedge.io");
+  // The apex domain the app itself is served from. Anything that is not this
+  // domain (or a dev/preview host) is treated as a customer hub.
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "marvedge.com";
+  const devDomain = "localhost:3000";
 
-  if (!isMainDomain || isSubdomain) {
+  const isMainDomain =
+    hostname === rootDomain ||
+    hostname === `www.${rootDomain}` ||
+    hostname === devDomain ||
+    hostname.endsWith(".vercel.app"); // production + preview deployments
+  const isSubdomain =
+    !isMainDomain &&
+    (hostname.endsWith(`.${rootDomain}`) || hostname.endsWith(`.${devDomain}`));
+
+  if (!isMainDomain) {
     const domainKey = isSubdomain ? hostname.split(".")[0] : hostname.split(":")[0];
     console.log(
       `[Middleware] Subdomain/custom domain detected: "${hostname}" (Key: "${domainKey}"). Rewriting path to /hub/${domainKey}${url.pathname}`
@@ -34,7 +44,7 @@ export default async function middleware(req: NextRequest, event: NextFetchEvent
     // Redirect dashboard or auth pages back to the main domain
     if (url.pathname.startsWith("/dashboard") || url.pathname.startsWith("/auth")) {
       const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
-      const targetDomain = hostname.endsWith(".localhost:3000") ? "localhost:3000" : "marvedge.io";
+      const targetDomain = hostname.endsWith(`.${devDomain}`) ? devDomain : rootDomain;
       return NextResponse.redirect(`${protocol}://${targetDomain}${url.pathname}${url.search}`);
     }
 
