@@ -43,6 +43,7 @@
     "nprogress": "^0.2.0",
     "openai": "^6.46.0",
     "postcss": "^8.5.15",
+    "qrcode-generator": "^2.0.4",
     "razorpay": "^2.9.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
