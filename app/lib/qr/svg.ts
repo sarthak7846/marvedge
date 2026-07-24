@@ -49,6 +49,13 @@ const BADGE_LOGO_PADDING = 0.05;
 /** Knockout tile corner radius, as a fraction of the tile. */
 const BADGE_TILE_RADIUS = 0.18;
 
+// The BRANDED_* constants below tune a style NOTHING IN THE UI CURRENTLY OFFERS —
+// `badge` is the only style the product surfaces (see MARVEDGE_QR_PRESET). The
+// style is kept because it is built, tuned and tested, so the artistic look is
+// available if brand asks for it, without re-deriving any of this. If you are
+// about to surface it, re-run the phone scan first: it was verified at 200px, but
+// only against the deep-purple-on-white preset.
+
 /**
  * branded: the mark's width as a fraction of the code's width.
  *

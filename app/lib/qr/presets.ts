@@ -9,14 +9,12 @@ import { isQrColor } from "./contrast";
 import { MARVEDGE_MARK_DATA_URI } from "./mark";
 import type { QrRenderOptions, QrStyle, ResolvedQrOptions } from "./types";
 
-/** Every style the engine can draw, in UI order (the default first). */
+/**
+ * Every style the engine can draw, the surfaced one first. This is the validation
+ * list and the list the tests iterate — it is NOT a menu. There are deliberately
+ * no display labels here, because there is deliberately no style picker.
+ */
 export const QR_STYLES: readonly QrStyle[] = ["badge", "branded"];
-
-/** Labels for the style toggle. */
-export const QR_STYLE_LABELS: Record<QrStyle, string> = {
-  badge: "Badge",
-  branded: "Branded",
-};
 
 export function isQrStyle(value: unknown): value is QrStyle {
   return typeof value === "string" && (QR_STYLES as readonly string[]).includes(value);
@@ -50,6 +48,17 @@ export const QR_CORNER_RADIUS_MAX = 0.5;
 /**
  * The default QR: deep purple rounded modules on white, the Marvedge mark in a
  * cleared tile at the centre, 4 modules of quiet zone.
+ *
+ * `style: "badge"` is not a default among equals — it is the one style the product
+ * offers. Sharing a demo is not a moment anyone wants to pick a QR aesthetic in, so
+ * there is no style toggle anywhere in the UI, and adding one is a product decision
+ * rather than a UI improvement.
+ *
+ * Badge won on mark legibility, not on scannability — both styles decode fine at
+ * the 200px a modal shows. In `badge` the mark is solid #2D1F61 and unmistakable;
+ * in `branded` it is a 22% tint that reads as a smudge once the URL is long enough
+ * to push the code past ~40 modules. Since the point of the feature is that every
+ * scan carries the mark, the crisp small mark beats the faint large one.
  */
 export const MARVEDGE_QR_PRESET: Omit<ResolvedQrOptions, "url"> = {
   style: "badge",

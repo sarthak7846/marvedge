@@ -11,7 +11,6 @@ export {
   QR_ACCENT_MODULE_COLOR,
   QR_MODULE_COLOR,
   QR_SIZE_PRESETS,
-  QR_STYLE_LABELS,
   QR_STYLES,
   isQrStyle,
   resolveQrOptions,

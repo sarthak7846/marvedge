@@ -7,10 +7,13 @@
 /**
  * The two looks the engine can draw (see app/lib/qr/svg.ts):
  *   badge   — brand-coloured modules on the background, the mark sitting in a
- *             cleared rounded tile at the centre. The default, and the safest.
+ *             cleared rounded tile at the centre.
  *   branded — the mark drawn large and lightly tinted *behind* the modules on the
- *             light ground, modules at full strength on top. More striking, and
- *             the one that can degrade on a poor camera, so it is opt-in.
+ *             light ground, modules at full strength on top.
+ *
+ * `badge` is the ONLY style the product surfaces. `branded` is reachable by
+ * passing `style`, and stays covered by qr.test.ts, but no UI offers it — see the
+ * note on MARVEDGE_QR_PRESET.style in app/lib/qr/presets.ts for why.
  */
 export type QrStyle = "badge" | "branded";
 
