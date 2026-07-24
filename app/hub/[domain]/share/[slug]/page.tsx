@@ -1,5 +1,7 @@
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { prisma } from "@/app/lib/prisma";
+import { hubShareUrl } from "@/app/lib/share/qrTarget";
 import ShareVideoPageClient from "@/app/share/[slug]/ShareVideoPageClient";
 
 type PageProps = {
@@ -135,6 +137,14 @@ export default async function BrandedSharePage({ params }: PageProps) {
 
   const fallbackColor = settings?.accentColor || "#F3F0FC";
 
+  // The QR has to carry the CUSTOMER's domain. This page is only ever reached
+  // through the middleware.ts rewrite of https://<their-domain>/share/<slug>, so
+  // the request host is that domain and NEXT_PUBLIC_APP_URL — which the share API
+  // routes use, correctly, for creator-facing links minted on marvedge.com —
+  // would be the wrong origin here. `slug` is echoed back rather than
+  // demo.publicLink so the QR resolves to the same URL the visitor is reading.
+  const shareQrUrl = hubShareUrl((await headers()).get("host"), slug);
+
   return (
     <ShareVideoPageClient
       title={demo.title}
@@ -148,6 +158,7 @@ export default async function BrandedSharePage({ params }: PageProps) {
       }
       demoId={demo.id}
       ctas={demo.ctas}
+      shareQrUrl={shareQrUrl}
     />
   );
 }

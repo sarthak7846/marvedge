@@ -3,6 +3,7 @@
 import React from "react";
 
 import { QR_SIZE_PRESETS, renderQrSvg, renderQrSvgDataUri, type QrSizePreset } from "@/app/lib/qr";
+import { withQrSource } from "@/app/lib/share/qrTarget";
 
 /** The two sizes the download menu offers. `screen` is what the card displays. */
 export type ShareQrDownloadPreset = Extract<QrSizePreset, "download" | "print">;
@@ -108,6 +109,10 @@ function triggerDownload(blob: Blob, filename: string): void {
  * around it; the QR should not be rebuilt for any of them.
  */
 export function useShareQr({ url, title }: UseShareQrOptions): ShareQr {
+  // The only place the client-side QR picks up its scan tag. Callers keep passing
+  // the clean share URL — the one behind copy-to-clipboard — and only the encoded
+  // copy carries `?src=qr`, so a pasted link is never counted as a scan.
+  const encodedUrl = React.useMemo(() => withQrSource(url), [url]);
   const [busy, setBusy] = React.useState(false);
   // Detected in an effect rather than during render: `ClipboardItem` is absent on
   // the server, and branching on it inline would desync hydration.
@@ -122,24 +127,24 @@ export function useShareQr({ url, title }: UseShareQrOptions): ShareQr {
   // Keyed by url so switching demos can never serve a stale matrix, and bounded
   // to the entries of QR_SIZE_PRESETS.
   const cacheRef = React.useRef<{ url: string; bySize: Map<number, string> }>({
-    url,
+    url: encodedUrl,
     bySize: new Map(),
   });
 
   const renderAt = React.useCallback(
     (size: number): string => {
-      if (cacheRef.current.url !== url) {
-        cacheRef.current = { url, bySize: new Map() };
+      if (cacheRef.current.url !== encodedUrl) {
+        cacheRef.current = { url: encodedUrl, bySize: new Map() };
       }
       const cached = cacheRef.current.bySize.get(size);
       if (cached !== undefined) {
         return cached;
       }
-      const svg = renderQrSvg({ url, size });
+      const svg = renderQrSvg({ url: encodedUrl, size });
       cacheRef.current.bySize.set(size, svg);
       return svg;
     },
-    [url]
+    [encodedUrl]
   );
 
   const svg = React.useMemo(() => renderAt(QR_SIZE_PRESETS.screen), [renderAt]);
@@ -147,8 +152,8 @@ export function useShareQr({ url, title }: UseShareQrOptions): ShareQr {
   const filenameBase = React.useMemo(() => `marvedge-qr-${slugify(title)}`, [title]);
 
   const rasterize = React.useCallback(
-    (size: number) => svgToPngBlob(renderQrSvgDataUri({ url, size }), size),
-    [url]
+    (size: number) => svgToPngBlob(renderQrSvgDataUri({ url: encodedUrl, size }), size),
+    [encodedUrl]
   );
 
   /** Flip `busy` around a handler, so every button can disable itself uniformly. */
