@@ -63,6 +63,7 @@ export default function EditorModals({
       <ExportResultModal
         isOpen={exportFlow.showExportResultModal}
         shareUrl={pendingExport?.shareUrl || null}
+        title={sidebarTitle}
         loading={exportFlow.resultActionLoading}
         onClose={() => {
           if (exportFlow.resultActionLoading) {
