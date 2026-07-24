@@ -1,16 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 
+import { qrViewSource } from "@/app/lib/share/qrTarget";
+
 export function useViewTracking(demoId?: string, videoId?: string) {
   const [viewId, setViewId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const watchedDurationRef = useRef<number>(0);
 
   useEffect(() => {
+    // Where this view came from. A QR encodes the share URL with `?src=qr`, so a
+    // scan is distinguishable from a link click; anything else is left off the
+    // payload entirely rather than sent as "direct", which keeps the request
+    // byte-identical to what it was before QR existed.
+    const source = qrViewSource(window.location.search);
+
     // Record a view when the page loads
     fetch("/api/views", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ demoId, exportedVideoId: videoId }),
+      body: JSON.stringify({ demoId, exportedVideoId: videoId, ...(source ? { source } : {}) }),
     })
       .then((res) => res.json())
       .then((data) => {

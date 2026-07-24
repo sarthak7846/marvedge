@@ -1,9 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { QR_SOURCE_VALUE } from "@/app/lib/share/qrTarget";
+
+/**
+ * Attribution for a view, currently only "qr" — set when the visitor arrived by
+ * scanning a share QR, which encodes the share URL with `?src=qr`.
+ *
+ * NOT PERSISTED, and that is a deliberate stopping point rather than an
+ * oversight. `model View` has no column this could go in (id, demoId,
+ * exportedVideoId, timestamp, duration) and there is no events table, so storing
+ * it would mean a prisma/schema.prisma change and a migration — out of scope for
+ * the QR work, which is otherwise purely additive. It is logged instead, so scan
+ * volume is observable in the server logs today, and the client already sends it:
+ * whoever adds the column writes one line here and gets history from that day on.
+ */
+function readViewSource(raw: unknown): typeof QR_SOURCE_VALUE | undefined {
+  return raw === QR_SOURCE_VALUE ? QR_SOURCE_VALUE : undefined;
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { demoId, exportedVideoId, duration, viewId } = await req.json();
+    const { demoId, exportedVideoId, duration, viewId, source } = await req.json();
 
     if (viewId && duration !== undefined) {
       // Update existing view with new duration
@@ -35,6 +52,14 @@ export async function POST(req: NextRequest) {
         duration: 0,
       },
     });
+
+    // Only ever the literal "qr" or nothing — never the caller's string, which
+    // would put arbitrary input into a log line.
+    if (readViewSource(source)) {
+      console.log(
+        `[Views] QR scan: view=${view.id} demo=${demoId || "-"} video=${exportedVideoId || "-"}`
+      );
+    }
 
     const response = NextResponse.json({ success: true, viewId: view.id });
     // Set a cookie that expires in 1 hour
