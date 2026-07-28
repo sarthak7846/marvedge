@@ -23,18 +23,18 @@ const ViewsOverTimePanel = ({ viewsOverTime }: ViewsOverTimePanelProps) => {
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut", delay: 0.2 }}
-      className="panel flex min-h-[400px] flex-col rounded-[15px] bg-white p-6 shadow-sm md:p-8"
+      className="panel flex min-h-[320px] flex-col overflow-hidden rounded-[15px] bg-white p-4 shadow-sm md:p-6 lg:min-h-0"
     >
-      <h2 className="text-[26px] font-semibold leading-tight text-[#261753] md:text-[32px]">
+      <h2 className="shrink-0 text-xl font-semibold leading-tight text-[#261753] md:text-2xl">
         Views over time
       </h2>
-      <p className="mt-1 text-base text-[rgba(0,0,0,0.51)] md:text-xl">
+      <p className="mt-0.5 shrink-0 text-sm text-[rgba(0,0,0,0.51)] md:text-base">
         Demo views in last 30 days
       </p>
 
-      <div className="mt-6 flex flex-1 items-center justify-center rounded-[15px] bg-[rgba(197,182,241,0.09)] p-4 dark:bg-[rgba(255,255,255,0.02)]">
+      <div className="mt-3 flex min-h-0 flex-1 items-center justify-center rounded-[15px] bg-[rgba(197,182,241,0.09)] p-2 dark:bg-[rgba(255,255,255,0.02)]">
         {hasData ? (
-          <ResponsiveContainer width="100%" height="100%" minHeight={320}>
+          <ResponsiveContainer width="100%" height="100%" minHeight={0}>
             <LineChart data={viewsOverTime} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5DCFF" />
               <XAxis
@@ -70,10 +70,10 @@ const ViewsOverTimePanel = ({ viewsOverTime }: ViewsOverTimePanelProps) => {
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-            <Eye className="h-12 w-12 text-[rgba(138,118,252,0.5)]" strokeWidth={1.8} />
-            <p className="text-2xl font-semibold text-[rgba(38,23,83,0.66)]">No view data yet</p>
-            <p className="text-base text-[rgba(38,23,83,0.51)] md:text-xl">
+          <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
+            <Eye className="h-9 w-9 text-[rgba(138,118,252,0.5)]" strokeWidth={1.8} />
+            <p className="text-lg font-semibold text-[rgba(38,23,83,0.66)]">No view data yet</p>
+            <p className="text-sm text-[rgba(38,23,83,0.51)] md:text-base">
               Showing growth trend over time
             </p>
           </div>
