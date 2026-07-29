@@ -36,6 +36,11 @@ export default function SaveDemoModal({
   const [integrations, setIntegrations] = useState("");
   const [userRoles, setUserRoles] = useState("");
   const [featured, setFeatured] = useState(false);
+  // Set when the editor is working on a demo that already exists. Such a demo
+  // can still be updated — the hub taxonomy below is meant to be curated over
+  // time — so "already saved" must not lock the form.
+  const [existingDemoId, setExistingDemoId] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   // Update internal state when props change
   useEffect(() => {
@@ -45,27 +50,46 @@ export default function SaveDemoModal({
 
   // Load existing metadata if editing an existing demo
   useEffect(() => {
-    if (isOpen) {
-      const demoId = new URLSearchParams(window.location.search).get("demoId");
-      if (demoId) {
-        fetch(`/api/demo?id=${demoId}`)
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.success && data.demo) {
-              setTags((data.demo.tags || []).join(", "));
-              setIntegrations((data.demo.integrations || []).join(", "));
-              setUserRoles((data.demo.userRoles || []).join(", "));
-              setFeatured(!!data.demo.featured);
-            }
-          })
-          .catch((err) => console.error("Error loading demo metadata:", err));
-      } else {
-        setTags("");
-        setIntegrations("");
-        setUserRoles("");
-        setFeatured(false);
-      }
+    if (!isOpen) {
+      return;
     }
+
+    const demoId = new URLSearchParams(window.location.search).get("demoId");
+    setExistingDemoId(demoId);
+    setLoadFailed(false);
+
+    if (!demoId) {
+      setTags("");
+      setIntegrations("");
+      setUserRoles("");
+      setFeatured(false);
+      return;
+    }
+
+    // Saving sends every one of these fields, so a failed load would blank the
+    // demo's existing taxonomy. Ignore a stale response and surface failures.
+    let cancelled = false;
+    fetch(`/api/demo?id=${encodeURIComponent(demoId)}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((data) => {
+        if (cancelled || !data.success || !data.demo) {
+          return;
+        }
+        setTags((data.demo.tags || []).join(", "));
+        setIntegrations((data.demo.integrations || []).join(", "));
+        setUserRoles((data.demo.userRoles || []).join(", "));
+        setFeatured(!!data.demo.featured);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error("Error loading demo metadata:", err);
+          setLoadFailed(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
   const handleSave = () => {
@@ -122,6 +146,15 @@ export default function SaveDemoModal({
             <X size={24} />
           </button>
         </div>
+
+        {/* Saving would overwrite the fields we failed to read, so block it and
+            say why rather than quietly wiping the demo's hub taxonomy. */}
+        {loadFailed && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Could not load this demo&apos;s existing tags and settings. Close and reopen this dialog
+            before saving, so they are not overwritten.
+          </div>
+        )}
 
         {/* Form */}
         <div className="space-y-4">
@@ -195,21 +228,29 @@ export default function SaveDemoModal({
           </div>
 
           {/* Featured Checkbox */}
-          <div className="flex items-center gap-2 pt-2">
-            <input
-              type="checkbox"
-              id="featured"
-              checked={featured}
-              onChange={(e) => setFeatured(e.target.checked)}
-              className="w-4 h-4 rounded text-[#7C5CFC] border-gray-300 focus:ring-[#7C5CFC]"
-              disabled={processing}
-            />
-            <label
-              htmlFor="featured"
-              className="text-sm font-medium text-gray-700 cursor-pointer select-none"
-            >
-              Mark as Featured Demo
-            </label>
+          <div className="pt-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="featured"
+                checked={featured}
+                onChange={(e) => setFeatured(e.target.checked)}
+                className="w-4 h-4 rounded text-[#7C5CFC] border-gray-300 focus:ring-[#7C5CFC]"
+                disabled={processing}
+              />
+              <label
+                htmlFor="featured"
+                className="text-sm font-medium text-gray-700 cursor-pointer select-none"
+              >
+                Mark as Featured Demo
+              </label>
+            </div>
+            {/* Hub visibility is driven by the demo's public share link, so
+                saying so here stops "Featured" looking like it does nothing. */}
+            <p className="text-xs text-gray-500 mt-1.5 ml-6">
+              Tags, roles and Featured apply to your Demo Hub. A demo only appears there once you
+              have shared it publicly.
+            </p>
           </div>
         </div>
 
@@ -220,15 +261,23 @@ export default function SaveDemoModal({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!title.trim() || processing || isSaved}
+            disabled={!title.trim() || processing || loadFailed || (isSaved && !existingDemoId)}
             className={`flex-1 flex items-center gap-2 text-white ${
-              isSaved
+              isSaved && !existingDemoId
                 ? "bg-green-600 hover:bg-green-600 cursor-not-allowed"
                 : "bg-[#7C5CFC] hover:bg-[#8A76FC]"
             }`}
           >
             <Image src="/icons/1.png" alt="Save" width={16} height={16} />
-            {isSaved ? "✓ Saved" : processing ? "Saving..." : "Save Demo"}
+            {existingDemoId
+              ? processing
+                ? "Updating..."
+                : "Update Demo"
+              : isSaved
+                ? "✓ Saved"
+                : processing
+                  ? "Saving..."
+                  : "Save Demo"}
           </Button>
         </div>
       </div>

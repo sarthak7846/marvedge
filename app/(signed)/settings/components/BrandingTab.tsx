@@ -3,6 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { toast } from "react-hot-toast";
 import Image from "next/image";
+import { HUB_CNAME_TARGET, HUB_ROOT_DOMAIN } from "@/app/lib/hubDomain";
+
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const POLL_INTERVAL_MS = 30_000;
+const MAX_BACKGROUND_POLLS = 20;
 
 interface HubSettingsData {
   logoUrl: string | null;
@@ -11,7 +16,7 @@ interface HubSettingsData {
   accentColor: string;
   hubTitle: string;
   hubDescription: string;
-  subdomainPrefix: string;
+  subdomain: string;
   userId: string;
   customDomain: string | null;
   sslStatus: string;
@@ -29,6 +34,8 @@ export default function BrandingTab() {
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [customDomainAllowed, setCustomDomainAllowed] = useState(false);
+  const [demoCounts, setDemoCounts] = useState({ total: 0, public: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<HubSettingsData>({
@@ -38,7 +45,7 @@ export default function BrandingTab() {
     accentColor: "#F3F0FC",
     hubTitle: "",
     hubDescription: "",
-    subdomainPrefix: "",
+    subdomain: "",
     userId: "",
     customDomain: "",
     sslStatus: "pending",
@@ -52,9 +59,8 @@ export default function BrandingTab() {
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.settings) {
-            const fullSub = data.settings.subdomain || "";
-            const dashIdx = fullSub.lastIndexOf("-");
-            const prefix = dashIdx !== -1 ? fullSub.substring(0, dashIdx) : "user";
+            setCustomDomainAllowed(!!data.customDomainAllowed);
+            setDemoCounts({ total: data.demoCount || 0, public: data.publicDemoCount || 0 });
             setForm({
               logoUrl: data.settings.logoUrl || null,
               brandColor: data.settings.brandColor || "#7C5CFC",
@@ -62,7 +68,7 @@ export default function BrandingTab() {
               accentColor: data.settings.accentColor || "#F3F0FC",
               hubTitle: data.settings.hubTitle || "",
               hubDescription: data.settings.hubDescription || "",
-              subdomainPrefix: prefix,
+              subdomain: data.settings.subdomain || "",
               userId: data.settings.userId || "",
               customDomain: data.settings.customDomain || "",
               sslStatus: data.settings.sslStatus || "pending",
@@ -95,13 +101,25 @@ export default function BrandingTab() {
       return;
     }
 
+    // Enforce the limits the copy below promises, before spending an upload.
+    if (!file.type.startsWith("image/")) {
+      toast.error("Logo must be an image file (PNG, JPG or WEBP).");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      toast.error("Logo is too large. Maximum size is 2MB.");
+      e.target.value = "";
+      return;
+    }
+
     setLogoUploading(true);
     const uploadToast = toast.loading("Uploading logo...");
 
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("upload_preset", "upload_preset_1"); // standard preset configured
+      formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "");
 
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -124,6 +142,8 @@ export default function BrandingTab() {
       toast.error("Failed to upload logo. Please try again.", { id: uploadToast });
     } finally {
       setLogoUploading(false);
+      // Allow re-selecting the same file after a failure.
+      e.target.value = "";
     }
   };
 
@@ -143,24 +163,31 @@ export default function BrandingTab() {
           accentColor: form.accentColor,
           hubTitle: form.hubTitle,
           hubDescription: form.hubDescription,
-          subdomain: form.subdomainPrefix,
+          subdomain: form.subdomain,
           customDomain: form.customDomain || null,
         }),
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
-        const fullSub = data.settings.subdomain || "";
-        const dashIdx = fullSub.lastIndexOf("-");
-        const prefix = dashIdx !== -1 ? fullSub.substring(0, dashIdx) : "user";
+        const savedSubdomain = data.settings.subdomain || "";
         setForm((prev) => ({
           ...prev,
-          subdomainPrefix: prefix,
+          subdomain: savedSubdomain,
           userId: data.settings.userId || prev.userId,
+          customDomain: data.settings.customDomain || "",
           sslStatus: data.settings.sslStatus || "pending",
           dnsVerification: data.settings.dnsVerification || null,
         }));
-        toast.success("Hub branding settings saved!", { id: saveToast });
+        // The server may hand back a disambiguated name if the one requested was
+        // taken — say so rather than letting the field silently change.
+        if (savedSubdomain && savedSubdomain !== form.subdomain) {
+          toast.success(`Saved. Your hub is at ${savedSubdomain}.${HUB_ROOT_DOMAIN}`, {
+            id: saveToast,
+          });
+        } else {
+          toast.success("Hub branding settings saved!", { id: saveToast });
+        }
       } else {
         throw new Error(data.error || "Save failed");
       }
@@ -207,6 +234,48 @@ export default function BrandingTab() {
       setVerifying(false);
     }
   };
+
+  // While a certificate is still being issued, refresh quietly in the background
+  // so the card flips to "active" on its own. The cron job (see
+  // app/api/cron/hub-domains) does the same server-side for users who navigated
+  // away; this only makes the open page feel live.
+  useEffect(() => {
+    if (loading || !form.customDomain || form.sslStatus === "active") {
+      return;
+    }
+
+    let cancelled = false;
+    // Certificate issuance takes minutes, not hours. Stop after ~10 minutes so a
+    // forgotten open tab cannot poll Cloudflare indefinitely — the cron keeps
+    // working regardless, and the manual button is always there.
+    let remaining = MAX_BACKGROUND_POLLS;
+
+    const timer = setInterval(async () => {
+      if (remaining-- <= 0) {
+        clearInterval(timer);
+        return;
+      }
+      try {
+        const res = await fetch("/api/hub/verify", { method: "POST" });
+        const data = await res.json();
+        if (cancelled || !res.ok || !data.success) {
+          return;
+        }
+        setForm((prev) => ({
+          ...prev,
+          sslStatus: data.sslStatus || prev.sslStatus,
+          dnsVerification: data.dnsVerification || prev.dnsVerification,
+        }));
+      } catch {
+        // Background refresh — stay silent and try again on the next tick.
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [loading, form.customDomain, form.sslStatus]);
 
   if (loading) {
     return (
@@ -391,25 +460,41 @@ export default function BrandingTab() {
                   <input
                     type="text"
                     id="subdomain"
-                    name="subdomainPrefix"
-                    value={form.subdomainPrefix}
+                    name="subdomain"
+                    value={form.subdomain}
                     onChange={handleChange}
                     className="p-2.5 text-sm focus:outline-none w-full text-right font-medium"
                     placeholder="my-company"
                   />
                   <span className="bg-gray-100 dark:bg-[#151229] px-3 flex items-center border-l dark:border-l-[rgba(255,255,255,0.08)] text-sm text-gray-500 font-medium whitespace-nowrap">
-                    -{form.userId ? form.userId.substring(0, 8) : "xxxxxxxx"}.marvedge.io
+                    .{HUB_ROOT_DOMAIN}
                   </span>
                 </div>
                 <p className="text-xs text-gray-400">
-                  Serve your demo hub instantly at this address.
+                  Serve your demo hub instantly at this address. If the name is already taken we
+                  will add a short unique suffix.
                 </p>
+                {form.subdomain && (
+                  <a
+                    href={`https://${form.subdomain}.${HUB_ROOT_DOMAIN}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-semibold text-[#7C5CFC] hover:underline w-fit"
+                  >
+                    Open my hub ↗
+                  </a>
+                )}
               </div>
 
               {/* Custom Domain */}
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="customDomain" className="text-sm font-semibold text-gray-600">
                   Custom Domain (CNAME / White-Label)
+                  {!customDomainAllowed && (
+                    <span className="ml-2 px-2 py-0.5 rounded-full bg-[#F3F0FC] text-[#7C5CFC] text-[10px] font-bold uppercase tracking-wider align-middle">
+                      Pro
+                    </span>
+                  )}
                 </label>
                 <input
                   type="text"
@@ -417,11 +502,16 @@ export default function BrandingTab() {
                   name="customDomain"
                   value={form.customDomain || ""}
                   onChange={handleChange}
+                  disabled={!customDomainAllowed}
                   placeholder="e.g. demos.mycompany.com"
-                  className="border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] w-full font-medium"
+                  className={`border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] w-full font-medium ${
+                    customDomainAllowed ? "" : "bg-gray-50 text-gray-400 cursor-not-allowed"
+                  }`}
                 />
                 <p className="text-xs text-gray-400">
-                  Map your own custom domain by pointing its CNAME record to Marvedge.
+                  {customDomainAllowed
+                    ? "Map your own custom domain by pointing its CNAME record to Marvedge."
+                    : "Serving your hub on your own domain is available on PRO and ENTERPRISE plans. Your Marvedge subdomain above works on every plan."}
                 </p>
               </div>
             </div>
@@ -442,6 +532,23 @@ export default function BrandingTab() {
 
         {/* Verification Status Card */}
         <div className="space-y-6">
+          {/* Hub contents. A demo is only published to the hub once it has a
+              public share link, which is invisible from the editor otherwise. */}
+          <div className="card bg-white rounded-xl border border-[#ede7fa] dark:border-[rgba(255,255,255,0.08)] p-6 space-y-2">
+            <h3 className="text-lg font-semibold text-gray-700 dark:text-white border-b dark:border-b-[rgba(255,255,255,0.08)] pb-2">
+              Demos in your hub
+            </h3>
+            <p className="text-3xl font-bold text-[#7C5CFC]">
+              {demoCounts.public}
+              <span className="text-base font-medium text-gray-400"> of {demoCounts.total}</span>
+            </p>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              {demoCounts.public === 0
+                ? "Your hub is empty. Demos appear here once you share them publicly from the demo list."
+                : "Only demos you have shared publicly appear in your hub. Share a demo to add it."}
+            </p>
+          </div>
+
           <div className="card bg-white rounded-xl border border-[#ede7fa] dark:border-[rgba(255,255,255,0.08)] p-6 space-y-6 sticky top-6">
             <h3 className="text-lg font-semibold text-gray-700 dark:text-white border-b dark:border-b-[rgba(255,255,255,0.08)] pb-2">
               Verification Status
@@ -508,7 +615,7 @@ export default function BrandingTab() {
                         </div>
                         <div>
                           <span className="text-gray-400 dark:text-gray-500">Points to:</span>{" "}
-                          hub-ingress.marvedge.io
+                          {form.dnsVerification?.cnameTarget || HUB_CNAME_TARGET}
                         </div>
                       </div>
                     </div>

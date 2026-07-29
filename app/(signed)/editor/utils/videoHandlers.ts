@@ -96,7 +96,14 @@ async function uploadDemoSourceVideo(videoUrl: string): Promise<string | null> {
 }
 
 interface DemoConflictParams {
-  data: { title: string; description: string };
+  data: {
+    title: string;
+    description: string;
+    tags?: string[];
+    integrations?: string[];
+    userRoles?: string[];
+    featured?: boolean;
+  };
   editingToSave: Record<string, unknown>;
   conflictData: unknown;
   setSidebarTitle: (title: string) => void;
@@ -126,6 +133,12 @@ async function handleDemoConflict({
         id: existingId,
         title: data.title,
         description: data.description,
+        // Carry the hub taxonomy through too, otherwise anything the user
+        // entered in the save modal is silently dropped on a 409.
+        tags: data.tags || [],
+        integrations: data.integrations || [],
+        userRoles: data.userRoles || [],
+        featured: typeof data.featured === "boolean" ? data.featured : false,
         editing: editingToSave,
       });
       if (setDemoSaved) {
@@ -168,17 +181,74 @@ async function handleDemoConflict({
   setShowSaveDemoModal(false);
 }
 
-export async function handleSaveDemo(
-  data: {
-    title: string;
-    description: string;
-    tags?: string[];
-    integrations?: string[];
-    userRoles?: string[];
-    featured?: boolean;
-  },
+interface SaveDemoData {
+  title: string;
+  description: string;
+  tags?: string[];
+  integrations?: string[];
+  userRoles?: string[];
+  featured?: boolean;
+}
+
+/**
+ * Update a demo that already exists.
+ *
+ * Such a demo must never be re-POSTed (that 409s) nor have its raw video
+ * re-uploaded, and its editing state is owned by the autosave loop — so this
+ * writes only the fields the save modal actually edits. That is what makes
+ * tags, roles and "Featured" curatable after the first save (BDH-4.3 /
+ * BDH-4.4) instead of being frozen at creation time.
+ */
+async function updateExistingDemoDetails(
+  demoId: string,
+  data: SaveDemoData,
   params: SaveDemoParams
-) {
+): Promise<void> {
+  const {
+    setSavingDemo,
+    setSidebarTitle,
+    setSidebarDescription,
+    setShowSaveDemoModal,
+    setDemoSaved,
+    setSavedDemoId,
+    onSaveSuccess,
+  } = params;
+
+  try {
+    await axios.patch("/api/demo", {
+      id: demoId,
+      title: data.title,
+      description: data.description,
+      tags: data.tags || [],
+      integrations: data.integrations || [],
+      userRoles: data.userRoles || [],
+      featured: typeof data.featured === "boolean" ? data.featured : false,
+    });
+
+    setSidebarTitle(data.title);
+    setSidebarDescription(data.description);
+    if (setDemoSaved) {
+      setDemoSaved(true);
+    }
+    if (setSavedDemoId) {
+      setSavedDemoId(demoId);
+    }
+    if (onSaveSuccess) {
+      onSaveSuccess();
+    }
+    toast.dismiss();
+    toast.success("Demo details updated!");
+    setShowSaveDemoModal(false);
+  } catch (updateErr) {
+    console.error("Failed to update demo details:", updateErr);
+    toast.dismiss();
+    toast.error("Failed to update demo details");
+  } finally {
+    setSavingDemo(false);
+  }
+}
+
+export async function handleSaveDemo(data: SaveDemoData, params: SaveDemoParams) {
   const {
     videoUrl,
     currentSegments,
@@ -217,15 +287,14 @@ export async function handleSaveDemo(
     const existingDemoId = savedDemoId ?? urlDemoId ?? null;
 
     if (existingDemoId) {
-      toast.dismiss();
-      toast.error("This demo has already been saved!");
-      setSavingDemo(false);
+      await updateExistingDemoDetails(existingDemoId, data, params);
       return;
     }
 
+    // Past this point the demo is new: the existing-demo branch above returned.
     // First, upload source video to GCS if it's a blob URL
     let sourceVideoUrl = videoUrl;
-    if (!existingDemoId && videoUrl.startsWith("blob:")) {
+    if (videoUrl.startsWith("blob:")) {
       const uploadedUrl = await uploadDemoSourceVideo(videoUrl);
       if (!uploadedUrl) {
         return;
@@ -253,27 +322,16 @@ export async function handleSaveDemo(
     };
 
     try {
-      const response = existingDemoId
-        ? await axios.patch("/api/demo", {
-            id: existingDemoId,
-            title: data.title,
-            description: data.description,
-            tags: data.tags || [],
-            integrations: data.integrations || [],
-            userRoles: data.userRoles || [],
-            featured: typeof data.featured === "boolean" ? data.featured : false,
-            editing: editingToSave,
-          })
-        : await axios.post("/api/demo", {
-            title: data.title,
-            description: data.description,
-            videoUrl: sourceVideoUrl,
-            tags: data.tags || [],
-            integrations: data.integrations || [],
-            userRoles: data.userRoles || [],
-            featured: typeof data.featured === "boolean" ? data.featured : false,
-            editing: editingToSave,
-          });
+      const response = await axios.post("/api/demo", {
+        title: data.title,
+        description: data.description,
+        videoUrl: sourceVideoUrl,
+        tags: data.tags || [],
+        integrations: data.integrations || [],
+        userRoles: data.userRoles || [],
+        featured: typeof data.featured === "boolean" ? data.featured : false,
+        editing: editingToSave,
+      });
       console.log("Demo saved/updated:", response.data);
 
       // Set the saved state
@@ -281,7 +339,7 @@ export async function handleSaveDemo(
         setDemoSaved(true);
       }
       if (setSavedDemoId) {
-        setSavedDemoId(getDemoIdFromApiResponse(response.data) || existingDemoId);
+        setSavedDemoId(getDemoIdFromApiResponse(response.data));
       }
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {

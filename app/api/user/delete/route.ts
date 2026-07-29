@@ -17,13 +17,23 @@ export async function DELETE() {
       include: { hubSettings: true },
     });
 
+    // PRD §4.4: a deleted account must not leave a custom hostname routing to us.
+    // A Cloudflare failure must not trap the user in an account they asked to
+    // delete, so log the orphan loudly instead — the /api/cron/hub-domains sweep
+    // reconciles the zone against our records and reports anything left behind.
     if (userWithHubSettings?.hubSettings?.cloudflareId) {
+      const { cloudflareId, customDomain } = userWithHubSettings.hubSettings;
       try {
         const { deleteCustomDomain } = await import("@/app/lib/cloudflare");
-        await deleteCustomDomain(userWithHubSettings.hubSettings.cloudflareId);
+        const removal = await deleteCustomDomain(cloudflareId);
+        if (!removal.success) {
+          console.error(
+            `[account-delete] ORPHANED Cloudflare hostname ${customDomain} (${cloudflareId}) still routes to us: ${removal.error}`
+          );
+        }
       } catch (cfError) {
         console.error(
-          "Failed to delete Cloudflare custom hostname during account deletion:",
+          `[account-delete] ORPHANED Cloudflare hostname ${customDomain} (${cloudflareId}) still routes to us:`,
           cfError
         );
       }

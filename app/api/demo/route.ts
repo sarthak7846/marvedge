@@ -3,6 +3,7 @@ import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
 import { revalidatePath } from "next/cache";
+import { normalizeTaxonomy } from "@/app/lib/bdh/taxonomy";
 
 export async function GET(req: NextRequest) {
   try {
@@ -111,9 +112,9 @@ export async function POST(req: NextRequest) {
         videoUrl,
         editing: editing || null,
         userId, // attach logged-in user
-        tags: Array.isArray(tags) ? tags : [],
-        integrations: Array.isArray(integrations) ? integrations : [],
-        userRoles: Array.isArray(userRoles) ? userRoles : [],
+        tags: normalizeTaxonomy(tags) ?? [],
+        integrations: normalizeTaxonomy(integrations) ?? [],
+        userRoles: normalizeTaxonomy(userRoles) ?? [],
         featured: typeof featured === "boolean" ? featured : false,
       },
     });
@@ -166,15 +167,19 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
     }
 
+    const normalizedTags = normalizeTaxonomy(tags);
+    const normalizedIntegrations = normalizeTaxonomy(integrations);
+    const normalizedUserRoles = normalizeTaxonomy(userRoles);
+
     // Use a single write to both enforce ownership and avoid extra round trips.
     const updateData: Record<string, unknown> = {
       ...(typeof exportedUrl === "string" ? { exportedUrl } : {}),
       ...(typeof editing !== "undefined" ? { editing } : {}),
       ...(typeof title === "string" ? { title } : {}),
       ...(typeof description === "string" ? { description } : {}),
-      ...(Array.isArray(tags) ? { tags } : {}),
-      ...(Array.isArray(integrations) ? { integrations } : {}),
-      ...(Array.isArray(userRoles) ? { userRoles } : {}),
+      ...(normalizedTags ? { tags: normalizedTags } : {}),
+      ...(normalizedIntegrations ? { integrations: normalizedIntegrations } : {}),
+      ...(normalizedUserRoles ? { userRoles: normalizedUserRoles } : {}),
       ...(typeof featured === "boolean" ? { featured } : {}),
     };
 

@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Search, Play, Award, Zap, Layers, Eye } from "lucide-react";
+import { hubHostname } from "@/app/lib/hubDomain";
 
 interface SerializedDemo {
   id: string;
@@ -35,11 +36,18 @@ interface HubClientProps {
   demos: SerializedDemo[];
 }
 
+type HubTab = "featured" | "most-watched" | "newest";
+
 export default function HubClient({ settings, demos }: HubClientProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIntegration, setSelectedIntegration] = useState<string>("all");
   const [selectedRole, setSelectedRole] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState<"featured" | "most-watched" | "newest">("featured");
+
+  // Only offer "Featured" when something is actually featured — otherwise the
+  // hub's landing view is an empty state for every customer who hasn't curated
+  // their library yet.
+  const hasFeatured = useMemo(() => demos.some((d) => d.featured), [demos]);
+  const [activeTab, setActiveTab] = useState<HubTab>(hasFeatured ? "featured" : "newest");
 
   // Collect unique integrations and roles for filter dropdowns
   const allIntegrations = useMemo(() => {
@@ -102,16 +110,15 @@ export default function HubClient({ settings, demos }: HubClientProps) {
     "--hub-brand": settings.brandColor,
     "--hub-text": settings.textColor,
     "--hub-accent": settings.accentColor,
-    "--hub-accent-hover": settings.brandColor + "15", // 8% opacity of brand color
   } as React.CSSProperties;
 
   return (
     <div
       style={hubStyles}
-      className="min-h-screen bg-gray-50 flex flex-col antialiased text-gray-900 font-sans"
+      className="min-h-screen bg-[var(--hub-accent)] flex flex-col antialiased text-[var(--hub-text)] font-sans"
     >
       {/* Header */}
-      <header className="bg-white border-b border-gray-150 py-4 px-6 md:px-12 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm sticky top-0 z-40">
+      <header className="bg-white border-b border-gray-200 py-4 px-6 md:px-12 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm sticky top-0 z-40">
         <div className="flex items-center gap-3">
           <div className="relative w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden shrink-0">
             {settings.logoUrl ? (
@@ -123,10 +130,10 @@ export default function HubClient({ settings, demos }: HubClientProps) {
             )}
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-gray-800">{settings.hubTitle}</h1>
-            <p className="text-xs text-gray-400 font-medium">
-              {settings.customDomain ? settings.customDomain : `${settings.subdomain}.marvedge.io`}
-            </p>
+            <h1 className="text-lg font-bold tracking-tight text-[var(--hub-text)]">
+              {settings.hubTitle}
+            </h1>
+            <p className="text-xs text-gray-400 font-medium">{hubHostname(settings)}</p>
           </div>
         </div>
 
@@ -147,7 +154,7 @@ export default function HubClient({ settings, demos }: HubClientProps) {
 
       {/* Hero Showcase Intro */}
       <section className="bg-white px-6 py-12 md:py-16 md:px-12 border-b border-gray-100 text-center max-w-4xl mx-auto w-full mt-6 rounded-2xl shadow-sm">
-        <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-gray-900 mb-4">
+        <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-[var(--hub-text)] mb-4">
           Explore Our Interactive Product Tours
         </h2>
         <p className="text-base text-gray-500 max-w-2xl mx-auto leading-relaxed">
@@ -198,17 +205,19 @@ export default function HubClient({ settings, demos }: HubClientProps) {
         {/* Category Tabs Header */}
         <div className="flex items-center justify-between border-b border-gray-200 pb-2">
           <div className="flex gap-6">
-            <button
-              onClick={() => setActiveTab("featured")}
-              className={`pb-3 font-semibold text-sm transition-colors border-b-2 flex items-center gap-1.5 ${
-                activeTab === "featured"
-                  ? "border-[var(--hub-brand)] text-[var(--hub-brand)]"
-                  : "border-transparent text-gray-400 hover:text-gray-600"
-              }`}
-            >
-              <Award size={16} />
-              Featured
-            </button>
+            {hasFeatured && (
+              <button
+                onClick={() => setActiveTab("featured")}
+                className={`pb-3 font-semibold text-sm transition-colors border-b-2 flex items-center gap-1.5 ${
+                  activeTab === "featured"
+                    ? "border-[var(--hub-brand)] text-[var(--hub-brand)]"
+                    : "border-transparent text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                <Award size={16} />
+                Featured
+              </button>
+            )}
             <button
               onClick={() => setActiveTab("most-watched")}
               className={`pb-3 font-semibold text-sm transition-colors border-b-2 flex items-center gap-1.5 ${
@@ -240,7 +249,7 @@ export default function HubClient({ settings, demos }: HubClientProps) {
 
         {/* Demos Grid */}
         {filteredDemos.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-2xl border border-gray-150">
+          <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-2xl border border-gray-200">
             <Layers size={48} className="text-gray-300 mb-3" />
             <h3 className="text-lg font-bold text-gray-700">No demos found</h3>
             <p className="text-gray-400 text-sm max-w-xs mt-1">
@@ -256,7 +265,7 @@ export default function HubClient({ settings, demos }: HubClientProps) {
               return (
                 <div
                   key={demo.id}
-                  className="bg-white rounded-2xl border border-gray-150 overflow-hidden flex flex-col shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group"
+                  className="bg-white rounded-2xl border border-gray-200 overflow-hidden flex flex-col shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group"
                 >
                   {/* Thumbnail / Aspect Preview */}
                   <div className="aspect-video bg-slate-900 flex items-center justify-center relative overflow-hidden shrink-0">
@@ -275,10 +284,11 @@ export default function HubClient({ settings, demos }: HubClientProps) {
                       {demo.viewsCount} views
                     </div>
 
-                    {/* Gradient backing */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-purple-500/20" />
-                    <span className="text-2xl font-black tracking-widest text-white/10 uppercase select-none">
-                      Marvedge
+                    {/* Brand-tinted backing. The hub is white-label, so the
+                        placeholder carries the customer's name, not ours. */}
+                    <div className="absolute inset-0 bg-[var(--hub-brand)] opacity-25" />
+                    <span className="text-2xl font-black tracking-widest text-white/10 uppercase select-none px-4 text-center line-clamp-2">
+                      {settings.hubTitle}
                     </span>
                   </div>
 
@@ -286,7 +296,7 @@ export default function HubClient({ settings, demos }: HubClientProps) {
                   <div className="p-5 flex-1 flex flex-col justify-between">
                     <div>
                       {/* Title & Description */}
-                      <h3 className="font-bold text-lg text-gray-800 line-clamp-1 mb-1.5 group-hover:text-[var(--hub-brand)] transition-colors">
+                      <h3 className="font-bold text-lg text-[var(--hub-text)] line-clamp-1 mb-1.5 group-hover:text-[var(--hub-brand)] transition-colors">
                         {demo.title}
                       </h3>
                       <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed mb-4">
@@ -344,7 +354,7 @@ export default function HubClient({ settings, demos }: HubClientProps) {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-150 py-6 text-center text-xs text-gray-400 mt-12 shrink-0">
+      <footer className="bg-white border-t border-gray-200 py-6 text-center text-xs text-gray-400 mt-12 shrink-0">
         <div className="max-w-7xl mx-auto px-6">
           Powered by <span className="font-bold text-gray-500">Marvedge</span> Demo Hub &copy;{" "}
           {new Date().getFullYear()}

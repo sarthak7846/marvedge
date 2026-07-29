@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/app/lib/prisma";
 import ShareVideoPageClient from "@/app/share/[slug]/ShareVideoPageClient";
+import { isBdhEnabled } from "@/app/lib/bdh/flags";
 
 type PageProps = {
   params: Promise<{ domain: string; slug: string }>;
@@ -101,6 +102,12 @@ function backgroundStyleFromEditing(editing: unknown, fallbackColor: string) {
 }
 
 export default async function BrandedSharePage({ params }: PageProps) {
+  // Mirrors the hub index: the kill switch has to hold on the directly
+  // reachable /hub/... path too, not just on rewritten hub hosts.
+  if (!isBdhEnabled()) {
+    notFound();
+  }
+
   const { domain, slug } = await params;
 
   // Find settings to apply brand colors
@@ -110,9 +117,17 @@ export default async function BrandedSharePage({ params }: PageProps) {
     },
   });
 
+  if (!settings) {
+    notFound();
+  }
+
+  // Scope the lookup to the hub owner: a branded domain must only ever serve its
+  // own demos, otherwise any tenant's public demo renders under someone else's
+  // logo and colours.
   const demo = await prisma.demo.findFirst({
     where: {
       isPublic: true,
+      userId: settings.userId,
       OR: [{ publicLink: slug }, { id: slug }],
     },
     select: {
@@ -133,7 +148,7 @@ export default async function BrandedSharePage({ params }: PageProps) {
     notFound();
   }
 
-  const fallbackColor = settings?.accentColor || "#F3F0FC";
+  const fallbackColor = settings.accentColor || "#F3F0FC";
 
   return (
     <ShareVideoPageClient

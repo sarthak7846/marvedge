@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse, NextFetchEvent } from "next/server";
 import { withAuth } from "next-auth/middleware";
+import { classifyHost, mainAppOrigin } from "@/app/lib/hubDomain";
+import { isBdhRoutingEnabled } from "@/app/lib/bdh/flags";
 
 const authMiddleware = withAuth({
   pages: {
@@ -20,32 +22,16 @@ export default async function middleware(req: NextRequest, event: NextFetchEvent
     return NextResponse.next();
   }
 
-  // 2. Subdomain & Custom domain routing
-  // The apex domain the app itself is served from. Anything that is not this
+  // 2. Subdomain & custom domain routing. Anything that is not the app's own
   // domain (or a dev/preview host) is treated as a customer hub.
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "marvedge.com";
-  const devDomain = "localhost:3000";
+  const { kind, domainKey } = classifyHost(hostname);
 
-  const isMainDomain =
-    hostname === rootDomain ||
-    hostname === `www.${rootDomain}` ||
-    hostname === devDomain ||
-    hostname.endsWith(".vercel.app"); // production + preview deployments
-  const isSubdomain =
-    !isMainDomain &&
-    (hostname.endsWith(`.${rootDomain}`) || hostname.endsWith(`.${devDomain}`));
-
-  if (!isMainDomain) {
-    const domainKey = isSubdomain ? hostname.split(".")[0] : hostname.split(":")[0];
-    console.log(
-      `[Middleware] Subdomain/custom domain detected: "${hostname}" (Key: "${domainKey}"). Rewriting path to /hub/${domainKey}${url.pathname}`
-    );
-
-    // Redirect dashboard or auth pages back to the main domain
+  // Kill switch: with hub routing off, every host serves the normal app.
+  if (kind !== "main" && isBdhRoutingEnabled()) {
+    // Send app-only routes back to the main domain rather than 404ing them
+    // inside a hub.
     if (url.pathname.startsWith("/dashboard") || url.pathname.startsWith("/auth")) {
-      const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
-      const targetDomain = hostname.endsWith(`.${devDomain}`) ? devDomain : rootDomain;
-      return NextResponse.redirect(`${protocol}://${targetDomain}${url.pathname}${url.search}`);
+      return NextResponse.redirect(`${mainAppOrigin(hostname)}${url.pathname}${url.search}`);
     }
 
     // Rewrite path to /hub/[domainKey]/...

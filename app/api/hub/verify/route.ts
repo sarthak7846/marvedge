@@ -3,9 +3,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
 import { prisma } from "@/app/lib/prisma";
 import { getCustomDomainStatus } from "@/app/lib/cloudflare";
+import { isBdhEnabled } from "@/app/lib/bdh/flags";
 
 export async function POST() {
   try {
+    if (!isBdhEnabled()) {
+      return NextResponse.json({ error: "Demo Hub is not enabled." }, { status: 404 });
+    }
+
     const session = await getServerSession(authOptions);
     if (!session || (!session.user?.id && !session.user?.email)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
