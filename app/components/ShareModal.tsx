@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Copy, Link2, X } from "lucide-react";
+import { ChevronDown, Copy, Link2, X } from "lucide-react";
+
+import { isShareQrEnabled } from "@/app/lib/qr";
+import ShareQrCode from "./qr/ShareQrCode";
 
 interface Props {
   apiPath: string;
@@ -14,6 +17,8 @@ export default function ShareModal({ apiPath, title, onClose }: Props) {
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Collapsed by default so the modal keeps its current height until asked.
+  const [showQr, setShowQr] = useState(false);
 
   const headingTitle = useMemo(() => {
     if (!title?.trim()) {
@@ -70,13 +75,16 @@ export default function ShareModal({ apiPath, title, onClose }: Props) {
     setTimeout(() => setCopied(false), 1400);
   }
 
+  // The overflow lives on the backdrop, not the panel, because the floating link
+  // badge hangs outside the panel's box — py-16 is what gives it room, and
+  // `my-auto` on the panel keeps it centred until the content outgrows the screen.
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-[rgba(26,17,58,0.2)] backdrop-blur-sm px-4"
+      className="fixed inset-0 z-[120] flex justify-center overflow-y-auto bg-[rgba(26,17,58,0.2)] backdrop-blur-sm px-4 py-16"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-[620px] rounded-[28px] border border-[#CFC4FF] bg-white px-8 pb-8 pt-12 shadow-[0_24px_70px_rgba(84,65,160,0.22)]"
+        className="relative my-auto w-full max-w-[620px] rounded-[28px] border border-[#CFC4FF] bg-white px-8 pb-8 pt-12 shadow-[0_24px_70px_rgba(84,65,160,0.22)]"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -122,6 +130,31 @@ export default function ShareModal({ apiPath, title, onClose }: Props) {
             </button>
           </div>
           {copied && <p className="mt-2 text-sm font-medium text-[#6E56CF]">Copied to clipboard</p>}
+
+          {/* Only once there is a real link to encode — and gated here as well as
+              inside ShareQrCode, so the flag off leaves no dead toggle behind. */}
+          {isShareQrEnabled() && !loading && !error && link && (
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => setShowQr((prev) => !prev)}
+                aria-expanded={showQr}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#6E56CF] transition hover:text-[#8B72F8]"
+              >
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${showQr ? "rotate-180" : ""}`}
+                />
+                {showQr ? "Hide QR code" : "Show QR code"}
+              </button>
+              {showQr && (
+                <ShareQrCode
+                  url={link}
+                  title={title}
+                  className="mt-3 rounded-[28px] border-[#CFC4FF]"
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

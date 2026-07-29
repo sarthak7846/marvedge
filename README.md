@@ -128,6 +128,163 @@ WTM needs no new vendor or API key — it is pure ffmpeg on the existing GCS /
 Cloud Run worker. Both flags are enabled on staging/QA; leave them blank in
 production until the feature is signed off. See `.env.example` for the full list.
 
+## Shareable-Link QR Codes (QR)
+
+Every share link can also be a **branded QR code**: deep-purple rounded modules on
+white with the Marvedge mark at the centre, offered wherever a share URL already
+exists. It is purely derived — the QR renders a link that already exists, mints
+nothing, writes nothing, and never touches the export path. No DB migration, no
+new vendor, no new API key. The only dependency is `qrcode-generator`, a
+zero-dependency matrix library.
+
+### Where it shows up
+
+| Surface                                  | What appears                                                                                                                |
+| :--------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------- |
+| `app/components/ExportResultModal.tsx`   | The QR, shown as soon as a `shareUrl` exists — the "after the demo is generated" moment.                                    |
+| `app/components/ShareModal.tsx`          | The same QR, collapsed behind a "Show QR code" toggle so the modal does not balloon.                                        |
+| `app/hub/[domain]/share/[slug]/page.tsx` | A "scan to open" card on the customer hub share page, encoding **the customer's own domain**.                               |
+| `GET /api/qr?url=…&size=…`               | A cacheable `image/svg+xml` render, for the places a React component cannot reach (an `<img>` in an email, a slide, a PDF). |
+
+The demos list (`app/(signed)/demos/`) has **no share affordance at all** today,
+even though `app/api/demos/[id]/share/route.ts` exists and works. That gap is
+noted rather than filled here — a QR belongs next to a share button, and building
+the share flow is its own change.
+
+### `GET /api/qr`
+
+Returns SVG with `Cache-Control: public, max-age=31536000, immutable` — the output
+is a pure function of the query. Unauthenticated, because it renders a link that
+is already public, and `size` is the only knob besides `url`. There is
+deliberately **no `style` param**.
+
+The `url` must resolve to a Marvedge-owned share URL or the route answers `400`.
+Allowed: the `NEXT_PUBLIC_APP_URL` origin, the root domain plus `www` and any hub
+subdomain, the host the request itself arrived on (which is how a custom hub
+domain validates, without a DB lookup), and loopback off production. Everything
+else is refused, including look-alikes such as `marvedge.com.evil.example` and
+credential tricks such as `https://marvedge.com@evil.example/`. The path must also
+look like a share path, so the endpoint cannot brand `/auth/signin`.
+
+Two things about that check are easy to get wrong:
+
+- **`sanitizeQrOptions()` / `toQrTargetUrl()` are not a host check.** They validate
+  scheme, length and shape only, and deliberately not the host — the engine is
+  isomorphic and cannot know the request origin. The allowlist in
+  `app/lib/share/qrTarget.ts` layers on top of them. Rendering an arbitrary URL
+  inside a Marvedge-branded QR is a phishing primitive; there is no "allow any
+  URL" escape hatch and adding one re-opens it.
+- **The route never queries the database.** A public unauthenticated endpoint that
+  404s on unknown slugs is an oracle for which share ids exist, so validation is
+  by URL shape only.
+
+**Custom domains.** `app/api/demos/[id]/share/route.ts` builds share URLs as
+`NEXT_PUBLIC_APP_URL || request.nextUrl.origin`, which is right for a creator
+copying a link on marvedge.com. It is wrong on a customer hub: a visitor reading
+`https://demos.acme.com/share/abc` is served by `/hub/acme/share/abc` through the
+`middleware.ts` rewrite, and a QR encoding `marvedge.com/share/abc` would walk them
+off the customer's white-labeled domain mid-scan. Hub pages therefore resolve the
+origin from the **request host** and ignore `NEXT_PUBLIC_APP_URL` — see
+`hubShareUrl()` in `app/lib/share/qrTarget.ts`, which carries the rule and its
+tests.
+
+### Scan attribution
+
+The URL _encoded in the QR_ carries `?src=qr`; the copy-to-clipboard link stays
+clean, so a pasted link is never miscounted as a scan. The decoration lives in one
+helper (`withQrSource()`), applied at the two places a QR is produced — the client
+renderer and `/api/qr` — and is read back by
+`app/share/[slug]/hooks/useViewTracking.ts`, which passes `source: "qr"` to
+`/api/views`.
+
+**That source is logged, not stored.** `model View` has no column for it and there
+is no events table, so persisting it would need a `prisma/schema.prisma` change and
+a migration, which this feature deliberately does not carry. Scan volume is
+visible in the server logs today (`[Views] QR scan: …`), and the client already
+sends the field — adding the column later is a one-line change in
+`app/api/views/route.ts`, with history from that day forward.
+
+### One style, on purpose
+
+`QrStyle` is `"badge" | "branded"` and **only `badge` is surfaced**. There is no
+style toggle, no style prop and no style query param, and adding one is a product
+decision rather than a UI improvement. `branded` (the mark drawn large and tinted
+behind the modules) stays in the engine and stays covered by `qr.test.ts`, but
+nothing offers it. The reason is _not_ scannability — both were phone-verified at
+200 px. Badge won on **mark legibility**: it draws the mark solid `#2D1F61`, while
+`branded`'s 22% tint reads as a smudge once the URL pushes the code past ~40
+modules. The point of the feature is that every scan carries the mark.
+
+### Scannability is the acceptance criterion
+
+These invariants are enforced in `app/lib/qr/` and covered by its tests. They are
+not style preferences — break one and codes silently stop scanning for some
+fraction of cameras, which no visual review catches:
+
+| Rule                                             | Why                                                                                  |
+| :----------------------------------------------- | :----------------------------------------------------------------------------------- |
+| **ECC level `H`** (30% recovery), always         | Buys the error budget the logo knockout and rounded modules spend.                   |
+| **Quiet zone ≥ 4 modules**                       | Scanners fail without it far more often than for any styling reason.                 |
+| **Logo occlusion ≤ 25% linear** (≈6% of area)    | Well inside the `H` budget, with room left for print and camera noise.               |
+| **Finder patterns stay solid dark-on-light**     | Rounding their corners is safe; tinting, occluding, or backing them with art is not. |
+| **Timing patterns (row/col 6) never occluded**   | The knockout must stay centred and small enough never to reach them.                 |
+| **Contrast ≥ 4:1** between module and light cell | Checked in code (`assertQrContrast`), not by eyeballing.                             |
+
+If a change makes an assertion in `app/lib/qr/qr.test.ts` fail, the change is
+wrong — do not edit the test to match.
+
+### The brand mark asset
+
+`public/qr/marvedge-mark.png` is **generated, not hand-edited**. `scripts/qr/make-mark.mjs`
+derives it from the source logo at build time: it chroma-keys the flat periwinkle
+field out, recolours the mark to `#2D1F61`, trims and re-centres it, and writes
+both the PNG and `app/lib/qr/mark.ts`, which inlines the same bytes as a `data:`
+URI. The engine uses the constant, never the file path — a remote `src` would taint
+the canvas the client-side PNG export draws into and `toBlob()` would throw. To
+change the mark, edit the script and re-run it.
+
+> `dither: 0` in that script is load-bearing. sharp's PNG palette encoder dithers
+> by default, which scatters off-hue pixels through what should be one flat colour
+> and quietly breaks the "art and modules share one colour" invariant.
+
+### If a QR won't scan
+
+1. **Check the size it is rendered at.** Below roughly 4 px per module a camera
+   cannot resolve it. A long URL means a higher QR version, more modules, and a
+   larger minimum size — shorten the URL before shrinking the code.
+2. **Check the quiet zone survived.** A CSS `overflow: hidden`, a tight flex
+   container, or a crop that clips the white border is the single most common
+   cause. The engine emits it; a layout can still cut it off.
+3. **Check contrast end to end.** The engine guarantees ≥ 4:1 for the colours it is
+   given, but a parent with a coloured or textured background showing through a
+   transparent container defeats it. The QR needs an opaque light ground.
+4. **Check nothing was overlaid on it.** A badge, a caption, or a hover effect on
+   top of the finder or timing patterns breaks decoding even when it looks fine.
+5. **Check the target URL actually resolves.** A QR for an unshared or deleted demo
+   scans perfectly and then lands on a 404 — `/api/qr` validates URL _shape_, never
+   existence, by design.
+6. **Only then suspect the engine.** Run `npm test`; the QR suite rasterizes and
+   decodes real codes across versions.
+
+### Environment variables
+
+| Variable                       | Where                      | Purpose                                                                                                            |
+| :----------------------------- | :------------------------- | :----------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SHARE_QR_ENABLED` | Next app (client + server) | Kill-switch for the whole QR surface. **Defaults to ON** when unset — only an explicit `false` or `0` disables it. |
+| `NEXT_PUBLIC_APP_URL`          | Next app                   | Already required. The QR endpoint's primary allowed origin.                                                        |
+| `NEXT_PUBLIC_ROOT_DOMAIN`      | Next app                   | Already used by `middleware.ts`. Also allows hub subdomains of it. Defaults to `marvedge.com`.                     |
+
+`NEXT_PUBLIC_SHARE_QR_ENABLED` deliberately defaults **on**, unlike the AVS and WTM
+flags above, which default off. Those change the artefact — with WTM on, a FREE
+export gets a watermark burned into the video — so "unset" has to mean "behave
+exactly as before". The QR surface is derived, read-only and additive, and leaves
+no state behind, so its flag is a kill-switch for pulling the surface during an
+incident rather than a rollout gate. With it off, `<ShareQrCode />` renders nothing
+and `/api/qr` returns 404. Note the value is inlined into the client bundle at
+build time: flipping it needs a rebuild for the client, only a restart for the
+server.
+
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

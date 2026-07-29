@@ -3,9 +3,13 @@
 import { Copy } from "lucide-react";
 import toast from "react-hot-toast";
 
+import ShareQrCode from "./qr/ShareQrCode";
+
 interface ExportResultModalProps {
   isOpen: boolean;
   shareUrl?: string | null;
+  /** Demo title — names the QR downloads, as it already names the MP4. */
+  title?: string;
   loading?: boolean;
   onClose: () => void;
   onDownloadMp4: () => void;
@@ -15,6 +19,7 @@ interface ExportResultModalProps {
 export default function ExportResultModal({
   isOpen,
   shareUrl,
+  title,
   loading = false,
   onClose,
   onDownloadMp4,
@@ -35,7 +40,9 @@ export default function ExportResultModal({
     <div className="fixed inset-0 z-[99999] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
-      <div className="relative w-full max-w-[560px] rounded-2xl border border-white bg-[#F8F8FC] p-6 shadow-[0_8px_32px_rgba(124,92,252,0.15)]">
+      {/* max-h/overflow so the QR can never push the action buttons off-screen
+          on a short viewport. */}
+      <div className="relative max-h-[90vh] w-full max-w-[560px] overflow-y-auto rounded-2xl border border-white bg-[#F8F8FC] p-6 shadow-[0_8px_32px_rgba(124,92,252,0.15)]">
         <h2 className="mb-2 text-2xl font-semibold text-[#8A76FC]">Export Complete</h2>
         <p className="mb-4 text-sm text-[#5E4FB2]">
           Download only as MP4, or generate a share link to save to your Exported Videos.
@@ -58,6 +65,14 @@ export default function ExportResultModal({
                 <Copy size={20} />
               </button>
             </div>
+
+            {/* Expanded by default: the QR is the point of this moment. */}
+            <ShareQrCode
+              url={shareUrl}
+              title={title}
+              feedback="toast"
+              className="mt-3 rounded-2xl border-[#D9D1FA]"
+            />
           </div>
         )}
 

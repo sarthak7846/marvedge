@@ -3,6 +3,8 @@
 import { useSession } from "next-auth/react";
 import type { CSSProperties } from "react";
 
+import ShareQrCode from "@/app/components/qr/ShareQrCode";
+
 import { useViewTracking } from "./hooks/useViewTracking";
 import { getPreviewStage } from "./utils/previewStage";
 import ShareHeader from "./components/ShareHeader";
@@ -18,6 +20,18 @@ type ShareVideoPageClientProps = {
   demoId?: string;
   videoId?: string;
   ctas?: ShareCta[];
+  /**
+   * Absolute URL for this page's own "scan to keep watching" QR, or omitted for
+   * no QR. Passed in rather than derived from `window.location` so the caller
+   * decides the origin — which is the whole point on a customer hub, where the
+   * QR must carry the customer's domain (see hubShareUrl in
+   * app/lib/share/qrTarget.ts).
+   *
+   * Only the hub page passes it today. Whether the marvedge.com share page should
+   * show one too is still open (QR-Implementation-Plan.md §5 Q3) — it is this one
+   * prop away, deliberately not decided here.
+   */
+  shareQrUrl?: string;
 };
 
 export default function ShareVideoPageClient({
@@ -29,6 +43,7 @@ export default function ShareVideoPageClient({
   demoId,
   videoId,
   ctas = [],
+  shareQrUrl,
 }: ShareVideoPageClientProps) {
   const videoRef = useViewTracking(demoId, videoId);
 
@@ -83,6 +98,19 @@ export default function ShareVideoPageClient({
         </div>
 
         <ShareCtaButtons ctas={ctas} demoId={demoId} />
+
+        {/* "Take this with you" — the visitor is on a desktop, the QR moves the
+            demo to their phone. ShareQrCode returns null when the kill-switch is
+            off, so no empty card is left behind. */}
+        {shareQrUrl && (
+          <div className="mx-auto mt-8 w-full max-w-md">
+            <ShareQrCode
+              url={shareQrUrl}
+              title={title}
+              className="rounded-2xl border-[#BEB0F8]/60 shadow-[0_16px_40px_rgba(76,57,162,0.18)]"
+            />
+          </div>
+        )}
 
         {!isLoggedIn && <ShareSignupCTA />}
       </section>
