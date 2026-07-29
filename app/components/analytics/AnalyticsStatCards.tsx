@@ -40,7 +40,7 @@ const AnalyticsStatCards = ({
       value: totalViews.toString(),
       trend: "+23.2%",
       trendLabel: "vs last month",
-      icon: <Eye className="h-8 w-8 text-[#8A76FC] dark:text-[#8b55ff]" />,
+      icon: <Eye className="h-5 w-5 text-[#8A76FC] dark:text-[#8b55ff]" />,
       cardBg: "bg-[rgba(197,182,241,0.19)]",
       iconBg: "bg-[rgba(138,118,252,0.14)]",
       variant: "stat-card",
@@ -52,7 +52,7 @@ const AnalyticsStatCards = ({
       value: completionRate,
       trend: "+5.2%",
       trendLabel: "vs last month",
-      icon: <CheckCircle2 className="h-8 w-8 text-[#2F80EC] dark:text-[#3f9bff]" />,
+      icon: <CheckCircle2 className="h-5 w-5 text-[#2F80EC] dark:text-[#3f9bff]" />,
       cardBg: "bg-[rgba(155,225,248,0.14)]",
       iconBg: "bg-[rgba(21,101,216,0.12)]",
       variant: "stat-card blue",
@@ -64,7 +64,7 @@ const AnalyticsStatCards = ({
       value: avgDuration,
       trend: "+12s",
       trendLabel: "vs last month",
-      icon: <Clock className="h-8 w-8 text-[#62408F] dark:text-[#8b55ff]" />,
+      icon: <Clock className="h-5 w-5 text-[#62408F] dark:text-[#8b55ff]" />,
       cardBg: "bg-[rgba(38,23,83,0.06)]",
       iconBg: "bg-[rgba(98,64,143,0.13)]",
       variant: "stat-card",
@@ -76,7 +76,7 @@ const AnalyticsStatCards = ({
       value: ctaClickRate,
       trend: "+0.3%",
       trendLabel: "vs last month",
-      icon: <MousePointerClick className="h-8 w-8 text-[#E33629] dark:text-[#ff454b]" />,
+      icon: <MousePointerClick className="h-5 w-5 text-[#E33629] dark:text-[#ff454b]" />,
       cardBg: "bg-[rgba(222,97,14,0.10)]",
       iconBg: "bg-[rgba(222,97,14,0.15)]",
       variant: "stat-card red",
@@ -85,41 +85,41 @@ const AnalyticsStatCards = ({
   ];
 
   return (
-    <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 xl:grid-cols-4">
+    <div className="mb-4 grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 lg:grid-cols-4">
       {cards.map((card, idx) => (
         <div
           key={card.id}
           style={{ transitionDelay: `${idx * 90}ms` }}
-          className={`${card.variant} flex min-h-[220px] flex-col rounded-[15px] border border-transparent p-6 transition-all duration-700 ease-out md:min-h-[240px] md:p-7 ${
+          className={`${card.variant} flex flex-col rounded-[15px] border border-transparent p-4 transition-all duration-700 ease-out md:p-5 ${
             card.cardBg
           } ${
             isVisible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
           } hover:-translate-y-1`}
         >
           <span
-            className={`stat-icon inline-flex h-16 w-16 items-center justify-center rounded-[9px] ${card.iconBg}`}
+            className={`stat-icon inline-flex h-10 w-10 items-center justify-center rounded-[9px] ${card.iconBg}`}
           >
             {card.icon}
           </span>
 
-          <div className="mt-auto pt-6">
-            <p className="text-lg font-normal text-[#261753] dark:text-white/90 md:text-2xl">
+          <div className="mt-auto pt-3">
+            <p className="text-sm font-normal text-[#261753] dark:text-white/90 md:text-base">
               {card.label}
             </p>
             <p
               className={`mt-1 font-medium leading-none text-[rgba(38,23,83,0.72)] dark:text-white ${
-                card.largeValue ? "text-5xl lg:text-6xl" : "text-4xl lg:text-5xl"
+                card.largeValue ? "text-3xl xl:text-4xl" : "text-2xl xl:text-3xl"
               }`}
             >
               {card.value}
             </p>
-            <p className="mt-4 flex items-center gap-1.5 text-base font-semibold md:text-xl">
+            <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold md:text-sm">
               <TrendingUp
-                className="h-5 w-5 text-[#36B37E] dark:text-[#25ec7c]"
+                className="h-4 w-4 shrink-0 text-[#36B37E] dark:text-[#25ec7c]"
                 strokeWidth={2.4}
               />
               <span className="text-[#36B37E] dark:text-[#25ec7c]">{card.trend}</span>
-              <span className="font-normal text-gray-400 dark:text-white/50">
+              <span className="truncate font-normal text-gray-400 dark:text-white/50">
                 {card.trendLabel}
               </span>
             </p>

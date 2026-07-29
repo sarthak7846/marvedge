@@ -34,10 +34,10 @@ const AnalyticsMain = ({
 
   return (
     <div
-      className="analytics-body min-h-screen bg-[#F3F1FE] p-4 dark:bg-transparent md:p-8"
+      className="analytics-body flex h-full min-h-0 flex-col bg-[#F3F1FE] p-4 dark:bg-transparent md:p-6"
       style={{ fontFamily: "var(--font-raleway)" }}
     >
-      <p className="mb-6 text-lg font-normal text-[rgba(0,0,0,0.43)] dark:text-gray-400 md:mb-8 md:text-2xl">
+      <p className="mb-4 shrink-0 text-base font-normal text-[rgba(0,0,0,0.43)] dark:text-gray-400 md:text-lg">
         Track performance and engagement across all your demos.
       </p>
 
@@ -49,7 +49,7 @@ const AnalyticsMain = ({
         isVisible={isVisible}
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
         <ViewsOverTimePanel viewsOverTime={viewsOverTime} />
         <TopDemosPanel topDemos={topDemos} />
       </div>
