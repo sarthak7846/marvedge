@@ -68,7 +68,7 @@ const SignIn = () => {
             <button
               type="button"
               onClick={togglePasswordVisibility}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer dark:invert"
             >
               <Image
                 src={showPassword ? "/icons/eyeclosed.png" : "/icons/eyeopen.png"}

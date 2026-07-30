@@ -120,6 +120,7 @@ const SignUp = () => {
                 alt="Toggle Confirm"
                 width={20}
                 height={20}
+                className="dark:invert"
               />
             </button>
           </div>
