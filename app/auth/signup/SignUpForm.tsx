@@ -89,13 +89,15 @@ const SignUp = () => {
             <button
               type="button"
               onClick={togglePassword}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer dark:invert"
             >
               <Image
                 src={showPassword ? "/icons/eyeclosed.png" : "/icons/eyeopen.png"}
                 alt="Toggle Password"
                 width={20}
                 height={20}
+                
+               
               />
             </button>
           </div>
@@ -120,6 +122,7 @@ const SignUp = () => {
                 alt="Toggle Confirm"
                 width={20}
                 height={20}
+                className="dark:invert"
               />
             </button>
           </div>

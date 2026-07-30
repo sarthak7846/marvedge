@@ -62,7 +62,7 @@ const SignIn = () => {
               ref={passwordRef}
               name="password"
               autoComplete="current-password"
-              className="w-full p-2.5 sm:p-3 border-2 border-gray-500 dark:border-[#3d2a73] dark:bg-transparent dark:text-white dark:placeholder-[#7f7f96] rounded-md focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] dark:focus:ring-[#8f5fff] text-sm pr-10 transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF] dark:hover:border-[#6e43ff]"
+              className="w-full p-2.5 sm:p-3 border-2 border-gray-500 dark:border-[#3d2a73] dark:bg-transparent dark:text-white dark:placeholder-[#7f7f96] rounded-md focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] dark:focus:ring-[#8f5fff] text-sm pr-10 transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF] dark:hover:border-[#6e43ff] "
               required
             />
             <button
@@ -75,7 +75,7 @@ const SignIn = () => {
                 alt="Toggle Password"
                 width={18}
                 height={18}
-                className="sm:w-[20px] sm:h-[20px]"
+                className="sm:w-[20px] sm:h-[20px] dark:invert"
               />
             </button>
           </div>
