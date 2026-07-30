@@ -89,13 +89,14 @@ const SignUp = () => {
             <button
               type="button"
               onClick={togglePassword}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer "
             >
               <Image
                 src={showPassword ? "/icons/eyeclosed.png" : "/icons/eyeopen.png"}
                 alt="Toggle Password"
                 width={20}
                 height={20}
+                className="dark:invert"
               />
             </button>
           </div>
@@ -108,7 +109,7 @@ const SignUp = () => {
               placeholder="Enter Confirm Password"
               ref={confirmPasswordRef}
               required
-              className="w-full p-3 border-2 border-gray-500 dark:border-[#3d2a73] dark:bg-transparent dark:text-white dark:placeholder-[#7f7f96] rounded-md text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] dark:focus:ring-[#8f5fff] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF] dark:hover:border-[#6e43ff]"
+              className="w-full p-3 border-2 border-gray-500 dark:border-[#3d2a73] dark:bg-transparent dark:text-white dark:placeholder-[#7f7f96] rounded-md text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-[#6A4EFF] dark:focus:ring-[#8f5fff] transition-all duration-300 focus:scale-[1.02] hover:border-[#B8AAFF] dark:hover:border-[#6e43ff] "
             />
             <button
               type="button"
