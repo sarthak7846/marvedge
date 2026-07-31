@@ -61,7 +61,7 @@ const ResetPassword = () => {
             <button
               type="button"
               onClick={togglePassword}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 dark:invert"
             >
               <Image
                 src={showPassword ? "/icons/eyeclosed.png" : "/icons/eyeopen.png"}
