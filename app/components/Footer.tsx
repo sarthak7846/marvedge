@@ -348,38 +348,42 @@ const FooterSocials: React.FC<{ isInView: boolean }> = ({ isInView }) => (
   </motion.div>
 );
 
-const FooterCopyright: React.FC<{ isInView: boolean }> = ({ isInView }) => (
-  <motion.footer
-    className="copyright w-full max-w-7xl mx-auto flex flex-col items-center pt-6 pb-8 px-3 sm:px-4 border-t border-[rgba(165,139,255,0.12)] relative z-10 mt-8"
-    initial={{ opacity: 0, y: 60 }}
-    animate={{
-      opacity: isInView ? 1 : 0,
-      y: isInView ? 0 : 60,
-    }}
-    transition={{
-      duration: 0.8,
-      ease: easeOut,
-      delay: 0.8,
-    }}
-  >
-    <motion.p
-      className="text-gray-400 text-xs sm:text-sm font-semibold text-center opacity-70"
-      style={{ fontFamily: "var(--font-raleway)" }}
-      initial={{ opacity: 0, y: 30 }}
+const FooterCopyright: React.FC<{ isInView: boolean }> = ({ isInView }) => {
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <motion.footer
+      className="copyright w-full max-w-7xl mx-auto flex flex-col items-center pt-6 pb-8 px-3 sm:px-4 border-t border-[rgba(165,139,255,0.12)] relative z-10 mt-8"
+      initial={{ opacity: 0, y: 60 }}
       animate={{
         opacity: isInView ? 1 : 0,
-        y: isInView ? 0 : 30,
+        y: isInView ? 0 : 60,
       }}
       transition={{
         duration: 0.8,
         ease: easeOut,
-        delay: 1.0,
+        delay: 0.8,
       }}
     >
-      Copyright © 2025. All rights reserved. Created with purple heart for better conversation.
-    </motion.p>
-  </motion.footer>
-);
+      <motion.p
+        className="text-gray-400 text-xs sm:text-sm font-semibold text-center opacity-70"
+        style={{ fontFamily: "var(--font-raleway)" }}
+        initial={{ opacity: 0, y: 30 }}
+        animate={{
+          opacity: isInView ? 1 : 0,
+          y: isInView ? 0 : 30,
+        }}
+        transition={{
+          duration: 0.8,
+          ease: easeOut,
+          delay: 1.0,
+        }}
+      >
+        Copyright © {currentYear}. All rights reserved. Created with purple heart for better conversation.
+      </motion.p>
+    </motion.footer>
+  );
+};
 
 const Footer: React.FC = () => {
   const sectionRef = useRef(null);
