@@ -1,12 +1,14 @@
-import Image from "next/image";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
+import UserAvatar from "@/app/components/UserAvatar";
+import Image from "next/image";
+import { useUserStore } from "@/app/store/userStore";
+import { JSX } from "react";
 
 type EditorTopbarUserMenuProps = {
   username: string;
   session: Session | null;
   userInitials: string;
-  profileImage: string | null | undefined;
   showDropdown: boolean;
   setShowDropdown: React.Dispatch<React.SetStateAction<boolean>>;
   dropdownRef: React.RefObject<HTMLDivElement | null>;
@@ -16,11 +18,13 @@ const EditorTopbarUserMenu = ({
   username,
   session,
   userInitials,
-  profileImage,
   showDropdown,
   setShowDropdown,
   dropdownRef,
-}: EditorTopbarUserMenuProps) => {
+}: EditorTopbarUserMenuProps): JSX.Element => {
+  // Just read from store - don't fetch
+  const profileImage = useUserStore((state) => state.profileImage);
+
   return (
     <div className="flex items-center gap-2 sm:gap-4">
       <span className="hidden sm:block text-[#7C5CFC] font-medium text-base mr-2 items-center gap-1">
@@ -30,7 +34,7 @@ const EditorTopbarUserMenu = ({
         </span>
       </span>
       <div className="flex items-center gap-2 shrink-0">
-        <button className="relative text-[#7C5CFC] hover:bg-[#ede7fa] rounded-full p-1 w-8 h-8 sm:w-10 sm:h-10  items-center justify-center shrink-0 hidden sm:block">
+        <button className="relative text-[#7C5CFC] hover:bg-[#ede7fa] rounded-full p-1 w-8 h-8 sm:w-10 sm:h-10 items-center justify-center shrink-0 hidden sm:block">
           <Image
             src="/icons/bell.png"
             alt="Notifications"
@@ -40,26 +44,13 @@ const EditorTopbarUserMenu = ({
           />
         </button>
         <div className="relative" ref={dropdownRef}>
-          <button
-            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full text-white  items-center justify-center text-base sm:text-lg font-bold shadow cursor-pointer border-2 border-white hover:scale-105 transition-all block shrink-0 overflow-hidden"
+          <UserAvatar
+            profileImage={profileImage}
+            userInitials={userInitials}
+            size={40}
             onClick={() => setShowDropdown((v) => !v)}
-            title={session?.user?.name || session?.user?.email || undefined}
-            style={profileImage ? {} : { backgroundColor: "#6356D7" }}
-          >
-            {profileImage ? (
-              <Image
-                key={profileImage}
-                src={profileImage}
-                alt="Profile"
-                width={40}
-                height={40}
-                className="w-full h-full object-cover"
-                unoptimized
-              />
-            ) : (
-              userInitials
-            )}
-          </button>
+            className="w-8 h-8 sm:w-10 sm:h-10 border-2 border-white"
+          />
           {showDropdown && (
             <div className="absolute right-0 mt-2 w-56 md:w-64 bg-white rounded-lg shadow-lg p-3 md:p-4 z-50 border border-gray-200 animate-fade-in">
               <div className="mb-2 text-base md:text-lg font-bold text-[#6356D7]">
