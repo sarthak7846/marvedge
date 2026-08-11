@@ -125,8 +125,12 @@ function RulerLayers(props: TimelineTrackProps & DragSetters) {
     trackIndices,
   } = props;
 
-  const maxTrackIdx = Object.values(trackIndices || {}).reduce((max, val) => Math.max(max, val), 2);
-  const totalTracks = maxTrackIdx + 2;
+  const usedTrackCount = Object.keys(trackIndices || {}).length;
+  const highestUsedTrackIdx = Object.values(trackIndices || {}).reduce(
+    (max, val) => Math.max(max, val),
+    -1
+  );
+  const separatorCount = usedTrackCount > 0 ? highestUsedTrackIdx + 1 : 0;
 
   return (
     <>
@@ -141,7 +145,7 @@ function RulerLayers(props: TimelineTrackProps & DragSetters) {
       />
 
       {/* Horizontal separators in background */}
-      {Array.from({ length: totalTracks - 1 }).map((_, i) => (
+      {Array.from({ length: separatorCount }).map((_, i) => (
         <div
           key={`separator-${i}`}
           className="absolute left-0 w-full h-[1px] border-t border-dashed border-[#A594F9]/30 dark:border-[#3e2fd9]/30 pointer-events-none"
@@ -150,19 +154,20 @@ function RulerLayers(props: TimelineTrackProps & DragSetters) {
       ))}
 
       <div
-        className="absolute top-0 h-full z-40 pointer-events-none"
+        className="absolute top-0 h-full z-40 pointer-events-none flex flex-col items-center"
         style={{
           left: `${0 + currentPosition - scrollLeft}px`,
+          width: "18px",
+          marginLeft: "-9px", // center the 18px-wide marker on the exact time position
         }}
       >
         <div
-          className="sticky top-0 left-1/2 -translate-x-1/2 z-50
-               w-0 h-0
-               border-l-[9px] border-r-[9px] border-t-[9px]
-               border-l-transparent border-r-transparent border-t-green-500"
+          className="z-50 w-0 h-0
+                border-l-[9px] border-r-[9px] border-t-[9px]
+                border-l-transparent border-r-transparent border-t-green-500"
         />
 
-        <div className="w-0.5 h-full bg-green-500 mx-auto" />
+        <div className="w-0.5 h-full bg-green-500" />
       </div>
 
       {segments.map((segment, idx) => (
