@@ -216,13 +216,6 @@ export async function handleSaveDemo(
         : null;
     const existingDemoId = savedDemoId ?? urlDemoId ?? null;
 
-    if (existingDemoId) {
-      toast.dismiss();
-      toast.error("This demo has already been saved!");
-      setSavingDemo(false);
-      return;
-    }
-
     // First, upload source video to GCS if it's a blob URL
     let sourceVideoUrl = videoUrl;
     if (!existingDemoId && videoUrl.startsWith("blob:")) {
