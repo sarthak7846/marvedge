@@ -3,6 +3,7 @@ import { prisma } from "@/app/lib/prisma";
 import { invokeGcpWorker } from "@/app/lib/gcpWorker";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
+import { sanitizeSubtitleStyle } from "@/app/lib/subtitles";
 import { isWtmEnabled } from "@/app/lib/wtm/flags";
 import { isWtmAllowed } from "@/app/lib/wtm/access";
 import { resolveWatermarkForPlan as resolveWatermarkForIsPro } from "@/app/lib/wtm/watermark";
@@ -249,6 +250,14 @@ export async function POST(req: NextRequest) {
     // identical to today and non-WTM exports are unchanged.
     const watermark = resolveWatermarkForPlan(user.plan, data.watermark);
 
+    // SUB: the subtitle style is re-sanitized here, never trusted as sent — the
+    // client's object reaches ffmpeg as an ASS style line, so an unvalidated
+    // colour or font would be injected into the render. undefined when the demo
+    // was never styled, which leaves the recipe (and therefore the burn-in)
+    // exactly as it is today. Unlike the watermark this is NOT plan-gated:
+    // subtitle styling is free for every plan, including anonymous.
+    const subtitleStyle = sanitizeSubtitleStyle(data.subtitleStyle);
+
     // 1. Create a job record in the database
     const jobRecord = await prisma.videoJob.create({
       data: {
@@ -273,6 +282,7 @@ export async function POST(req: NextRequest) {
           },
           // Spread into a fresh object literal so the Prisma Json field accepts
           // it (a named interface lacks the implicit index signature Prisma wants).
+          ...(subtitleStyle ? { subtitleStyle: { ...subtitleStyle } } : {}),
           ...(watermark ? { watermark: { ...watermark } } : {}),
         },
       },
@@ -297,6 +307,7 @@ export async function POST(req: NextRequest) {
         drawShadow: true,
         drawBorder: false,
       },
+      ...(subtitleStyle ? { subtitleStyle } : {}),
       ...(watermark ? { watermark } : {}),
     };
 

@@ -15,12 +15,21 @@ interface UseSubtitlesProps {
 
 export function useSubtitles({ editorState }: UseSubtitlesProps) {
   const { params, videoUrl, currentTime, savedDemoId } = editorState;
-  const { subtitleCues, subtitlesLoading, setSubtitleCues, setSubtitlesLoading } = useSubtitleStore(
+  const {
+    subtitleCues,
+    subtitlesLoading,
+    subtitleStyle,
+    setSubtitleCues,
+    setSubtitlesLoading,
+    setSubtitleStyle,
+  } = useSubtitleStore(
     useShallow((s) => ({
       subtitleCues: s.subtitleCues,
       subtitlesLoading: s.subtitlesLoading,
+      subtitleStyle: s.subtitleStyle,
       setSubtitleCues: s.setSubtitleCues,
       setSubtitlesLoading: s.setSubtitlesLoading,
+      setSubtitleStyle: s.setSubtitleStyle,
     }))
   );
 
@@ -148,6 +157,10 @@ export function useSubtitles({ editorState }: UseSubtitlesProps) {
     subtitleCues,
     setSubtitleCues,
     subtitlesLoading,
+    // SUB PR 4: the demo's persisted appearance. `null` until the style panel is
+    // touched, which is what keeps an untouched demo's export byte-identical.
+    subtitleStyle,
+    setSubtitleStyle,
     activeSubtitleText,
     handleAddSubtitles,
     handleSkipSubtitles,
