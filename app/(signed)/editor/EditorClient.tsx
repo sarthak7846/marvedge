@@ -154,6 +154,7 @@ export default function EditorPage() {
           subtitles={subtitles}
           exportFlow={exportFlow}
           thumbnailUrl={thumbnailUrl}
+          playerRef={editorState.playerRef}
         />
 
         <EditorPreviewRegion
