@@ -4,6 +4,7 @@ import { toast } from "react-hot-toast";
 import { useShallow } from "zustand/react/shallow";
 
 import { uploadBlobToGcs } from "@/app/lib/gcsUploadClient";
+import { findActiveCue } from "@/app/lib/subtitles";
 import { useSubtitleStore } from "@/app/store/editor/subtitleStore";
 import { SubtitleCue } from "../types";
 import type { EditorState } from "../apiTypes";
@@ -67,28 +68,12 @@ export function useSubtitles({ editorState }: UseSubtitlesProps) {
     }
   }, [params, setSubtitleCues]);
 
-  const activeSubtitleText = React.useMemo(() => {
-    if (!subtitleCues.length) {
-      return "";
-    }
-    const t = currentTime;
-
-    let lo = 0;
-    let hi = subtitleCues.length - 1;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      const c = subtitleCues[mid];
-      if (t < c.start) {
-        hi = mid - 1;
-      } else if (t > c.end) {
-        lo = mid + 1;
-      } else {
-        return c.text;
-      }
-    }
-
-    return "";
-  }, [subtitleCues, currentTime]);
+  // The binary search lives in app/lib/subtitles so the preview, the editor
+  // panel and the export path all agree on which cue is on screen at a time.
+  const activeSubtitleText = React.useMemo(
+    () => findActiveCue(subtitleCues, currentTime)?.text ?? "",
+    [subtitleCues, currentTime]
+  );
 
   const handleAddSubtitles = async () => {
     if (!videoUrl) {
