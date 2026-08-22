@@ -5,9 +5,12 @@ import BackgroundPanel from "./editorSidebar/BackgroundPanel";
 import ToolsPanel from "./editorSidebar/ToolsPanel";
 import CtaPanel from "./editorSidebar/CtaPanel";
 import AvsPanel from "./editorSidebar/AvsPanel";
+import SubtitlePanel from "./editorSidebar/SubtitlePanel";
+import SubtitleGenerateActions from "./editorSidebar/subtitles/SubtitleGenerateActions";
 import BrandingPanel from "./editorSidebar/BrandingPanel";
 import { isAvsPanelEnabled } from "@/app/lib/avs/flags";
 import { isWtmPanelEnabled } from "@/app/lib/wtm/flags";
+import { isSubtitleEditorEnabled } from "@/app/lib/subtitles";
 import type { CtaItem } from "@/app/(signed)/editor/apiTypes";
 
 interface EditorSidebarProps {
@@ -44,6 +47,8 @@ interface EditorSidebarProps {
   onClearSubtitles?: () => void;
   subtitlesLoading?: boolean;
   hasSubtitles?: boolean;
+  /** Seek the player. The subtitle panel uses it to jump to a cue. */
+  onSeek?: (seconds: number) => void;
   className?: string;
   onOpenSaveDemo?: () => void;
   savingDemo?: boolean;
@@ -89,6 +94,7 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   onClearSubtitles,
   subtitlesLoading = false,
   hasSubtitles = false,
+  onSeek,
   onOpenSaveDemo,
   savingDemo = false,
   demoSaved = false,
@@ -130,27 +136,37 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
       )}
 
       {activeTab === "tools" && (
-        <ToolsPanel
-          aspectRatio={aspectRatio}
-          setAspectRatio={setAspectRatio}
-          browserFrameDrawShadow={browserFrameDrawShadow}
-          setBrowserFrameDrawShadow={setBrowserFrameDrawShadow}
-          browserFrameDrawBorder={browserFrameDrawBorder}
-          setBrowserFrameDrawBorder={setBrowserFrameDrawBorder}
-          textOverlayInput={textOverlayInput}
-          setTextOverlayInput={setTextOverlayInput}
-          textOverlayFontFamily={textOverlayFontFamily}
-          setTextOverlayFontFamily={setTextOverlayFontFamily}
-          textOverlayFontSize={textOverlayFontSize}
-          setTextOverlayFontSize={setTextOverlayFontSize}
-          onAddTextOverlay={onAddTextOverlay}
-          textOverlayColor={textOverlayColor}
-          setTextOverlayColor={setTextOverlayColor}
-          onAddSubtitles={onAddSubtitles}
-          onClearSubtitles={onClearSubtitles}
-          subtitlesLoading={subtitlesLoading}
-          hasSubtitles={hasSubtitles}
-        />
+        <div className="space-y-6">
+          <ToolsPanel
+            aspectRatio={aspectRatio}
+            setAspectRatio={setAspectRatio}
+            browserFrameDrawShadow={browserFrameDrawShadow}
+            setBrowserFrameDrawShadow={setBrowserFrameDrawShadow}
+            browserFrameDrawBorder={browserFrameDrawBorder}
+            setBrowserFrameDrawBorder={setBrowserFrameDrawBorder}
+            textOverlayInput={textOverlayInput}
+            setTextOverlayInput={setTextOverlayInput}
+            textOverlayFontFamily={textOverlayFontFamily}
+            setTextOverlayFontFamily={setTextOverlayFontFamily}
+            textOverlayFontSize={textOverlayFontSize}
+            setTextOverlayFontSize={setTextOverlayFontSize}
+            onAddTextOverlay={onAddTextOverlay}
+            textOverlayColor={textOverlayColor}
+            setTextOverlayColor={setTextOverlayColor}
+          />
+
+          {/* Subtitle generation lives in its own tab now. With the editor flag
+              off that tab does not exist, so the original buttons stay here and
+              the Tools tab looks and behaves exactly as it does today. */}
+          {!isSubtitleEditorEnabled() && (
+            <SubtitleGenerateActions
+              onAddSubtitles={onAddSubtitles}
+              onClearSubtitles={onClearSubtitles}
+              subtitlesLoading={subtitlesLoading}
+              hasSubtitles={hasSubtitles}
+            />
+          )}
+        </div>
       )}
 
       {activeTab === "cta" && (
@@ -164,6 +180,16 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
       )}
 
       {activeTab === "avs" && isAvsPanelEnabled() && <AvsPanel />}
+
+      {activeTab === "subtitles" && isSubtitleEditorEnabled() && (
+        <SubtitlePanel
+          onAddSubtitles={onAddSubtitles}
+          onClearSubtitles={onClearSubtitles}
+          subtitlesLoading={subtitlesLoading}
+          hasSubtitles={hasSubtitles}
+          onSeek={onSeek}
+        />
+      )}
 
       {activeTab === "branding" && isWtmPanelEnabled() && <BrandingPanel />}
     </aside>

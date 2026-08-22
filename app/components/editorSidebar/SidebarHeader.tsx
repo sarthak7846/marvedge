@@ -3,6 +3,7 @@ import Image from "next/image";
 import { MainTab } from "./backgroundOptions";
 import { isAvsPanelEnabled } from "@/app/lib/avs/flags";
 import { isWtmPanelEnabled } from "@/app/lib/wtm/flags";
+import { isSubtitleEditorEnabled } from "@/app/lib/subtitles";
 
 interface SidebarHeaderProps {
   title: string;
@@ -109,6 +110,16 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({
             onClick={() => setActiveTab("avs")}
           >
             AI Voice
+          </button>
+        )}
+        {isSubtitleEditorEnabled() && (
+          <button
+            className={`tab-item flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
+              activeTab === "subtitles" ? "active bg-white text-[#7C5CFC] shadow" : "text-gray-600"
+            }`}
+            onClick={() => setActiveTab("subtitles")}
+          >
+            Subtitles
           </button>
         )}
         {isWtmPanelEnabled() && (
