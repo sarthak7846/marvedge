@@ -3,7 +3,13 @@ import { prisma } from "@/app/lib/prisma";
 import { invokeGcpSubtitles } from "@/app/lib/gcpWorker";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
-import { normalizeCues, normalizeLanguage } from "@/app/lib/subtitles";
+import {
+  isSttOffered,
+  normalizeCues,
+  normalizeLanguage,
+  subtitleWorkerTimeoutMs,
+  validateSubtitleDuration,
+} from "@/app/lib/subtitles";
 
 // Transcribing a 10-minute video (download + ffmpeg audio extract + Deepgram)
 // runs well past the default serverless limit. The request itself returns in one
@@ -20,19 +26,64 @@ const PROGRESS_PERSISTING = 80;
 const PROGRESS_DONE = 100;
 
 /**
+ * Whether the user has cancelled this job since it was dispatched.
+ *
+ * THE WORKER CANNOT BE STOPPED. `/subtitles` is one long opaque HTTP call to
+ * Cloud Run with no cancellation channel — once it is in flight it runs to
+ * completion and bills for the transcription regardless. Cancelling is therefore
+ * a decision to DISCARD the result, not to halt the work, and this is the check
+ * that enforces it: read just before the result would be written, so a cancel
+ * that lands mid-transcription still prevents cues appearing on a demo the user
+ * has walked away from. The user-facing copy says exactly this — see the cancel
+ * route and the toast in useSubtitles.ts.
+ */
+async function isCancelled(jobId: string): Promise<boolean> {
+  const job = await prisma.videoJob
+    .findUnique({ where: { id: jobId }, select: { status: true } })
+    .catch(() => null);
+  return job?.status === "CANCELLED";
+}
+
+/**
  * Run the transcription and record the result. Invoked from `after()`, so it
  * runs *after* the response has been flushed: nothing it throws can reach the
  * client, and every exit path has to land in the job record instead.
  */
-async function dispatchSubtitleJob(jobId: string, videoUrl: string, language: string) {
+async function dispatchSubtitleJob(
+  jobId: string,
+  videoUrl: string,
+  language: string,
+  durationSeconds: number | null
+) {
   try {
+    // Cancelled between the response being flushed and this running — rare, but
+    // it costs one read to not spend a transcription on it.
+    if (await isCancelled(jobId)) {
+      console.log(`[subtitles] Job ${jobId} cancelled before dispatch; not calling the worker.`);
+      return;
+    }
+
     await prisma.videoJob.update({
       where: { id: jobId },
       data: { status: "PROCESSING", progress: PROGRESS_TRANSCRIBING },
     });
 
-    // invokeGcpSubtitles already retries 429/502/503/504 with backoff.
-    const rawCues = await invokeGcpSubtitles({ videoUrl, language });
+    // invokeGcpSubtitles already retries 429/502/503/504 with backoff. The
+    // timeout scales with the source length — the 180s default is generous for a
+    // short demo and far too tight for an hour-long one, where it turns a slow
+    // success into a spurious abort.
+    const rawCues = await invokeGcpSubtitles({
+      videoUrl,
+      language,
+      timeoutMs: subtitleWorkerTimeoutMs(durationSeconds),
+    });
+
+    // The expensive part is over. If the user cancelled while it ran, the cues
+    // are thrown away here rather than landing on their demo.
+    if (await isCancelled(jobId)) {
+      console.log(`[subtitles] Job ${jobId} cancelled during transcription; discarding cues.`);
+      return;
+    }
 
     // The worker's cue clustering is well behaved, but the export path assumes
     // sorted, non-overlapping cues and this is the last place that is cheap to
@@ -94,6 +145,12 @@ async function dispatchSubtitleJob(jobId: string, videoUrl: string, language: st
     });
   } catch (err) {
     console.error("Subtitle Job Dispatch Error:", err);
+    // A cancelled job that then fails stays cancelled: the user already knows
+    // they stopped it, and flipping it to FAILED would report an error for
+    // something they chose.
+    if (await isCancelled(jobId)) {
+      return;
+    }
     await prisma.videoJob
       .update({
         where: { id: jobId },
@@ -122,6 +179,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing videoUrl" }, { status: 400 });
     }
 
+    // PRD §13 — an explicit ceiling with a message that names the actual length,
+    // rather than a job that dies on a timeout the user cannot interpret. The
+    // client sends what the player measured; an absent duration passes, because
+    // "not measured yet" must not mean "refuse to caption".
+    const durationSeconds =
+      typeof data.durationSeconds === "number" && Number.isFinite(data.durationSeconds)
+        ? data.durationSeconds
+        : null;
+    const durationCheck = validateSubtitleDuration(durationSeconds);
+    if (!durationCheck.ok) {
+      return NextResponse.json({ error: durationCheck.error }, { status: 400 });
+    }
+
+    // PRD §13 — an unsupported language is refused rather than silently
+    // transcribed in whatever the detector guesses, which is what a fall back to
+    // auto-detect would do. An ABSENT code still means auto-detect: that is what
+    // every client sent before the picker existed.
+    const requestedLanguage = typeof language === "string" ? language.trim() : "";
+    if (requestedLanguage && !isSttOffered(requestedLanguage)) {
+      return NextResponse.json(
+        {
+          error: `Subtitles are not available in "${requestedLanguage}". Pick a language from the list, or leave it on auto-detect.`,
+        },
+        { status: 400 }
+      );
+    }
+
     const user = await prisma.user.findFirst({
       where: {
         OR: [
@@ -148,9 +232,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Unknown or missing codes fall back to auto-detect ("multi"), which is what
-    // the editor has always sent.
-    const normalizedLanguage = normalizeLanguage(language);
+    // Missing codes fall back to auto-detect ("multi"), which is what the editor
+    // has always sent. Unknown ones were rejected above.
+    const normalizedLanguage = normalizeLanguage(requestedLanguage);
 
     const jobRecord = await prisma.videoJob.create({
       data: {
@@ -172,7 +256,7 @@ export async function POST(req: NextRequest) {
     // the POST awaited the entire transcription, so a long video blew the
     // serverless limit and stranded the job at PROCESSING with cues that had
     // been computed but never written.
-    after(() => dispatchSubtitleJob(jobRecord.id, videoUrl, normalizedLanguage));
+    after(() => dispatchSubtitleJob(jobRecord.id, videoUrl, normalizedLanguage, durationSeconds));
 
     return NextResponse.json({
       success: true,
