@@ -2,14 +2,17 @@ import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
 
 import {
+  DEFAULT_SUBTITLE_STYLE,
   MIN_CUE_SECONDS,
   deleteCue,
   findActiveCue,
   insertCue,
   mergeCues,
   normalizeCues,
+  sanitizeSubtitleStyle,
   splitCueAt,
 } from "@/app/lib/subtitles";
+import type { SubtitleStyle } from "@/app/lib/subtitles";
 import type { SubtitleCue } from "@/app/(signed)/editor/types";
 
 /**
@@ -37,6 +40,11 @@ import type { SubtitleCue } from "@/app/(signed)/editor/types";
  * one, in both directions) and a drag-scoped mutation path — `beginCueDrag` /
  * `dragCues` / `endCueDrag` — so a drag lands as ONE undo step instead of one
  * per mousemove.
+ *
+ * SUB PR 4 adds `subtitleStyle`: the appearance the preview overlay and the
+ * burned-in export both read, through the one mapping in app/lib/subtitles/style.
+ * It stays `null` until the user actually changes something, because "no style
+ * config" is what makes an untouched demo export byte-identically to master.
  */
 
 /**
@@ -90,6 +98,13 @@ export interface SubtitleStoreState {
    * against the previous frame — see `dragCues`.
    */
   subtitleDragOrigin: SubtitleCue[] | null;
+  /**
+   * User-chosen appearance, persisted to `editing.subtitleStyle`. `null` means
+   * the demo has never opened the style panel, which is what keeps the export
+   * byte-identical to master — the worker then falls back to its own hardcoded
+   * style rather than being handed one. Never default this to an object.
+   */
+  subtitleStyle: SubtitleStyle | null;
 
   setSubtitleCues: Dispatch<SetStateAction<SubtitleCue[]>>;
   setSubtitlesLoading: Dispatch<SetStateAction<boolean>>;
@@ -115,6 +130,17 @@ export interface SubtitleStoreState {
 
   /** Select a cue (or clear the selection). Out-of-range indexes clear it. */
   selectCue: (index: number | null) => void;
+
+  /**
+   * Replace the subtitle style. Sanitized on the way in so the preview can only
+   * ever render a style the export can also produce; `null` clears it back to
+   * "no style config", restoring master's burn-in exactly.
+   *
+   * A partial patch is merged onto the current style (or onto the defaults, the
+   * first time a knob is touched), so the panel's controls can each set one
+   * field without restating the rest.
+   */
+  setSubtitleStyle: (patch: Partial<SubtitleStyle> | null) => void;
 
   /**
    * Open a continuous re-timing gesture (a timeline drag), snapshotting the cue
@@ -149,6 +175,7 @@ const initialState = {
   selectedCueIndex: null as number | null,
   cueFocusNonce: 0,
   subtitleDragOrigin: null as SubtitleCue[] | null,
+  subtitleStyle: null as SubtitleStyle | null,
 };
 
 /**
@@ -203,6 +230,31 @@ function clampSelection(
 /** `true` when `index` addresses a cue in `cues`. */
 const inRange = (cues: readonly SubtitleCue[], index: number): boolean =>
   Number.isInteger(index) && index >= 0 && index < cues.length;
+
+/**
+ * Merge a style patch onto the current style.
+ *
+ * `null` clears the style entirely, which is the state that makes an export
+ * byte-identical to master — it is not the same as writing the defaults. Any
+ * other patch is merged onto the current style, or onto the defaults the first
+ * time a knob is touched, so what gets persisted is a complete, self-describing
+ * object rather than one field the reader would have to guess the rest of.
+ *
+ * Sanitizing here rather than at save time means the preview can only ever show
+ * a style the renderer can also produce.
+ */
+function applySubtitleStylePatch(
+  current: SubtitleStyle | null,
+  patch: Partial<SubtitleStyle> | null
+): Partial<Pick<SubtitleStoreState, "subtitleStyle">> {
+  if (patch === null) {
+    return current === null ? {} : { subtitleStyle: null };
+  }
+  return {
+    subtitleStyle:
+      sanitizeSubtitleStyle({ ...(current ?? DEFAULT_SUBTITLE_STYLE), ...patch }) ?? null,
+  };
+}
 
 /** Cue-by-cue equality, to spot a mutation the normalizer undid. */
 const sameCues = (a: readonly SubtitleCue[], b: readonly SubtitleCue[]): boolean =>
@@ -346,6 +398,8 @@ export const useSubtitleStore = create<SubtitleStoreState>((set) => ({
       }
       return { selectedCueIndex: next, cueFocusNonce: s.cueFocusNonce + 1 };
     }),
+
+  setSubtitleStyle: (patch) => set((s) => applySubtitleStylePatch(s.subtitleStyle, patch)),
 
   beginCueDrag: () =>
     set((s) =>

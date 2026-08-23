@@ -3,6 +3,7 @@ import { Plus, Undo2 } from "lucide-react";
 
 import CueList from "./subtitles/CueList";
 import SubtitleGenerateActions from "./subtitles/SubtitleGenerateActions";
+import SubtitleStyleControls from "./subtitles/SubtitleStyleControls";
 import type { SubtitleGenerateActionsProps } from "./subtitles/SubtitleGenerateActions";
 import { useSubtitleEditing } from "./subtitles/useSubtitleEditing";
 import { formatTimecode } from "./subtitles/timecode";
@@ -26,8 +27,11 @@ interface SubtitlePanelProps extends SubtitleGenerateActionsProps {
  * both ways — picking a block there scrolls this list to the matching row and
  * highlights it, and picking a row here highlights the block.
  *
- * PR 4 adds styling (font, size, colour, outline, position), shared by the live
- * preview overlay and the burned-in export through one style module.
+ * PR 4 adds the Style section below: font, size, colour, background box, border,
+ * shadow, position and animation. The live preview overlay and the burned-in
+ * export both read those numbers from app/lib/subtitles/style.ts, so what the
+ * panel shows is what the render produces — before this they were two separate
+ * hardcoded implementations that had already drifted apart.
  *
  * PR 5 adds languages: pick the spoken language before generating, and translate
  * a finished track into another one (PRO/ENTERPRISE, gated server-side).
@@ -111,6 +115,8 @@ const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
           {" · click one to jump to it · edits save automatically."}
         </p>
       </div>
+
+      <SubtitleStyleControls />
     </div>
   );
 };

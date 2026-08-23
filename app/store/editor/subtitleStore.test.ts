@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { SUBTITLE_UNDO_LIMIT, useSubtitleStore } from "./subtitleStore";
+import { SUBTITLE_FONT_PCT_MAX } from "@/app/lib/subtitles";
 import {
   applyDemoEditing,
   buildEditingPayload,
@@ -189,6 +190,7 @@ describe("persistence", () => {
       selectedBackground: null,
       backgroundType: "",
       subtitleCues: edited,
+      subtitleStyle: store().subtitleStyle,
       textOverlays: [],
       aspectRatio: "native",
       browserFrameMode: "default",
@@ -210,6 +212,7 @@ describe("persistence", () => {
       setCurrentSegments: noop,
       setZoomSegments: noop,
       setSubtitleCues: store().setSubtitleCues,
+      setSubtitleStyle: store().setSubtitleStyle,
       setTextOverlays: noop,
       setSelectedBackground: noop,
       setBackgroundType: noop,
@@ -222,6 +225,87 @@ describe("persistence", () => {
     });
 
     expect(store().subtitleCues).toEqual(edited);
+  });
+
+  /**
+   * SUB PR 4 persists the style the same way, through `editing.subtitleStyle`.
+   * The important half is the NEGATIVE case: a demo that was never styled must
+   * round-trip back to `null`, not to the defaults, because "no style config" is
+   * exactly what makes its export byte-identical to master.
+   */
+  it("round-trips a subtitle style, and keeps an unstyled demo unstyled", () => {
+    const unstyled = buildEditingPayload({
+      segments: [],
+      zoomSegments: [],
+      selectedBackground: null,
+      backgroundType: "",
+      subtitleCues: [],
+      subtitleStyle: null,
+      textOverlays: [],
+      aspectRatio: "native",
+      browserFrameMode: "default",
+      browserFrameDrawShadow: true,
+      browserFrameDrawBorder: false,
+      avs: null,
+      wtm: null,
+    });
+    expect(unstyled.subtitleStyle).toBeNull();
+
+    const noop = () => {};
+    const setters = {
+      setSegments: noop,
+      setCurrentSegments: noop,
+      setZoomSegments: noop,
+      setSubtitleCues: store().setSubtitleCues,
+      setSubtitleStyle: store().setSubtitleStyle,
+      setTextOverlays: noop,
+      setSelectedBackground: noop,
+      setBackgroundType: noop,
+      setAspectRatio: noop,
+      setBrowserFrameMode: noop,
+      setBrowserFrameDrawShadow: noop,
+      setBrowserFrameDrawBorder: noop,
+      setAvs: noop,
+      setWtm: noop,
+    };
+
+    store().reset();
+    applyDemoEditing(JSON.parse(JSON.stringify(unstyled)) as DemoEditing, setters);
+    expect(store().subtitleStyle).toBeNull();
+
+    store().setSubtitleStyle({ alignment: "top", color: "#8A76FC" });
+    const styled = store().subtitleStyle;
+    expect(styled).toMatchObject({ alignment: "top", color: "#8A76FC" });
+
+    const payload = buildEditingPayload({
+      segments: [],
+      zoomSegments: [],
+      selectedBackground: null,
+      backgroundType: "",
+      subtitleCues: [],
+      subtitleStyle: styled,
+      textOverlays: [],
+      aspectRatio: "native",
+      browserFrameMode: "default",
+      browserFrameDrawShadow: true,
+      browserFrameDrawBorder: false,
+      avs: null,
+      wtm: null,
+    });
+
+    store().reset();
+    expect(store().subtitleStyle).toBeNull();
+    applyDemoEditing(JSON.parse(JSON.stringify(payload)) as DemoEditing, setters);
+    expect(store().subtitleStyle).toEqual(styled);
+  });
+
+  it("sanitizes a style on the way into the store", () => {
+    store().reset();
+    store().setSubtitleStyle({ alignment: "sideways" as never, fontSizePct: 999 });
+    expect(store().subtitleStyle?.alignment).toBe("bottom");
+    expect(store().subtitleStyle?.fontSizePct).toBe(SUBTITLE_FONT_PCT_MAX);
+    store().setSubtitleStyle(null);
+    expect(store().subtitleStyle).toBeNull();
   });
 });
 

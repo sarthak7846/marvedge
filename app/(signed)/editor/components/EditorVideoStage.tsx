@@ -118,7 +118,7 @@ export default function EditorVideoStage({
         />
       </div>
 
-      <SubtitleOverlay text={subtitles.activeSubtitleText} />
+      <SubtitleOverlay text={subtitles.activeSubtitleText} style={subtitles.subtitleStyle} />
 
       {shouldShowZoomFocusBox && activeEditedZoomSegment && (
         <ZoomFocusOverlay

@@ -6,6 +6,8 @@ import { ExportSettings } from "@/app/components/ExportSettingsModal";
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import { exportVideo } from "../utils/videoHandlers";
 import { useWebcamComposite } from "./useWebcamComposite";
+import { sanitizeSubtitleStyle } from "@/app/lib/subtitles";
+import type { SubtitleStyle } from "@/app/lib/subtitles";
 import { sanitizeWatermarkConfig } from "@/app/lib/wtm/watermark";
 import { buildExportSpeed, resolveExportBackgroundSelection } from "../utils/exportHelpers";
 import { SubtitleCue, TextOverlayItem } from "../types";
@@ -17,6 +19,7 @@ interface UseExportFlowProps {
   segments: { start: number; end: number }[];
   zoomSegments: ZoomEffect[];
   subtitleCues: SubtitleCue[];
+  subtitleStyle: SubtitleStyle | null;
   textOverlays: TextOverlayItem[];
   playbackSpeed: number;
 }
@@ -37,6 +40,7 @@ export function useExportFlow({
   segments,
   zoomSegments,
   subtitleCues,
+  subtitleStyle,
   textOverlays,
   playbackSpeed,
 }: UseExportFlowProps) {
@@ -102,6 +106,10 @@ export function useExportFlow({
       segments,
       zoomSegments,
       subtitles: subtitleCues,
+      // SUB: the demo's persisted style, re-sanitized server-side by
+      // /api/jobs/create. Undefined for a demo that was never styled → the
+      // recipe carries no style and the worker keeps master's hardcoded one.
+      subtitleStyle: sanitizeSubtitleStyle(subtitleStyle),
       textOverlays,
       setProgress,
       aspectRatio,

@@ -3,6 +3,7 @@ import { toast } from "react-hot-toast";
 
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import { handleSaveDemo } from "../utils/videoHandlers";
+import type { SubtitleStyle } from "@/app/lib/subtitles";
 import { SubtitleCue, TextOverlayItem } from "../types";
 import type { EditorState } from "../apiTypes";
 
@@ -11,6 +12,7 @@ interface UseSaveDemoProps {
   segments: { start: number; end: number }[];
   zoomSegments: ZoomEffect[];
   subtitleCues: SubtitleCue[];
+  subtitleStyle: SubtitleStyle | null;
   textOverlays: TextOverlayItem[];
 }
 
@@ -19,6 +21,7 @@ export function useSaveDemo({
   segments,
   zoomSegments,
   subtitleCues,
+  subtitleStyle,
   textOverlays,
 }: UseSaveDemoProps) {
   const savedDemosRef = useRef<Set<string>>(new Set());
@@ -54,6 +57,7 @@ export function useSaveDemo({
       })),
       zoomEffects: zoomSegments,
       subtitles: subtitleCues,
+      subtitleStyle,
       selectedBackground: editorState.selectedBackground,
       backgroundType: editorState.backgroundType,
       aspectRatio: editorState.aspectRatio,

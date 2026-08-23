@@ -4,6 +4,7 @@ import { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import { Segment } from "../hooks/useEditorState";
 import { uploadBlobToGcs } from "@/app/lib/gcsUploadClient";
 import { fixWebmDurationIfNeeded } from "@/app/lib/fixWebmDuration";
+import type { SubtitleStyle } from "@/app/lib/subtitles";
 import type { WatermarkConfig } from "@/app/types/wtm";
 
 function getDemoIdFromApiResponse(data: unknown): string | null {
@@ -52,6 +53,8 @@ interface SaveDemoParams {
   currentSegments: Segment[];
   zoomEffects: ZoomEffect[];
   subtitles?: { start: number; end: number; text: string }[];
+  /** SUB PR 4: the demo's persisted subtitle appearance, or null when unstyled. */
+  subtitleStyle?: SubtitleStyle | null;
   selectedBackground?: string | null;
   backgroundType?: string;
   aspectRatio?: string;
@@ -184,6 +187,7 @@ export async function handleSaveDemo(
     currentSegments,
     zoomEffects,
     subtitles,
+    subtitleStyle,
     selectedBackground,
     backgroundType,
     aspectRatio,
@@ -235,6 +239,9 @@ export async function handleSaveDemo(
       zoom: zoomEffects,
       background: selectedBackground ?? null,
       subtitles: subtitles || null,
+      // SUB PR 4: this path replaces `editing` wholesale, so a saved style has
+      // to be re-sent or an explicit Save would wipe what autosave wrote.
+      subtitleStyle: subtitleStyle ?? null,
       textOverlays: textOverlays || [],
       backgroundType: backgroundType || "",
       aspectRatio: aspectRatio || "native",
@@ -530,6 +537,10 @@ interface ExportVideoParams {
   savedDemoId?: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   settings?: any; // The new export settings
+  // SUB: the demo's `editing.subtitleStyle`, if any. Only a *request* — the
+  // route re-sanitizes it server-side. Undefined for a demo that was never
+  // styled, which is what keeps its export byte-identical to master.
+  subtitleStyle?: SubtitleStyle;
   // WTM: the demo's `editing.wtm.watermark`, if any. Only a *request* — the
   // server re-resolves the effective watermark from the user's plan.
   watermark?: WatermarkConfig;
@@ -791,6 +802,7 @@ export const exportVideo = async ({
   duration,
   savedDemoId,
   settings,
+  subtitleStyle,
   watermark,
   prepareSourceUrl,
 }: ExportVideoParams): Promise<ExportVideoResult | null> => {
@@ -874,6 +886,9 @@ export const exportVideo = async ({
       imageMap,
       settings: exportSettings,
       subtitles: subtitles || [],
+      // SUB: omitted entirely when the demo was never styled, so the request
+      // body — and therefore the burned-in result — is identical to today.
+      ...(subtitleStyle ? { subtitleStyle } : {}),
       // WTM: omitted entirely when the demo has no watermark config, so the
       // request body is identical to today for non-WTM demos.
       ...(watermark ? { watermark } : {}),

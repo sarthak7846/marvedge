@@ -3,6 +3,7 @@ import axios from "axios";
 
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import { notifyAutosavePending } from "../utils/autosaveHelpers";
+import type { SubtitleStyle } from "@/app/lib/subtitles";
 import { buildEditingPayload } from "../utils/editingDraft";
 import { SubtitleCue, TextOverlayItem } from "../types";
 import type { EditorState } from "../apiTypes";
@@ -14,6 +15,7 @@ interface UseAutosaveProps {
   segments: { start: number; end: number }[];
   zoomSegments: ZoomEffect[];
   subtitleCues: SubtitleCue[];
+  subtitleStyle: SubtitleStyle | null;
   textOverlays: TextOverlayItem[];
 }
 
@@ -24,6 +26,7 @@ export function useAutosave({
   segments,
   zoomSegments,
   subtitleCues,
+  subtitleStyle,
   textOverlays,
 }: UseAutosaveProps) {
   const {
@@ -51,6 +54,7 @@ export function useAutosave({
       selectedBackground,
       backgroundType,
       subtitleCues,
+      subtitleStyle,
       textOverlays,
       aspectRatio,
       browserFrameMode,
@@ -65,6 +69,7 @@ export function useAutosave({
     selectedBackground,
     backgroundType,
     subtitleCues,
+    subtitleStyle,
     textOverlays,
     aspectRatio,
     browserFrameMode,
@@ -136,6 +141,7 @@ export function useAutosave({
     selectedBackground,
     backgroundType,
     subtitleCues,
+    subtitleStyle,
     textOverlays,
     aspectRatio,
     browserFrameMode,
