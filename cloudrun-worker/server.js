@@ -189,6 +189,38 @@ function cuesFromDeepgramWords(words) {
   return cues.filter((c) => c.text.length > 0 && c.end - c.start > 0.01);
 }
 
+// SUB PR 5: not every language is on the same Deepgram model.
+//
+// nova-2 — what this worker has always sent, and still the default for every
+// language that has always worked. Its request is unchanged.
+//
+// nova-3 — used ONLY for languages nova-2 does not cover. Arabic is the one such
+// language among the seven the product offers: it is absent from nova-2's
+// language list, and nova-3 added it as its first right-to-left language across
+// 17 regional variants.
+//
+// This mirrors `sttModelFor()` in app/lib/subtitles/languages.ts, which is the
+// source of truth and carries the full reasoning; that module cannot be imported
+// here (this worker is a standalone package). Keep the two in step — the table
+// there is pinned by app/lib/subtitles/languages.test.ts.
+const DEEPGRAM_DEFAULT_MODEL = "nova-2";
+const DEEPGRAM_MODEL_BY_LANGUAGE = {
+  ar: "nova-3",
+};
+
+function deepgramModelFor(language) {
+  const code = String(language || "")
+    .trim()
+    .toLowerCase();
+  if (!code || code === "multi") {
+    return DEEPGRAM_DEFAULT_MODEL;
+  }
+  // Match the base language so a regional variant (ar-EG) lands on the same
+  // model as its base (ar).
+  const base = code.split("-")[0];
+  return DEEPGRAM_MODEL_BY_LANGUAGE[base] || DEEPGRAM_DEFAULT_MODEL;
+}
+
 async function transcribeWithDeepgram(wavPath, language = "multi") {
   const apiKey = (process.env.DEEPGRAM_API_KEY || "").trim();
   if (!apiKey) {
@@ -196,13 +228,14 @@ async function transcribeWithDeepgram(wavPath, language = "multi") {
   }
 
   const params = new URLSearchParams({
-    model: "nova-2",
+    model: deepgramModelFor(language),
     punctuate: "true",
     smart_format: "true",
   });
   if (language && language !== "multi") {
     params.set("language", language);
   } else {
+    // Auto-detect stays on nova-2 with detect_language, exactly as before.
     params.set("detect_language", "true");
   }
 

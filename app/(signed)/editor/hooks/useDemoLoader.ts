@@ -16,6 +16,7 @@ interface UseDemoLoaderProps {
   setZoomSegments: (segments: ZoomEffect[]) => void;
   setSubtitleCues: (cues: SubtitleCue[]) => void;
   setSubtitleStyle: (style: Partial<SubtitleStyle> | null) => void;
+  setSubtitleLanguage: (code: string) => void;
   setTextOverlays: (overlays: TextOverlayItem[]) => void;
 }
 
@@ -26,6 +27,7 @@ export function useDemoLoader({
   setZoomSegments,
   setSubtitleCues,
   setSubtitleStyle,
+  setSubtitleLanguage,
   setTextOverlays,
 }: UseDemoLoaderProps) {
   const {
@@ -117,6 +119,7 @@ export function useDemoLoader({
             setZoomSegments,
             setSubtitleCues,
             setSubtitleStyle,
+            setSubtitleLanguage,
             setTextOverlays,
             setSelectedBackground,
             setBackgroundType,
@@ -158,6 +161,7 @@ export function useDemoLoader({
     setZoomSegments,
     setSubtitleCues,
     setSubtitleStyle,
+    setSubtitleLanguage,
     setTextOverlays,
   ]);
 

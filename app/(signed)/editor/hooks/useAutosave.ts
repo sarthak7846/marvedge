@@ -16,6 +16,7 @@ interface UseAutosaveProps {
   zoomSegments: ZoomEffect[];
   subtitleCues: SubtitleCue[];
   subtitleStyle: SubtitleStyle | null;
+  subtitleLanguage: string;
   textOverlays: TextOverlayItem[];
 }
 
@@ -27,6 +28,7 @@ export function useAutosave({
   zoomSegments,
   subtitleCues,
   subtitleStyle,
+  subtitleLanguage,
   textOverlays,
 }: UseAutosaveProps) {
   const {
@@ -55,6 +57,7 @@ export function useAutosave({
       backgroundType,
       subtitleCues,
       subtitleStyle,
+      subtitleLanguage,
       textOverlays,
       aspectRatio,
       browserFrameMode,
@@ -70,6 +73,7 @@ export function useAutosave({
     backgroundType,
     subtitleCues,
     subtitleStyle,
+    subtitleLanguage,
     textOverlays,
     aspectRatio,
     browserFrameMode,
@@ -142,6 +146,7 @@ export function useAutosave({
     backgroundType,
     subtitleCues,
     subtitleStyle,
+    subtitleLanguage,
     textOverlays,
     aspectRatio,
     browserFrameMode,

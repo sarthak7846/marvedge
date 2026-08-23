@@ -4,7 +4,7 @@ import { toast } from "react-hot-toast";
 import { useShallow } from "zustand/react/shallow";
 
 import { uploadBlobToGcs } from "@/app/lib/gcsUploadClient";
-import { findActiveCue } from "@/app/lib/subtitles";
+import { AUTO_DETECT_LANGUAGE, findActiveCue } from "@/app/lib/subtitles";
 import { useSubtitleStore } from "@/app/store/editor/subtitleStore";
 import { SubtitleCue } from "../types";
 import type { EditorState } from "../apiTypes";
@@ -19,17 +19,25 @@ export function useSubtitles({ editorState }: UseSubtitlesProps) {
     subtitleCues,
     subtitlesLoading,
     subtitleStyle,
+    subtitleLanguage,
+    generationLanguage,
     setSubtitleCues,
     setSubtitlesLoading,
     setSubtitleStyle,
+    setSubtitleLanguage,
+    setGenerationLanguage,
   } = useSubtitleStore(
     useShallow((s) => ({
       subtitleCues: s.subtitleCues,
       subtitlesLoading: s.subtitlesLoading,
       subtitleStyle: s.subtitleStyle,
+      subtitleLanguage: s.subtitleLanguage,
+      generationLanguage: s.generationLanguage,
       setSubtitleCues: s.setSubtitleCues,
       setSubtitlesLoading: s.setSubtitlesLoading,
       setSubtitleStyle: s.setSubtitleStyle,
+      setSubtitleLanguage: s.setSubtitleLanguage,
+      setGenerationLanguage: s.setGenerationLanguage,
     }))
   );
 
@@ -112,10 +120,14 @@ export function useSubtitles({ editorState }: UseSubtitlesProps) {
         subtitleSourceUrl = upload.url;
       }
 
+      // SUB PR 5: the chosen generation language, replacing a hardcoded
+      // "multi". The store's default IS "multi", so a user who never opens the
+      // picker sends exactly what this hook has always sent.
+      const requestedLanguage = generationLanguage || AUTO_DETECT_LANGUAGE;
       const createRes = await axios.post("/api/subtitles/create", {
         videoUrl: subtitleSourceUrl,
         demoId: savedDemoId || null,
-        language: "multi",
+        language: requestedLanguage,
       });
       const jobId = createRes.data?.jobId as string | undefined;
       if (!jobId) {
@@ -130,6 +142,10 @@ export function useSubtitles({ editorState }: UseSubtitlesProps) {
         if (state === "completed") {
           const cues = (statusRes.data?.subtitles || []) as SubtitleCue[];
           setSubtitleCues(Array.isArray(cues) ? cues : []);
+          // The generated cues ARE the active track now, so the active language
+          // follows the run that produced them — this is what drives RTL in the
+          // preview and the burn-in.
+          setSubtitleLanguage(requestedLanguage);
           toast.success("Subtitles ready", { id: toastId });
           return;
         }
@@ -161,6 +177,13 @@ export function useSubtitles({ editorState }: UseSubtitlesProps) {
     // touched, which is what keeps an untouched demo's export byte-identical.
     subtitleStyle,
     setSubtitleStyle,
+    // SUB PR 5: the language axis. `subtitleLanguage` is the ACTIVE track's
+    // language and reaches the export recipe (it decides RTL);
+    // `generationLanguage` is only what the next run will ask for.
+    subtitleLanguage,
+    setSubtitleLanguage,
+    generationLanguage,
+    setGenerationLanguage,
     activeSubtitleText,
     handleAddSubtitles,
     handleSkipSubtitles,

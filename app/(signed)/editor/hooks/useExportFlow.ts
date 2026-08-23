@@ -20,6 +20,7 @@ interface UseExportFlowProps {
   zoomSegments: ZoomEffect[];
   subtitleCues: SubtitleCue[];
   subtitleStyle: SubtitleStyle | null;
+  subtitleLanguage: string;
   textOverlays: TextOverlayItem[];
   playbackSpeed: number;
 }
@@ -41,6 +42,7 @@ export function useExportFlow({
   zoomSegments,
   subtitleCues,
   subtitleStyle,
+  subtitleLanguage,
   textOverlays,
   playbackSpeed,
 }: UseExportFlowProps) {
@@ -110,6 +112,9 @@ export function useExportFlow({
       // /api/jobs/create. Undefined for a demo that was never styled → the
       // recipe carries no style and the worker keeps master's hardcoded one.
       subtitleStyle: sanitizeSubtitleStyle(subtitleStyle),
+      // SUB PR 5: the active track's language. The worker needs it to decide
+      // right-to-left layout for the burn-in; the route re-normalizes it.
+      subtitleLanguage,
       textOverlays,
       setProgress,
       aspectRatio,

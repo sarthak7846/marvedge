@@ -3,9 +3,11 @@ import { Plus, Undo2 } from "lucide-react";
 
 import CueList from "./subtitles/CueList";
 import SubtitleGenerateActions from "./subtitles/SubtitleGenerateActions";
+import SubtitleLanguageControls from "./subtitles/SubtitleLanguageControls";
 import SubtitleStyleControls from "./subtitles/SubtitleStyleControls";
 import type { SubtitleGenerateActionsProps } from "./subtitles/SubtitleGenerateActions";
 import { useSubtitleEditing } from "./subtitles/useSubtitleEditing";
+import { useSubtitleLanguages } from "./subtitles/useSubtitleLanguages";
 import { formatTimecode } from "./subtitles/timecode";
 
 interface SubtitlePanelProps extends SubtitleGenerateActionsProps {
@@ -33,8 +35,11 @@ interface SubtitlePanelProps extends SubtitleGenerateActionsProps {
  * panel shows is what the render produces — before this they were two separate
  * hardcoded implementations that had already drifted apart.
  *
- * PR 5 adds languages: pick the spoken language before generating, and translate
- * a finished track into another one (PRO/ENTERPRISE, gated server-side).
+ * PR 5 adds the Language section: pick the spoken language before generating,
+ * switch between the demo's per-language tracks, and translate the active one
+ * into another language. Translation is the ONLY gated surface in the feature —
+ * PRO/ENTERPRISE, decided server-side from the user's real plan; generating,
+ * editing and styling stay free on every plan.
  *
  * PR 6 adds file export — .srt / .vtt / .txt — plus importing an existing
  * subtitle file.
@@ -55,6 +60,7 @@ const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
   onSeek,
 }) => {
   const editing = useSubtitleEditing({ onSeek });
+  const languages = useSubtitleLanguages();
 
   return (
     <div className="space-y-6">
@@ -63,6 +69,19 @@ const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
         onClearSubtitles={onClearSubtitles}
         subtitlesLoading={subtitlesLoading}
         hasSubtitles={hasSubtitles}
+      />
+
+      <SubtitleLanguageControls
+        generationLanguage={languages.generationLanguage}
+        onGenerationLanguageChange={languages.setGenerationLanguage}
+        activeLanguage={languages.activeLanguage}
+        tracks={languages.tracks}
+        onSelectTrack={languages.handleSelectTrack}
+        onTranslate={languages.handleTranslate}
+        translating={languages.translating}
+        busy={subtitlesLoading}
+        canTranslate={languages.canTranslate}
+        translateEnabled={languages.translateEnabled}
       />
 
       <div className="border-t border-[#ede7fa] pt-6">

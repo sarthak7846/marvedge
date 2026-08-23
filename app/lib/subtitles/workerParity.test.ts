@@ -41,12 +41,19 @@ const worker = require_(path.join(process.cwd(), "cloudrun-worker", "render.js")
     cues: { start: number; end: number; text: string }[],
     w: number,
     h: number,
-    style?: unknown
+    style?: unknown,
+    language?: unknown
   ) => string;
   subtitleAssStyleLine: (style: unknown, w: number, h: number) => string;
   subtitleAssOverrideTags: (style: unknown, w: number, h: number) => string;
   subtitleAssColour: (hex: string, opacity: number) => string;
+  isRtlSubtitleLanguage: (language: unknown) => boolean;
 };
+
+const NEWLINE = String.fromCharCode(10);
+/** U+202B RIGHT-TO-LEFT EMBEDDING and U+202C POP DIRECTIONAL FORMATTING. */
+const RLE = String.fromCharCode(0x202b);
+const PDF = String.fromCharCode(0x202c);
 
 /** Every frame size computeTargetSizeForRatio() can produce, and then some. */
 const FRAMES: [number, number][] = [
@@ -195,6 +202,54 @@ describe("worker byte-identity with master", () => {
         );
         expect(defaulted, `${w}x${h}`).toBe(bare);
       }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * SUB PR 5 added a `language` parameter for right-to-left text. Every existing
+   * caller passes nothing, so the absent case must stay byte-identical — the
+   * assertions above already cover that by calling with five arguments; this
+   * pins the LTR language case too, since a demo that picks English must not
+   * start emitting bidi marks.
+   */
+  it("leaves Dialogue text untouched for a left-to-right language", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sub-parity-"));
+    try {
+      for (const [w, h] of FRAMES) {
+        const bare = fs.readFileSync(worker.writeAssSubtitles(dir, CUES, w, h), "utf8");
+        for (const language of [null, undefined, "en", "ja", "multi"]) {
+          const withLang = fs.readFileSync(
+            worker.writeAssSubtitles(dir, CUES, w, h, null, language),
+            "utf8"
+          );
+          expect(withLang, `${w}x${h} ${String(language)}`).toBe(bare);
+        }
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("wraps Dialogue text in bidi marks only for a right-to-left language", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sub-parity-"));
+    try {
+      const written = fs.readFileSync(
+        worker.writeAssSubtitles(dir, CUES, 1920, 1080, null, "ar"),
+        "utf8"
+      );
+      const dialogue = written.split(NEWLINE).filter((l) => l.startsWith("Dialogue:"));
+      expect(dialogue).toHaveLength(2);
+      for (const line of dialogue) {
+        // U+202B … U+202C around the text, after the ASS field separators.
+        expect(line).toContain(RLE);
+        expect(line).toContain(PDF);
+      }
+      // A regional variant resolves to the same base language.
+      expect(worker.isRtlSubtitleLanguage("ar-EG")).toBe(true);
+      expect(worker.isRtlSubtitleLanguage("en")).toBe(false);
+      expect(worker.isRtlSubtitleLanguage(null)).toBe(false);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

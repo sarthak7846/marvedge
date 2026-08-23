@@ -1,6 +1,7 @@
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import { AvsState } from "@/app/types/avs";
 import { WtmState } from "@/app/types/wtm";
+import { AUTO_DETECT_LANGUAGE } from "@/app/lib/subtitles";
 import type { SubtitleStyle } from "@/app/lib/subtitles";
 
 import { BrowserFrameMode } from "../hooks/useEditorState";
@@ -21,6 +22,11 @@ export type DemoEditing = {
   // the export is byte-identical to what it was. No migration; this rides the
   // existing `editing` JSON exactly like `wtm` and `avs` do.
   subtitleStyle?: SubtitleStyle | null;
+  // SUB language of the ACTIVE subtitle track. Absent on demos saved before
+  // languages existed, which the reader treats as auto-detect — exactly what
+  // they were generated with. Drives right-to-left layout in the preview and
+  // the burn-in, so it has to survive a reload and reach the export recipe.
+  subtitleLanguage?: string | null;
   textOverlays?: TextOverlayItem[];
   aspectRatio?: string;
   browserFrame?: {
@@ -43,6 +49,7 @@ export interface EditingPayloadInput {
   backgroundType: string;
   subtitleCues: SubtitleCue[];
   subtitleStyle: SubtitleStyle | null;
+  subtitleLanguage: string;
   textOverlays: TextOverlayItem[];
   aspectRatio: string;
   browserFrameMode: BrowserFrameMode;
@@ -65,6 +72,7 @@ export function buildEditingPayload(input: EditingPayloadInput): DemoEditing {
     backgroundType: input.backgroundType || "",
     subtitles: input.subtitleCues || [],
     subtitleStyle: input.subtitleStyle ?? null,
+    subtitleLanguage: input.subtitleLanguage || AUTO_DETECT_LANGUAGE,
     textOverlays: input.textOverlays || [],
     aspectRatio: input.aspectRatio || "native",
     browserFrame: {
@@ -83,6 +91,7 @@ export interface EditingSetters {
   setZoomSegments: (segments: ZoomEffect[]) => void;
   setSubtitleCues: (cues: SubtitleCue[]) => void;
   setSubtitleStyle: (style: Partial<SubtitleStyle> | null) => void;
+  setSubtitleLanguage: (code: string) => void;
   setTextOverlays: (overlays: TextOverlayItem[]) => void;
   setSelectedBackground: (bg: string) => void;
   setBackgroundType: (type: string) => void;
@@ -131,6 +140,9 @@ export function applyDemoEditing(ed: DemoEditing, setters: EditingSetters): void
   // because that is the state the worker's byte-identical fallback keys off.
   if (ed.subtitleStyle) {
     setters.setSubtitleStyle(ed.subtitleStyle);
+  }
+  if (ed.subtitleLanguage) {
+    setters.setSubtitleLanguage(ed.subtitleLanguage);
   }
   if (ed.textOverlays) {
     setters.setTextOverlays(ed.textOverlays);

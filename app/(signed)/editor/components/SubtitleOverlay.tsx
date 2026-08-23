@@ -5,6 +5,7 @@ import React from "react";
 import {
   SUBTITLE_ANIMATION_KEYFRAMES,
   exportFrameHeight,
+  isRtlLanguage,
   toCssAnimation,
   toCssStyle,
 } from "@/app/lib/subtitles";
@@ -17,6 +18,12 @@ interface SubtitleOverlayProps {
    * `null` renders the defaults, which are master's burn-in appearance.
    */
   style?: SubtitleStyle | null;
+  /**
+   * The active track's language (SUB PR 5). Only used to decide right-to-left
+   * layout — RTL follows the script, not a style knob. Absent → left-to-right,
+   * which is every demo that predates languages.
+   */
+  language?: string;
 }
 
 /**
@@ -46,7 +53,7 @@ interface SubtitleOverlayProps {
  * a true miniature of the export — including the font clamp, which binds on a
  * tall portrait frame and would otherwise show text 60% too large.
  */
-export default function SubtitleOverlay({ text, style }: SubtitleOverlayProps) {
+export default function SubtitleOverlay({ text, style, language }: SubtitleOverlayProps) {
   const stageRef = React.useRef<HTMLDivElement | null>(null);
   const [box, setBox] = React.useState({ width: 0, height: 0 });
 
@@ -66,10 +73,12 @@ export default function SubtitleOverlay({ text, style }: SubtitleOverlayProps) {
     return () => observer.disconnect();
   }, []);
 
+  const rtl = React.useMemo(() => (language ? isRtlLanguage(language) : false), [language]);
+
   const css = React.useMemo(() => {
     const frameHeight = exportFrameHeight(box.height > 0 ? box.width / box.height : 16 / 9);
-    return toCssStyle(style ?? undefined, frameHeight, box.height || undefined);
-  }, [style, box.width, box.height]);
+    return toCssStyle(style ?? undefined, frameHeight, box.height || undefined, { rtl });
+  }, [style, box.width, box.height, rtl]);
 
   const animation = React.useMemo(() => toCssAnimation(style ?? undefined), [style]);
 
