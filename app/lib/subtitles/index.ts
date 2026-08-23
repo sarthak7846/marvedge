@@ -20,14 +20,20 @@ export {
 } from "./cues";
 
 export {
+  SUBTITLE_FORMATS,
+  SUBTITLE_FORMAT_MIME,
   cuesToSrt,
   cuesToTxt,
   cuesToVtt,
   formatSrtTimestamp,
   formatVttTimestamp,
+  isSubtitleFormat,
   parseSrt,
   parseSubtitleFile,
   parseVtt,
+  serializeCues,
+  subtitleFileName,
+  type SubtitleFormat,
 } from "./formats";
 
 export { isSubtitleEditorEnabled, isSubtitleTranslateEnabled } from "./flags";

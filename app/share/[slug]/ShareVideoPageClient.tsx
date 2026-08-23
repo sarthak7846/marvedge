@@ -1,9 +1,10 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 import ShareQrCode from "@/app/components/qr/ShareQrCode";
+import { AUTO_DETECT_LANGUAGE, languageLabel } from "@/app/lib/subtitles";
 
 import { useViewTracking } from "./hooks/useViewTracking";
 import { getPreviewStage } from "./utils/previewStage";
@@ -32,6 +33,16 @@ type ShareVideoPageClientProps = {
    * prop away, deliberately not decided here.
    */
   shareQrUrl?: string;
+  /**
+   * WebVTT for a selectable caption track, or omitted for no captions. Built
+   * server-side by the page, which is also where the decision to offer one at
+   * all is made — see captionsForSource() in page.tsx. Passed as a document
+   * rather than a URL because there is no route serving a public demo's cues,
+   * and inlining it costs one round trip less than adding one.
+   */
+  captionsVtt?: string;
+  /** Language of `captionsVtt`, for the track's `srclang` and menu label. */
+  captionsLanguage?: string;
 };
 
 export default function ShareVideoPageClient({
@@ -44,8 +55,11 @@ export default function ShareVideoPageClient({
   videoId,
   ctas = [],
   shareQrUrl,
+  captionsVtt,
+  captionsLanguage,
 }: ShareVideoPageClientProps) {
   const videoRef = useViewTracking(demoId, videoId);
+  const captionsUrl = useObjectUrl(captionsVtt, "text/vtt");
 
   const { status } = useSession();
   const isLoggedIn = status === "authenticated";
@@ -92,7 +106,36 @@ export default function ShareVideoPageClient({
                 preload="metadata"
                 playsInline
                 controlsList="nodownload"
-              />
+              >
+                {/* SUB PR 6: selectable captions, so a shared demo is watchable
+                    with the sound off. `default` because the alternative this
+                    replaces — burned-in subtitles — was always on. Rendered only
+                    after the effect has minted the object URL.
+
+                    No `crossOrigin` on the <video> above, deliberately: a track
+                    is fetched relative to the DOCUMENT's origin, and a blob: URL
+                    this page minted is already same-origin, so the attribute
+                    would buy nothing while risking the video itself — a
+                    cross-origin GCS response without CORS headers fails to load
+                    at all once the element opts into CORS. */}
+                {captionsUrl && (
+                  <track
+                    kind="captions"
+                    src={captionsUrl}
+                    srcLang={
+                      captionsLanguage && captionsLanguage !== AUTO_DETECT_LANGUAGE
+                        ? captionsLanguage
+                        : undefined
+                    }
+                    label={
+                      captionsLanguage && captionsLanguage !== AUTO_DETECT_LANGUAGE
+                        ? languageLabel(captionsLanguage)
+                        : "Captions"
+                    }
+                    default
+                  />
+                )}
+              </video>
             </div>
           </div>
         </div>
@@ -116,4 +159,29 @@ export default function ShareVideoPageClient({
       </section>
     </main>
   );
+}
+
+/**
+ * Hold `content` as a blob object URL for as long as it is unchanged, revoking
+ * the previous one.
+ *
+ * A `data:` URI would need no effect at all, but browsers disagree about whether
+ * a `data:` `<track>` src is CORS-same-origin with the document — a blob this
+ * page minted unambiguously is. Returns null on the server and on the first
+ * client render, so the markup React hydrates matches what the server sent.
+ */
+function useObjectUrl(content: string | undefined, type: string): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!content) {
+      setUrl(null);
+      return;
+    }
+    const href = URL.createObjectURL(new Blob([content], { type: `${type};charset=utf-8` }));
+    setUrl(href);
+    return () => URL.revokeObjectURL(href);
+  }, [content, type]);
+
+  return url;
 }

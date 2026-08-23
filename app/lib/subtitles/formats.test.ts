@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  SUBTITLE_FORMATS,
+  SUBTITLE_FORMAT_MIME,
   cuesToSrt,
   cuesToTxt,
   cuesToVtt,
   formatSrtTimestamp,
   formatVttTimestamp,
+  isSubtitleFormat,
   parseSrt,
   parseVtt,
+  serializeCues,
+  subtitleFileName,
 } from "./formats";
 import type { SubtitleCue } from "./types";
 
@@ -165,5 +170,82 @@ describe("parsing files from elsewhere", () => {
   it("returns an empty list for junk input", () => {
     expect(parseSrt("")).toEqual([]);
     expect(parseSrt("not a subtitle file at all")).toEqual([]);
+  });
+});
+
+describe("serializeCues", () => {
+  it("dispatches to the serializer for each format", () => {
+    expect(serializeCues(CUES, "srt")).toBe(cuesToSrt(CUES));
+    expect(serializeCues(CUES, "vtt")).toBe(cuesToVtt(CUES));
+    expect(serializeCues(CUES, "txt")).toBe(cuesToTxt(CUES));
+  });
+
+  it("covers every format SUBTITLE_FORMATS advertises", () => {
+    for (const format of SUBTITLE_FORMATS) {
+      expect(typeof serializeCues(CUES, format)).toBe("string");
+      expect(SUBTITLE_FORMAT_MIME[format]).toBeTruthy();
+    }
+  });
+});
+
+describe("isSubtitleFormat", () => {
+  it("accepts the three formats and nothing else", () => {
+    expect(isSubtitleFormat("srt")).toBe(true);
+    expect(isSubtitleFormat("vtt")).toBe(true);
+    expect(isSubtitleFormat("txt")).toBe(true);
+    expect(isSubtitleFormat("ass")).toBe(false);
+    expect(isSubtitleFormat("SRT")).toBe(false);
+    expect(isSubtitleFormat(undefined)).toBe(false);
+    expect(isSubtitleFormat(1)).toBe(false);
+  });
+});
+
+describe("SUBTITLE_FORMAT_MIME", () => {
+  it("serves VTT as text/vtt, which <track> requires", () => {
+    expect(SUBTITLE_FORMAT_MIME.vtt).toBe("text/vtt");
+  });
+
+  it("serves SRT as the registered SubRip type", () => {
+    expect(SUBTITLE_FORMAT_MIME.srt).toBe("application/x-subrip");
+  });
+
+  it("carries no charset — callers append their own", () => {
+    for (const format of SUBTITLE_FORMATS) {
+      expect(SUBTITLE_FORMAT_MIME[format]).not.toContain("charset");
+    }
+  });
+});
+
+describe("subtitleFileName", () => {
+  it("joins a slugged title and the language code", () => {
+    expect(subtitleFileName("My Product Demo", "en", "srt")).toBe("my-product-demo-en.srt");
+    expect(subtitleFileName("My Product Demo", "hi", "vtt")).toBe("my-product-demo-hi.vtt");
+  });
+
+  it("omits the language for an auto-detected track", () => {
+    expect(subtitleFileName("My Demo", "multi", "txt")).toBe("my-demo.txt");
+    expect(subtitleFileName("My Demo", null, "txt")).toBe("my-demo.txt");
+  });
+
+  it("falls back to a generic name when the title slugs to nothing", () => {
+    expect(subtitleFileName("", "en", "srt")).toBe("subtitles-en.srt");
+    expect(subtitleFileName("🎬🎬", "en", "srt")).toBe("subtitles-en.srt");
+    expect(subtitleFileName(undefined, undefined, "vtt")).toBe("subtitles.vtt");
+  });
+
+  it("strips everything that could break a Content-Disposition header", () => {
+    const name = subtitleFileName('../../etc/pa"sswd\r\nX: y', "en", "srt");
+    expect(name).toBe("etc-pa-sswd-x-y-en.srt");
+    expect(name).not.toMatch(/["\/\r\n]/);
+  });
+
+  it("bounds the length of a very long title", () => {
+    const name = subtitleFileName("a".repeat(500), "en", "srt");
+    expect(name.length).toBeLessThanOrEqual(70);
+  });
+
+  it("never leaves a trailing hyphen before the language or the extension", () => {
+    expect(subtitleFileName("Demo — ", "en", "srt")).toBe("demo-en.srt");
+    expect(subtitleFileName("Demo!!!", "multi", "srt")).toBe("demo.srt");
   });
 });

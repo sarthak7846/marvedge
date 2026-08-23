@@ -115,6 +115,10 @@ export function useExportFlow({
       // SUB PR 5: the active track's language. The worker needs it to decide
       // right-to-left layout for the burn-in; the route re-normalizes it.
       subtitleLanguage,
+      // SUB PR 6: the export-settings switch. Only ever false when the user
+      // explicitly turned burn-in off — undefined and true both mean "burn
+      // them in", which is what every export did before the switch existed.
+      burnSubtitles: settings.burnSubtitles,
       textOverlays,
       setProgress,
       aspectRatio,
