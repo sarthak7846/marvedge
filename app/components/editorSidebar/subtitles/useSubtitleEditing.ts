@@ -17,6 +17,16 @@ export interface SubtitleEditing {
   duration: number;
   /** The cue on screen right now, by identity into `cues`. `null` in a gap. */
   activeCue: SubtitleCue | null;
+  /** The cue picked here or on the timeline track. `null` when none is. */
+  selectedIndex: number | null;
+  /**
+   * Bumped on every selection, including re-selecting the cue already selected.
+   * The list scrolls the selected row into view off this, so clicking the same
+   * timeline block twice brings the row back.
+   */
+  focusNonce: number;
+  /** Select a cue — highlights it here and on the timeline track. */
+  handleSelect: (index: number) => void;
   canUndo: boolean;
   /** Whether the playhead currently sits in a gap wide enough for a new cue. */
   canAddCue: boolean;
@@ -55,6 +65,9 @@ export function useSubtitleEditing({ onSeek }: UseSubtitleEditingProps = {}): Su
   const {
     cues,
     undoDepth,
+    selectedIndex,
+    focusNonce,
+    selectCue,
     setCueText,
     setCueTiming,
     splitCue,
@@ -66,6 +79,9 @@ export function useSubtitleEditing({ onSeek }: UseSubtitleEditingProps = {}): Su
     useShallow((s) => ({
       cues: s.subtitleCues,
       undoDepth: s.subtitleUndoStack.length,
+      selectedIndex: s.selectedCueIndex,
+      focusNonce: s.cueFocusNonce,
+      selectCue: s.selectCue,
       setCueText: s.setCueText,
       setCueTiming: s.setCueTiming,
       splitCue: s.splitCue,
@@ -149,11 +165,19 @@ export function useSubtitleEditing({ onSeek }: UseSubtitleEditingProps = {}): Su
     [addCue, currentTime, options]
   );
 
+  // Selecting a cue is not a seek: the timeline track already moves the playhead
+  // when a block is clicked there, and doing it again here would make picking a
+  // row in the list jump the video every time.
+  const handleSelect = React.useCallback((index: number) => selectCue(index), [selectCue]);
+
   return {
     cues,
     currentTime,
     duration,
     activeCue,
+    selectedIndex,
+    focusNonce,
+    handleSelect,
     canUndo: undoDepth > 0,
     canAddCue,
     canSplit,

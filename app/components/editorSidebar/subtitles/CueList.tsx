@@ -7,8 +7,11 @@ type CueListProps = Pick<
   SubtitleEditing,
   | "cues"
   | "activeCue"
+  | "selectedIndex"
+  | "focusNonce"
   | "canSplit"
   | "handleSeek"
+  | "handleSelect"
   | "handleTextChange"
   | "handleTimingChange"
   | "handleSplit"
@@ -20,6 +23,11 @@ type CueListProps = Pick<
  * The scrollable cue list. Presentational: it decides only which row is
  * highlighted and which per-row actions are available.
  *
+ * Two different highlights, deliberately: `activeCue` is whichever cue is on
+ * screen at the playhead and moves on its own during playback, while
+ * `selectedIndex` is the cue the user picked — here or on the timeline track —
+ * and stays put until they pick another.
+ *
  * Rows are keyed by index rather than by timing. A cue has no id, and keying by
  * its start time would remount the row on every timing edit — throwing away the
  * focus and the draft of the field being typed into. `CueRow` re-syncs its
@@ -28,8 +36,11 @@ type CueListProps = Pick<
 const CueList: React.FC<CueListProps> = ({
   cues,
   activeCue,
+  selectedIndex,
+  focusNonce,
   canSplit,
   handleSeek,
+  handleSelect,
   handleTextChange,
   handleTimingChange,
   handleSplit,
@@ -54,9 +65,14 @@ const CueList: React.FC<CueListProps> = ({
           // Identity, not a re-derived time comparison: `activeCue` is an
           // element of this very array (see findActiveCue).
           isActive={cue === activeCue}
+          isSelected={index === selectedIndex}
+          // Changes on every selection, so re-picking the same block on the
+          // timeline scrolls this row back into view.
+          focusNonce={focusNonce}
           canSplit={canSplit(index)}
           canMerge={index < cues.length - 1}
           onSeek={handleSeek}
+          onSelect={handleSelect}
           onTextChange={handleTextChange}
           onTimingChange={handleTimingChange}
           onSplit={handleSplit}

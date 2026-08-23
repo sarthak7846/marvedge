@@ -22,7 +22,9 @@ interface SubtitlePanelProps extends SubtitleGenerateActionsProps {
  * or add one.
  *
  * PR 3 adds the coarse tool next to it: a subtitle track on the timeline ruler,
- * where a cue is dragged and resized like a trim segment.
+ * where a cue is dragged and resized like a trim segment. Selection is shared
+ * both ways — picking a block there scrolls this list to the matching row and
+ * highlights it, and picking a row here highlights the block.
  *
  * PR 4 adds styling (font, size, colour, outline, position), shared by the live
  * preview overlay and the burned-in export through one style module.
@@ -77,8 +79,11 @@ const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
         <CueList
           cues={editing.cues}
           activeCue={editing.activeCue}
+          selectedIndex={editing.selectedIndex}
+          focusNonce={editing.focusNonce}
           canSplit={editing.canSplit}
           handleSeek={editing.handleSeek}
+          handleSelect={editing.handleSelect}
           handleTextChange={editing.handleTextChange}
           handleTimingChange={editing.handleTimingChange}
           handleSplit={editing.handleSplit}

@@ -31,6 +31,12 @@ import type { SubtitleCue } from "@/app/(signed)/editor/types";
  * `normalizeCues()`. Mutations reach `Demo.editing.subtitles` through the
  * existing autosave, which already serializes this store's `subtitleCues`; there
  * is deliberately no save path here.
+ *
+ * SUB PR 3 adds the two things the timeline subtitle track needs from shared
+ * state: the selected cue (so the track and the sidebar list highlight the same
+ * one, in both directions) and a drag-scoped mutation path — `beginCueDrag` /
+ * `dragCues` / `endCueDrag` — so a drag lands as ONE undo step instead of one
+ * per mousemove.
  */
 
 /**
@@ -65,6 +71,25 @@ export interface SubtitleStoreState {
   subtitlesLoading: boolean;
   /** Previous cue lists, most recent last. Bounded by `SUBTITLE_UNDO_LIMIT`. */
   subtitleUndoStack: SubtitleCue[][];
+  /**
+   * The cue the user is working on, shared by the timeline track and the
+   * sidebar list so selecting in either highlights the other. `null` when
+   * nothing is selected.
+   */
+  selectedCueIndex: number | null;
+  /**
+   * Bumped on every `selectCue`, including a re-selection of the cue that is
+   * already selected. The sidebar list scrolls the selected row into view off
+   * this rather than off the index, so clicking the same timeline block twice
+   * still brings the row back into view.
+   */
+  cueFocusNonce: number;
+  /**
+   * The cue list as it stood when the current timeline drag began; `null` when
+   * no drag is in flight. Every frame of a drag is resolved against THIS, not
+   * against the previous frame — see `dragCues`.
+   */
+  subtitleDragOrigin: SubtitleCue[] | null;
 
   setSubtitleCues: Dispatch<SetStateAction<SubtitleCue[]>>;
   setSubtitlesLoading: Dispatch<SetStateAction<boolean>>;
@@ -88,6 +113,28 @@ export interface SubtitleStoreState {
   /** Restore the cue list as it was before the last mutation. */
   undoCueEdit: () => void;
 
+  /** Select a cue (or clear the selection). Out-of-range indexes clear it. */
+  selectCue: (index: number | null) => void;
+
+  /**
+   * Open a continuous re-timing gesture (a timeline drag), snapshotting the cue
+   * list so the whole gesture costs one undo step. Idempotent: a second call
+   * while a drag is already open keeps the original snapshot.
+   */
+  beginCueDrag: () => void;
+  /**
+   * Apply an in-flight gesture's candidate list. Normalizes like every other
+   * mutation, but records NO undo step — sixty mousemoves must not spend sixty
+   * of the fifty the stack holds. The caller recomputes `candidate` from
+   * `subtitleDragOrigin` each frame, so this is idempotent and reversible.
+   */
+  dragCues: (candidate: readonly SubtitleCue[], options?: SubtitleMutationOptions) => void;
+  /**
+   * Close the gesture, recording one undo step for everything it changed — or
+   * none at all if the cues ended up where they started.
+   */
+  endCueDrag: () => void;
+
   reset: () => void;
 }
 
@@ -99,6 +146,9 @@ const initialState = {
   subtitleCues: [] as SubtitleCue[],
   subtitlesLoading: false,
   subtitleUndoStack: [] as SubtitleCue[][],
+  selectedCueIndex: null as number | null,
+  cueFocusNonce: 0,
+  subtitleDragOrigin: null as SubtitleCue[] | null,
 };
 
 /**
@@ -113,9 +163,9 @@ const initialState = {
  */
 function commit(
   state: SubtitleStoreState,
-  candidate: SubtitleCue[],
+  candidate: readonly SubtitleCue[],
   options: SubtitleMutationOptions | undefined
-): Partial<Pick<SubtitleStoreState, "subtitleCues" | "subtitleUndoStack">> {
+): Partial<Pick<SubtitleStoreState, "subtitleCues" | "subtitleUndoStack" | "selectedCueIndex">> {
   const duration = options?.durationSeconds;
   const subtitleCues = normalizeCues(
     candidate,
@@ -131,7 +181,23 @@ function commit(
   const subtitleUndoStack = [...state.subtitleUndoStack, state.subtitleCues].slice(
     -SUBTITLE_UNDO_LIMIT
   );
-  return { subtitleCues, subtitleUndoStack };
+  return { subtitleCues, subtitleUndoStack, ...clampSelection(state, subtitleCues) };
+}
+
+/**
+ * Drop a selection that a mutation has left pointing past the end of the list —
+ * a deleted or merged cue. Deliberately only a range check: after a split every
+ * index past the split point shifts by one and there is no honest way to follow
+ * the user's intent, so the selection stays where it is rather than guessing.
+ */
+function clampSelection(
+  state: SubtitleStoreState,
+  cues: readonly SubtitleCue[]
+): Partial<Pick<SubtitleStoreState, "selectedCueIndex">> {
+  if (state.selectedCueIndex !== null && state.selectedCueIndex >= cues.length) {
+    return { selectedCueIndex: null };
+  }
+  return {};
 }
 
 /** `true` when `index` addresses a cue in `cues`. */
@@ -151,7 +217,14 @@ export const useSubtitleStore = create<SubtitleStoreState>((set) => ({
   // them: it holds edits to a cue list that no longer exists, and replaying one
   // onto the new list would restore cues from a different demo.
   setSubtitleCues: (v) =>
-    set((s) => ({ subtitleCues: resolve(v, s.subtitleCues), subtitleUndoStack: [] })),
+    set((s) => ({
+      subtitleCues: resolve(v, s.subtitleCues),
+      subtitleUndoStack: [],
+      // The selection and any in-flight drag address cues from the list being
+      // replaced; carrying either across would point at a different demo's cue.
+      selectedCueIndex: null,
+      subtitleDragOrigin: null,
+    })),
   setSubtitlesLoading: (v) => set((s) => ({ subtitlesLoading: resolve(v, s.subtitlesLoading) })),
 
   setCueText: (index, text, options) =>
@@ -255,7 +328,62 @@ export const useSubtitleStore = create<SubtitleStoreState>((set) => ({
       const previous = stack.pop() as SubtitleCue[];
       // Restored as it was recorded, not re-normalized: undo owes the user the
       // list they had, including one a generator produced un-normalized.
-      return { subtitleCues: previous, subtitleUndoStack: stack };
+      return {
+        subtitleCues: previous,
+        subtitleUndoStack: stack,
+        ...clampSelection(s, previous),
+      };
+    }),
+
+  selectCue: (index) =>
+    set((s) => {
+      const next = index === null || !inRange(s.subtitleCues, index) ? null : index;
+      // Clearing an already-empty selection is what every click on an empty
+      // stretch of ruler does; it must not churn the store or fire the
+      // focus listeners.
+      if (next === null && s.selectedCueIndex === null) {
+        return {};
+      }
+      return { selectedCueIndex: next, cueFocusNonce: s.cueFocusNonce + 1 };
+    }),
+
+  beginCueDrag: () =>
+    set((s) =>
+      // Idempotent: a mid-gesture re-subscribe (the zoom level changing under a
+      // drag, say) must not re-snapshot, or the origin becomes the half-dragged
+      // list and dragging back no longer restores what was there.
+      s.subtitleDragOrigin ? {} : { subtitleDragOrigin: s.subtitleCues }
+    ),
+
+  dragCues: (candidate, options) =>
+    set((s) => {
+      if (!s.subtitleDragOrigin) {
+        return {}; // No gesture open — a stray move event after the mouse came up.
+      }
+      const duration = options?.durationSeconds;
+      const subtitleCues = normalizeCues(
+        candidate,
+        typeof duration === "number" && duration > 0 ? { durationSeconds: duration } : {}
+      );
+      if (sameCues(subtitleCues, s.subtitleCues)) {
+        return {}; // The pointer moved less than a cue boundary; no re-render.
+      }
+      return { subtitleCues, ...clampSelection(s, subtitleCues) };
+    }),
+
+  endCueDrag: () =>
+    set((s) => {
+      const origin = s.subtitleDragOrigin;
+      if (!origin) {
+        return {};
+      }
+      if (sameCues(origin, s.subtitleCues)) {
+        return { subtitleDragOrigin: null }; // Nothing moved: no undo step to spend.
+      }
+      return {
+        subtitleDragOrigin: null,
+        subtitleUndoStack: [...s.subtitleUndoStack, origin].slice(-SUBTITLE_UNDO_LIMIT),
+      };
     }),
 
   reset: () => set({ ...initialState }),

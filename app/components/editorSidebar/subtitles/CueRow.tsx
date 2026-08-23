@@ -9,9 +9,14 @@ interface CueRowProps {
   index: number;
   /** This cue is on screen at the playhead. */
   isActive: boolean;
+  /** The user picked this cue — here, or on the timeline's subtitle track. */
+  isSelected: boolean;
+  /** Bumped on every selection; a selected row scrolls itself into view on it. */
+  focusNonce: number;
   canSplit: boolean;
   canMerge: boolean;
   onSeek: (seconds: number) => void;
+  onSelect: (index: number) => void;
   onTextChange: (index: number, text: string) => void;
   onTimingChange: (index: number, timing: { start?: number; end?: number }) => void;
   onSplit: (index: number) => void;
@@ -24,6 +29,36 @@ const ACTION_BUTTON =
 
 const TIME_INPUT =
   "w-[68px] rounded-md border border-[#ede7fa] bg-white px-1.5 py-1 text-center font-mono text-[11px] text-[#2D1F61] focus:border-[#A594F9] focus:outline-none";
+
+/**
+ * One `m:ss.cs` field. Both timings behave identically — commit on blur, Enter
+ * to commit, Escape to put the cue's own value back — so they are one component.
+ */
+const TimecodeInput: React.FC<{
+  label: string;
+  draft: string;
+  setDraft: (value: string) => void;
+  /** Restore the field from the cue, discarding the draft. */
+  revert: () => void;
+  commit: () => void;
+}> = ({ label, draft, setDraft, revert, commit }) => (
+  <input
+    value={draft}
+    onChange={(e) => setDraft(e.target.value)}
+    onBlur={commit}
+    onKeyDown={(e) => {
+      if (e.key === "Enter") {
+        e.currentTarget.blur();
+      }
+      if (e.key === "Escape") {
+        revert();
+        e.currentTarget.blur();
+      }
+    }}
+    aria-label={label}
+    className={TIME_INPUT}
+  />
+);
 
 /**
  * One editable subtitle in the panel's list: text, both timings, and the split /
@@ -40,9 +75,12 @@ const CueRow: React.FC<CueRowProps> = ({
   cue,
   index,
   isActive,
+  isSelected,
+  focusNonce,
   canSplit,
   canMerge,
   onSeek,
+  onSelect,
   onTextChange,
   onTimingChange,
   onSplit,
@@ -52,6 +90,16 @@ const CueRow: React.FC<CueRowProps> = ({
   const [textDraft, setTextDraft] = React.useState(cue.text);
   const [startDraft, setStartDraft] = React.useState(() => formatTimecode(cue.start));
   const [endDraft, setEndDraft] = React.useState(() => formatTimecode(cue.end));
+
+  // Selecting a block on the timeline track scrolls the matching row into view
+  // here. `block: "nearest"` so a row that is already visible does not move, and
+  // so the surrounding page is not dragged along with the list.
+  const rowRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (isSelected) {
+      rowRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [isSelected, focusNonce]);
 
   // Follow the cue when it changes underneath us — an undo, a split, or a
   // neighbour's edit truncating this one through the overlap rule.
@@ -79,19 +127,25 @@ const CueRow: React.FC<CueRowProps> = ({
     onTimingChange(index, { [edge]: seconds });
   };
 
-  // Clicking the row seeks, but not when the click was aimed at something
-  // interactive inside it.
+  // Clicking the row selects and seeks, but not when the click was aimed at
+  // something interactive inside it.
   const handleRowClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest("input, textarea, button")) {
       return;
     }
+    onSelect(index);
     onSeek(cue.start);
   };
 
   return (
     <div
+      ref={rowRef}
       onClick={handleRowClick}
+      // Selection is a ring, the playhead's cue is a fill: the two are
+      // independent and often land on different rows during playback.
       className={`cue-row rounded-lg border px-2 py-2 transition ${
+        isSelected ? "ring-2 ring-[#8A76FC] ring-offset-1" : ""
+      } ${
         isActive ? "border-[#A594F9] bg-[#F6F3FF]" : "border-[#ede7fa] bg-white hover:bg-[#FBFAFF]"
       }`}
     >
@@ -158,38 +212,20 @@ const CueRow: React.FC<CueRowProps> = ({
       />
 
       <div className="mt-1.5 flex items-center gap-1.5">
-        <input
-          value={startDraft}
-          onChange={(e) => setStartDraft(e.target.value)}
-          onBlur={() => commitTiming("start")}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.currentTarget.blur();
-            }
-            if (e.key === "Escape") {
-              setStartDraft(formatTimecode(cue.start));
-              e.currentTarget.blur();
-            }
-          }}
-          aria-label="Start time"
-          className={TIME_INPUT}
+        <TimecodeInput
+          label="Start time"
+          draft={startDraft}
+          setDraft={setStartDraft}
+          revert={() => setStartDraft(formatTimecode(cue.start))}
+          commit={() => commitTiming("start")}
         />
         <span className="text-[11px] text-[#9A8FC0]">→</span>
-        <input
-          value={endDraft}
-          onChange={(e) => setEndDraft(e.target.value)}
-          onBlur={() => commitTiming("end")}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.currentTarget.blur();
-            }
-            if (e.key === "Escape") {
-              setEndDraft(formatTimecode(cue.end));
-              e.currentTarget.blur();
-            }
-          }}
-          aria-label="End time"
-          className={TIME_INPUT}
+        <TimecodeInput
+          label="End time"
+          draft={endDraft}
+          setDraft={setEndDraft}
+          revert={() => setEndDraft(formatTimecode(cue.end))}
+          commit={() => commitTiming("end")}
         />
       </div>
     </div>

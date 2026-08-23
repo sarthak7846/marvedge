@@ -225,6 +225,112 @@ describe("persistence", () => {
   });
 });
 
+describe("selection", () => {
+  it("selects a cue and bumps the focus nonce", () => {
+    const before = store().cueFocusNonce;
+    store().selectCue(1);
+    expect(store().selectedCueIndex).toBe(1);
+    expect(store().cueFocusNonce).toBe(before + 1);
+  });
+
+  it("bumps the nonce again when the same cue is re-selected", () => {
+    // The sidebar list scrolls the selected row into view off the nonce, so
+    // clicking the same timeline block twice has to be observable.
+    store().selectCue(1);
+    const nonce = store().cueFocusNonce;
+    store().selectCue(1);
+    expect(store().cueFocusNonce).toBe(nonce + 1);
+  });
+
+  it("treats an out-of-range index as no selection", () => {
+    store().selectCue(9);
+    expect(store().selectedCueIndex).toBeNull();
+  });
+
+  it("does nothing when clearing an already-empty selection", () => {
+    const nonce = store().cueFocusNonce;
+    store().selectCue(null);
+    expect(store().cueFocusNonce).toBe(nonce);
+  });
+
+  it("drops a selection a delete has left pointing past the end", () => {
+    store().selectCue(2);
+    store().removeCue(2);
+    expect(store().selectedCueIndex).toBeNull();
+  });
+
+  it("drops the selection when the whole list is replaced", () => {
+    store().selectCue(1);
+    store().setSubtitleCues([{ start: 0, end: 1, text: "different demo" }]);
+    expect(store().selectedCueIndex).toBeNull();
+  });
+});
+
+describe("timeline drag", () => {
+  /** Re-time cue 1 as a whole-list candidate, the way resolveCueDrag does. */
+  const moved = (start: number, end: number): SubtitleCue[] => {
+    const next = store().subtitleCues.map((c) => ({ ...c }));
+    next[1] = { ...next[1], start, end };
+    return next;
+  };
+
+  it("ignores a move with no gesture open", () => {
+    store().dragCues(moved(2.5, 5.5));
+    expect(store().subtitleCues).toEqual(CUES);
+  });
+
+  it("applies frames while a gesture is open", () => {
+    store().beginCueDrag();
+    store().dragCues(moved(2.5, 5.5));
+    expect(store().subtitleCues[1]).toEqual({ start: 2.5, end: 5.5, text: CUES[1].text });
+  });
+
+  it("spends exactly one undo step on a whole drag, however many frames", () => {
+    store().beginCueDrag();
+    for (let i = 1; i <= 40; i++) {
+      store().dragCues(moved(2 + i * 0.01, 5 + i * 0.01));
+    }
+    expect(store().subtitleUndoStack).toHaveLength(0); // Nothing banked mid-drag.
+    store().endCueDrag();
+
+    expect(store().subtitleUndoStack).toHaveLength(1);
+    store().undoCueEdit();
+    expect(store().subtitleCues).toEqual(CUES);
+  });
+
+  it("spends no undo step when the drag ends where it started", () => {
+    store().beginCueDrag();
+    store().dragCues(moved(2.5, 5.5));
+    store().dragCues(moved(2, 5));
+    store().endCueDrag();
+    expect(store().subtitleUndoStack).toHaveLength(0);
+  });
+
+  it("keeps the original snapshot if the gesture is re-opened mid-drag", () => {
+    // A zoom change under a live drag re-subscribes the listener; re-snapshotting
+    // there would make dragging back restore the half-dragged list.
+    store().beginCueDrag();
+    store().dragCues(moved(2.5, 5.5));
+    store().beginCueDrag();
+    expect(store().subtitleDragOrigin).toEqual(CUES);
+  });
+
+  it("normalizes every frame, so a drag can never leave an overlap", () => {
+    store().beginCueDrag();
+    const next = store().subtitleCues.map((c) => ({ ...c }));
+    next[1] = { ...next[1], start: 1, end: 6.5 }; // Straddles both neighbours.
+    store().dragCues(next, { durationSeconds: 10 });
+    expect(isSortedAndNonOverlapping(store().subtitleCues)).toBe(true);
+    store().endCueDrag();
+  });
+
+  it("clears an in-flight gesture when the whole list is replaced", () => {
+    store().beginCueDrag();
+    store().setSubtitleCues([{ start: 0, end: 1, text: "different demo" }]);
+    expect(store().subtitleDragOrigin).toBeNull();
+  });
+});
+
 describe("existing setter contract", () => {
   it("still accepts a functional update", () => {
     store().setSubtitleCues((prev) => prev.slice(0, 1));
