@@ -233,6 +233,8 @@ export default function EditorSidebarRegion({
     onClearSubtitles: subtitles.handleSkipSubtitles,
     subtitlesLoading: subtitles.subtitlesLoading,
     hasSubtitles: subtitles.subtitleCues.length > 0,
+    onCancelSubtitles: subtitles.handleCancelSubtitles,
+    cancelling: subtitles.cancelling,
     onSeek: handleSeek,
     onOpenSaveDemo: () => setShowSaveDemoModal(true),
     savingDemo: savingDemo,

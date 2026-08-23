@@ -48,6 +48,9 @@ interface EditorSidebarProps {
   onClearSubtitles?: () => void;
   subtitlesLoading?: boolean;
   hasSubtitles?: boolean;
+  /** Stop waiting on a running subtitle job (PRD §13). */
+  onCancelSubtitles?: () => void;
+  cancelling?: boolean;
   /** Seek the player. The subtitle panel uses it to jump to a cue. */
   onSeek?: (seconds: number) => void;
   className?: string;
@@ -95,6 +98,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   onClearSubtitles,
   subtitlesLoading = false,
   hasSubtitles = false,
+  onCancelSubtitles,
+  cancelling = false,
   onSeek,
   onOpenSaveDemo,
   savingDemo = false,
@@ -177,6 +182,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
               onClearSubtitles={onClearSubtitles}
               subtitlesLoading={subtitlesLoading}
               hasSubtitles={hasSubtitles}
+              onCancelSubtitles={onCancelSubtitles}
+              cancelling={cancelling}
             />
           )}
         </div>
@@ -200,6 +207,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
           onClearSubtitles={onClearSubtitles}
           subtitlesLoading={subtitlesLoading}
           hasSubtitles={hasSubtitles}
+          onCancelSubtitles={onCancelSubtitles}
+          cancelling={cancelling}
           onSeek={onSeek}
         />
       )}

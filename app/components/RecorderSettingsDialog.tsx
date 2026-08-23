@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { Dialog } from "@headlessui/react";
+import { UPLOAD_VIDEO_ACCEPT } from "@/app/lib/subtitles";
 
 interface RecorderSettingsDialogProps {
   sidebarOpen: boolean;
@@ -68,7 +69,7 @@ export default function RecorderSettingsDialog({
             </button>
             <input
               type="file"
-              accept="video/mp4,video/webm,video/*"
+              accept={UPLOAD_VIDEO_ACCEPT}
               ref={fileInputRef}
               className="hidden"
               onChange={handleFileUpload}

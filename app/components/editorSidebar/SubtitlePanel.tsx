@@ -59,6 +59,8 @@ const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
   onClearSubtitles,
   subtitlesLoading,
   hasSubtitles,
+  onCancelSubtitles,
+  cancelling,
   onSeek,
 }) => {
   const editing = useSubtitleEditing({ onSeek });
@@ -71,6 +73,8 @@ const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
         onClearSubtitles={onClearSubtitles}
         subtitlesLoading={subtitlesLoading}
         hasSubtitles={hasSubtitles}
+        onCancelSubtitles={onCancelSubtitles}
+        cancelling={cancelling}
       />
 
       <SubtitleLanguageControls

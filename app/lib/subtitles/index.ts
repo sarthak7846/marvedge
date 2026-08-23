@@ -39,6 +39,23 @@ export {
 export { isSubtitleEditorEnabled, isSubtitleTranslateEnabled } from "./flags";
 
 export {
+  MAX_SUBTITLE_DURATION_SECONDS,
+  MAX_UPLOAD_BYTES,
+  UPLOAD_FORMAT_HINT,
+  UPLOAD_VIDEO_ACCEPT,
+  UPLOAD_VIDEO_EXTENSIONS,
+  fileExtension,
+  formatBytes,
+  formatDuration,
+  isVideoUploadKind,
+  subtitleWorkerTimeoutMs,
+  validateSubtitleDuration,
+  validateVideoUpload,
+  type UploadCandidate,
+  type UploadValidation,
+} from "./limits";
+
+export {
   DEFAULT_SUBTITLE_STYLE,
   SUBTITLE_ALIGNMENTS,
   SUBTITLE_ANIMATIONS,
