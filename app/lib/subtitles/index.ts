@@ -68,18 +68,38 @@ export {
 
 export {
   AUTO_DETECT_LANGUAGE,
+  DEFAULT_STT_MODEL,
+  RTL_RENDERING_VERIFIED,
   SUBTITLE_LANGUAGES,
   findLanguage,
   isAutoDetect,
+  isRenderable,
   isRtlLanguage,
   isSttOffered,
   isSupportedLanguage,
+  isTranslationTarget,
   languageLabel,
   normalizeLanguage,
+  sttModelFor,
 } from "./languages";
+
+export { isSubtitleTranslateAllowed } from "./access";
+
+export {
+  TRANSLATION_BATCH_SIZE,
+  TRANSLATION_SYSTEM_PROMPT,
+  TranslationAlignmentError,
+  applyTranslations,
+  buildTranslationBatches,
+  buildTranslationPrompt,
+  parseTranslationBatch,
+  toTranslationSegments,
+  type TranslationSegment,
+} from "./translate";
 
 export type {
   SttCoverage,
+  SttModel,
   SubtitleAlignment,
   SubtitleAnimation,
   SubtitleCue,

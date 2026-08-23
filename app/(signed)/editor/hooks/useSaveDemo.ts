@@ -13,6 +13,7 @@ interface UseSaveDemoProps {
   zoomSegments: ZoomEffect[];
   subtitleCues: SubtitleCue[];
   subtitleStyle: SubtitleStyle | null;
+  subtitleLanguage: string;
   textOverlays: TextOverlayItem[];
 }
 
@@ -22,6 +23,7 @@ export function useSaveDemo({
   zoomSegments,
   subtitleCues,
   subtitleStyle,
+  subtitleLanguage,
   textOverlays,
 }: UseSaveDemoProps) {
   const savedDemosRef = useRef<Set<string>>(new Set());
@@ -58,6 +60,7 @@ export function useSaveDemo({
       zoomEffects: zoomSegments,
       subtitles: subtitleCues,
       subtitleStyle,
+      subtitleLanguage,
       selectedBackground: editorState.selectedBackground,
       backgroundType: editorState.backgroundType,
       aspectRatio: editorState.aspectRatio,

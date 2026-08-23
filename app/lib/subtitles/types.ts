@@ -66,7 +66,22 @@ export interface SubtitleLanguage {
   isRtl: boolean;
   /** How far this language's speech-to-text coverage has been checked. */
   stt: SttCoverage;
+  /**
+   * The Deepgram model that actually covers this language. Not every language
+   * is on the same model — `ar` is nova-3 only — so the worker reads this
+   * rather than assuming one model for everything. See ./languages.
+   */
+  sttModel: SttModel;
 }
+
+/**
+ * Deepgram models the worker may call.
+ *
+ * `nova-2` is what every language has always used and stays the default, so
+ * transcription of an existing language is bit-for-bit the same request it was
+ * before this feature. `nova-3` is used only where nova-2 has no coverage.
+ */
+export type SttModel = "nova-2" | "nova-3";
 
 /**
  * How confident we are that speech-to-text actually works for a language.
@@ -75,9 +90,12 @@ export interface SubtitleLanguage {
  *                 round-tripped end to end on real audio.
  * `unverified`  — coverage is an open question. Do not offer it in a picker.
  *
- * There is deliberately no `verified` value yet: nothing in this PR runs audio
- * through the worker, so claiming verification here would be a claim nobody has
- * earned. PR 5 introduces it as it round-trips each language.
+ * There is STILL no `verified` value. PR 5 checked every language against
+ * Deepgram's current model matrix and recorded the model each one needs, but it
+ * ran no audio through the pipeline either — no Deepgram key, no worker
+ * deployment and no sample audio were available to it. Promoting a marker to
+ * `verified` remains something a human with a real recording has to earn, and
+ * the honest state of all seven languages today is "documented".
  */
 export type SttCoverage = "documented" | "unverified";
 
