@@ -548,6 +548,11 @@ interface ExportVideoParams {
   // SUB: the active track's language. Only a *request* — the route re-normalizes
   // it. Omitted/auto-detect leaves the recipe as it is today.
   subtitleLanguage?: string;
+  // SUB PR 6: whether to burn the subtitles into the picture. Undefined means
+  // yes, which is what burn-in did before it was a choice; only an explicit
+  // `false` reaches the request body, so a caller that ignores this field sends
+  // exactly the payload it sends today.
+  burnSubtitles?: boolean;
   // WTM: the demo's `editing.wtm.watermark`, if any. Only a *request* — the
   // server re-resolves the effective watermark from the user's plan.
   watermark?: WatermarkConfig;
@@ -811,6 +816,7 @@ export const exportVideo = async ({
   settings,
   subtitleStyle,
   subtitleLanguage,
+  burnSubtitles,
   watermark,
   prepareSourceUrl,
 }: ExportVideoParams): Promise<ExportVideoResult | null> => {
@@ -900,6 +906,9 @@ export const exportVideo = async ({
       // Omitted for auto-detect, so a demo that never chose a language sends
       // exactly the body it sends today.
       ...(subtitleLanguage && subtitleLanguage !== "multi" ? { subtitleLanguage } : {}),
+      // Sent only to turn burn-in OFF. The route reads `!== false`, so leaving
+      // it out is the burn-in-on path every export has always taken.
+      ...(burnSubtitles === false ? { burnSubtitles: false } : {}),
       // WTM: omitted entirely when the demo has no watermark config, so the
       // request body is identical to today for non-WTM demos.
       ...(watermark ? { watermark } : {}),
