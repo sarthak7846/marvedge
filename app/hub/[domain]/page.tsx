@@ -27,7 +27,7 @@ export default async function HubPage({ params }: PageProps) {
 
   if (!settings) {
     console.warn(
-      `[HubPage] Invalid domain: "${domain}". Triggering 404 notFound().`
+      `[HubPage] Invalid domain or subdomain access: "${domain}". Triggering 404 notFound().`
     );
     notFound();
   }
