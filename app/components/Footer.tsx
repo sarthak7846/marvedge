@@ -379,7 +379,8 @@ const FooterCopyright: React.FC<{ isInView: boolean }> = ({ isInView }) => {
           delay: 1.0,
         }}
       >
-        Copyright © {currentYear}. All rights reserved. Created with purple heart for better conversation.
+        Copyright © {currentYear}. All rights reserved. Created with purple heart for better
+        conversation.
       </motion.p>
     </motion.footer>
   );
