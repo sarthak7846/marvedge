@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { ZoomEffect } from "../../types/editor/zoom-effect";
-import { DragState, DragZoomState, DragTextState, TextOverlayItem } from "./types";
+import { AudioClipDto } from "../../types/audio";
+import {
+  ClipPlacement,
+  MIN_AUDIO_CLIP_LEN_SEC,
+  getClipTimelineWindow,
+} from "../../store/audioClipStore";
+import { isProcessingStatus } from "../../lib/audio/status";
+import { DragState, DragZoomState, DragTextState, DragAudioState, TextOverlayItem } from "./types";
 import { TimelineBlock, getAllBlocks } from "./useTimelineRuler";
 
 type TrimSegment = { start: number; end: number };
@@ -725,6 +732,86 @@ export function useTextOverlayDrag({
   ]);
 
   return { dragTextState, setDragTextState };
+}
+
+/**
+ * Drag engine for audio clip blocks. Each clip owns a dedicated lane, so
+ * clips move horizontally only: body drag repositions the placement, edge
+ * drags resize it (the preview loops the source to fill a longer window).
+ */
+export function useAudioClipDrag({
+  minValue,
+  maxValue,
+  zoomedTimelineWidth,
+  audioClips,
+  placements,
+  setClipPlacement,
+}: {
+  minValue: number;
+  maxValue: number;
+  zoomedTimelineWidth: number;
+  audioClips: AudioClipDto[];
+  placements: Record<string, ClipPlacement>;
+  setClipPlacement: (clipId: string, placement: ClipPlacement) => void;
+}) {
+  const [dragAudioState, setDragAudioState] = useState<DragAudioState | null>(null);
+
+  useEffect(() => {
+    if (!dragAudioState) {
+      return;
+    }
+
+    const onMove = (e: MouseEvent) => {
+      const clip = audioClips.find((c) => c.id === dragAudioState.id);
+      if (!clip || isProcessingStatus(clip.status)) {
+        return;
+      }
+      const window = getClipTimelineWindow(clip, placements);
+      const pixelsPerUnit = zoomedTimelineWidth / Math.max(0.001, maxValue - minValue);
+      const deltaValue = (e.clientX - dragAudioState.startX) / pixelsPerUnit;
+
+      if (dragAudioState.mode === "edge") {
+        if (dragAudioState.side === "left") {
+          const start = Math.min(
+            Math.max(minValue, dragAudioState.startValue + deltaValue),
+            window.start + window.len - MIN_AUDIO_CLIP_LEN_SEC
+          );
+          setClipPlacement(clip.id, { start, len: window.start + window.len - start });
+        } else {
+          const end = Math.max(
+            Math.min(maxValue, dragAudioState.startValue + deltaValue),
+            window.start + MIN_AUDIO_CLIP_LEN_SEC
+          );
+          setClipPlacement(clip.id, { start: window.start, len: end - window.start });
+        }
+      } else {
+        const len = window.len;
+        const start = Math.min(
+          Math.max(minValue, dragAudioState.startValue + deltaValue),
+          maxValue - len
+        );
+        setClipPlacement(clip.id, { start, len });
+      }
+    };
+
+    const onUp = () => setDragAudioState(null);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [
+    dragAudioState,
+    audioClips,
+    placements,
+    minValue,
+    maxValue,
+    zoomedTimelineWidth,
+    setClipPlacement,
+  ]);
+
+  return { dragAudioState, setDragAudioState };
 }
 
 export function useHandleDrag({
