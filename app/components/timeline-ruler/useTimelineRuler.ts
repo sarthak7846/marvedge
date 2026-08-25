@@ -10,6 +10,7 @@ import {
 } from "./useTimelineCore";
 import { useHandleDrag } from "./useTimelineDrags";
 import { useTrimActions, useZoomActions } from "./useTimelineActions";
+import { useTimelineDeleteKey } from "./useTimelineDeleteKey";
 
 export interface TimelineBlock {
   id: string;
@@ -350,6 +351,13 @@ function useTimelineRulerActions(
     setPlaying,
     updateCurrentTimeFromMouse,
     pushAction,
+  });
+
+  useTimelineDeleteKey({
+    activeZoomIdx: props.activeZoomIdx,
+    removeZoomSegment,
+    activeSegment,
+    removeSegment,
   });
 
   return {

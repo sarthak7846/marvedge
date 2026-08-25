@@ -164,7 +164,7 @@ function RulerLayers(props: TimelineTrackProps & DragSetters & AudioEditProps) {
       />
 
       {/* Horizontal separators in background */}
-      {Array.from({ length: totalTracks - 1 }).map((_, i) => (
+      {Array.from({ length: separatorCount }).map((_, i) => (
         <div
           key={`separator-${i}`}
           className="absolute left-0 w-full h-[1px] border-t border-dashed border-[#A594F9]/30 dark:border-[#3e2fd9]/30 pointer-events-none"
@@ -177,6 +177,8 @@ function RulerLayers(props: TimelineTrackProps & DragSetters & AudioEditProps) {
         className="absolute top-0 h-full w-0 z-40 pointer-events-none"
         style={{
           left: `${0 + currentPosition - scrollLeft}px`,
+          width: "18px",
+          marginLeft: "-9px", // center the 18px-wide marker on the exact time position
         }}
       >
         <div
