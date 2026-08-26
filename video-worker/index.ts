@@ -1547,3 +1547,37 @@ subtitleWorker.on("failed", (job, err) => {
 });
 
 console.log(`📝 Subtitle Worker ready (concurrency=${subtitleConcurrency})...`);
+
+// ── Audio Worker (GitHub #285) ─────────────────────────────────────────────────
+// Handles "extract-metadata" (duration + magic-byte validation) and "trim"
+// (ffmpeg `-ss/-to -c:a copy`) jobs. Both operate over pre-signed URLs included
+// in the job payload, so this process needs no S3 SDK of its own.
+import { runMetadataJob, runTrimJob } from "../app/lib/audio/jobs";
+import { asAudioClipDb } from "../app/lib/audio/db";
+
+const audioConcurrency = Math.max(
+  1,
+  parseInt(process.env.AUDIO_WORKER_CONCURRENCY || "1", 10) || 1
+);
+
+const audioWorker = new Worker(
+  "audio-processing",
+  async (job: Job) => {
+    const clipDb = asAudioClipDb(prisma);
+    if (job.name === "trim") {
+      await runTrimJob(job.data, clipDb);
+    } else {
+      await runMetadataJob(job.data, clipDb);
+    }
+  },
+  {
+    connection: connection as any,
+    concurrency: audioConcurrency,
+  }
+);
+
+audioWorker.on("failed", (job, err) => {
+  console.log(`Audio job ${job?.name} ${job?.id} failed: ${err.message}`);
+});
+
+console.log(`🎵 Audio Worker ready (concurrency=${audioConcurrency})...`);

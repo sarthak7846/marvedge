@@ -1,3 +1,6 @@
+"use client";
+
+import React from "react";
 import axios from "axios";
 import { Toaster } from "react-hot-toast";
 import { useShallow } from "zustand/react/shallow";

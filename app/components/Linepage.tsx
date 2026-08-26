@@ -1,5 +1,9 @@
 import React from "react";
 
+/** Height of the seconds strip. Must fit tick (24px) + gap + label (~16px)
+ *  so the bottom border never strikes through the time labels. */
+export const TIMELINE_RULER_HEIGHT = 46;
+
 interface TimelineProps {
   minValue?: number;
   maxValue?: number;
@@ -72,8 +76,8 @@ const Linepage = ({
 
   return (
     <div
-      className="sticky top-0 bg-white dark:bg-[#0a081a] h-[38px] z-30 select-none border-b border-[#A594F9] dark:border-[#3e2fd9]/50"
-      style={{ width }}
+      className="sticky top-0 bg-white dark:bg-[#0a081a] z-30 select-none border-b border-[#A594F9] dark:border-[#3e2fd9]/50"
+      style={{ width, height: TIMELINE_RULER_HEIGHT }}
       onClick={() => {
         setMode("main");
         setActiveZoomIdx(-1);

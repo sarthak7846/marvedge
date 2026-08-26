@@ -6,8 +6,10 @@ import ToolsPanel from "./editorSidebar/ToolsPanel";
 import CtaPanel from "./editorSidebar/CtaPanel";
 import AvsPanel from "./editorSidebar/AvsPanel";
 import BrandingPanel from "./editorSidebar/BrandingPanel";
+import AudioPanel from "./editorSidebar/audio/AudioPanel";
 import { isAvsPanelEnabled } from "@/app/lib/avs/flags";
 import { isWtmPanelEnabled } from "@/app/lib/wtm/flags";
+import { isAudioPanelEnabled } from "@/app/lib/audio/flags";
 import type { CtaItem } from "@/app/(signed)/editor/apiTypes";
 
 interface EditorSidebarProps {
@@ -164,6 +166,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
       )}
 
       {activeTab === "avs" && isAvsPanelEnabled() && <AvsPanel />}
+
+      {activeTab === "audio" && isAudioPanelEnabled() && <AudioPanel />}
 
       {activeTab === "branding" && isWtmPanelEnabled() && <BrandingPanel />}
     </aside>
