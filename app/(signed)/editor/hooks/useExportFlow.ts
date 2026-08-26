@@ -7,7 +7,11 @@ import { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import { exportVideo } from "../utils/videoHandlers";
 import { useWebcamComposite } from "./useWebcamComposite";
 import { sanitizeWatermarkConfig } from "@/app/lib/wtm/watermark";
-import { buildExportSpeed, resolveExportBackgroundSelection } from "../utils/exportHelpers";
+import {
+  buildExportSpeed,
+  resolveExportBackgroundSelection,
+  saveExportedVideoRecord,
+} from "../utils/exportHelpers";
 import { SubtitleCue, TextOverlayItem } from "../types";
 import type { EditorState } from "../apiTypes";
 
@@ -62,24 +66,6 @@ export function useExportFlow({
   const [pendingExport, setPendingExport] = useState<PendingExport | null>(null);
 
   const setProgress = () => {};
-
-  const saveExportedVideoRecord = async (
-    exportedUrl: string,
-    sourceVideoUrl: string,
-    settings: ExportSettings,
-    demoId?: string | null
-  ) => {
-    const res = await axios.post("/api/exported-videos", {
-      title: sidebarTitle?.trim() || "Untitled Export",
-      description: sidebarDescription?.trim() || "",
-      exportedUrl,
-      sourceVideoUrl,
-      settings,
-      demoId: demoId || null,
-      upsertByDemo: Boolean(demoId),
-    });
-    return res.data?.exportedVideo?.id;
-  };
 
   // WTM: the camera-bubble pre-pass, run over the source before the chunked
   // export (see useWebcamComposite). A no-op without a recorded clip.
@@ -173,12 +159,14 @@ export function useExportFlow({
 
     try {
       setResultActionLoading(true);
-      const exportedVideoId = await saveExportedVideoRecord(
-        pendingExport.exportedUrl,
-        pendingExport.sourceVideoUrl,
-        pendingExport.settings,
-        pendingExport.demoId
-      );
+      const exportedVideoId = await saveExportedVideoRecord({
+        title: sidebarTitle,
+        description: sidebarDescription,
+        exportedUrl: pendingExport.exportedUrl,
+        sourceVideoUrl: pendingExport.sourceVideoUrl,
+        settings: pendingExport.settings,
+        demoId: pendingExport.demoId,
+      });
 
       const generatedShareUrl = `${window.location.origin}/share/video/${exportedVideoId}`;
       setPendingExport((prev) => (prev ? { ...prev, shareUrl: generatedShareUrl } : null));

@@ -3,7 +3,7 @@ import { toast } from "react-hot-toast";
 import { useShallow } from "zustand/react/shallow";
 
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
-import { useZoomStore } from "@/app/store/editor/zoomStore";
+import { useZoomStore, type ExtensionClickEvent } from "@/app/store/editor/zoomStore";
 import { clamp } from "../utils/clamp";
 import { computeZoomPreview } from "../utils/zoomPreview";
 import type { EditorState } from "../apiTypes";
@@ -17,26 +17,9 @@ interface UseZoomEditorProps {
   mode: EditorMode;
 }
 
-export function useZoomEditor({
-  editorState,
-  zoomFocusStageRef,
-  lastInteractionRef,
-  mode,
-}: UseZoomEditorProps) {
-  const { currentTime, playerRef } = editorState;
-
-  // Zoom state now lives in the zoom store (issue #150). This hook is a thin shim
-  // over it: it keeps the same effects/handlers and returns the same shape so
-  // EditorClient and every downstream consumer stay untouched.
-  const {
-    activeZoomIdx,
-    zoomSegments,
-    zoomLevel,
-    isDraggingZoomTarget,
-    showZoomModal,
-    extensionEvents,
-    hasAppliedAutoZoom,
-  } = useZoomStore(
+// Every zoom-store value and action this hook exposes, in one shallow subscription.
+function useZoomStoreBindings() {
+  const state = useZoomStore(
     useShallow((s) => ({
       activeZoomIdx: s.activeZoomIdx,
       zoomSegments: s.zoomSegments,
@@ -56,7 +39,22 @@ export function useZoomEditor({
   const setExtensionEvents = useZoomStore((s) => s.setExtensionEvents);
   const setHasAppliedAutoZoom = useZoomStore((s) => s.setHasAppliedAutoZoom);
 
-  // Listen for timeline messages from the extension content script
+  return {
+    ...state,
+    setActiveZoomIdx,
+    setZoomSegments,
+    setZoomLevel,
+    setIsDraggingZoomTarget,
+    setShowZoomModal,
+    setExtensionEvents,
+    setHasAppliedAutoZoom,
+  };
+}
+
+// Listen for timeline messages from the extension content script.
+function useExtensionTimelineListener(
+  setExtensionEvents: ReturnType<typeof useZoomStoreBindings>["setExtensionEvents"]
+) {
   useEffect(() => {
     const handleExtensionMessage = (event: MessageEvent) => {
       if (event.data && event.data.source === "marvedge-extension") {
@@ -82,6 +80,67 @@ export function useZoomEditor({
       clearTimeout(timer);
     };
   }, [setExtensionEvents]);
+}
+
+// Turn recorded click events into zoom segments, dropping any click landing
+// within 250ms of one already kept (guards against double-zoom stutters).
+function buildAutoZoomSuggestions(extensionEvents: ExtensionClickEvent[]): ZoomEffect[] {
+  const suggestions: ZoomEffect[] = extensionEvents
+    .filter((e) => e.event_type === "click" && e.coordinates)
+    .map((event, index) => {
+      const clickTimeSec = event.timestamp_ms / 1000;
+      return {
+        id: `auto-zoom-${index}-${Date.now()}`,
+        startTime: Math.max(0, clickTimeSec - 0.3), // start 300ms before click
+        endTime: clickTimeSec + 2.2, // end 2.2s after click
+        zoomLevel: 1.8, // default 1.8x zoom level
+        x: event.coordinates.x,
+        y: event.coordinates.y,
+      };
+    });
+
+  const debounced: ZoomEffect[] = [];
+  suggestions.forEach((suggest) => {
+    const isTooClose = debounced.some(
+      (existing) => Math.abs(existing.startTime - suggest.startTime) < 0.25
+    );
+    if (!isTooClose) {
+      debounced.push(suggest);
+    }
+  });
+
+  return debounced;
+}
+
+export function useZoomEditor({
+  editorState,
+  zoomFocusStageRef,
+  lastInteractionRef,
+  mode,
+}: UseZoomEditorProps) {
+  const { currentTime, playerRef } = editorState;
+
+  // Zoom state now lives in the zoom store (issue #150). This hook is a thin shim
+  // over it: it keeps the same effects/handlers and returns the same shape so
+  // EditorClient and every downstream consumer stay untouched.
+  const {
+    activeZoomIdx,
+    zoomSegments,
+    zoomLevel,
+    isDraggingZoomTarget,
+    showZoomModal,
+    extensionEvents,
+    hasAppliedAutoZoom,
+    setActiveZoomIdx,
+    setZoomSegments,
+    setZoomLevel,
+    setIsDraggingZoomTarget,
+    setShowZoomModal,
+    setExtensionEvents,
+    setHasAppliedAutoZoom,
+  } = useZoomStoreBindings();
+
+  useExtensionTimelineListener(setExtensionEvents);
 
   // Convert click events to ZoomEffect segments
   const applyAutoZoomSuggestions = useCallback(() => {
@@ -89,30 +148,7 @@ export function useZoomEditor({
       return;
     }
 
-    const suggestions: ZoomEffect[] = extensionEvents
-      .filter((e) => e.event_type === "click" && e.coordinates)
-      .map((event, index) => {
-        const clickTimeSec = event.timestamp_ms / 1000;
-        return {
-          id: `auto-zoom-${index}-${Date.now()}`,
-          startTime: Math.max(0, clickTimeSec - 0.3), // start 300ms before click
-          endTime: clickTimeSec + 2.2, // end 2.2s after click
-          zoomLevel: 1.8, // default 1.8x zoom level
-          x: event.coordinates.x,
-          y: event.coordinates.y,
-        };
-      });
-
-    // Apply debounce inside the editor too (250ms guard between zoom segments to prevent double-zoom stutters)
-    const debouncedSuggestions: ZoomEffect[] = [];
-    suggestions.forEach((suggest) => {
-      const isTooClose = debouncedSuggestions.some(
-        (existing) => Math.abs(existing.startTime - suggest.startTime) < 0.25
-      );
-      if (!isTooClose) {
-        debouncedSuggestions.push(suggest);
-      }
-    });
+    const debouncedSuggestions = buildAutoZoomSuggestions(extensionEvents);
 
     if (debouncedSuggestions.length === 0) {
       toast.error("No valid click zoom events found to apply.");

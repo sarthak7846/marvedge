@@ -96,8 +96,6 @@ const SignUp = () => {
                 alt="Toggle Password"
                 width={20}
                 height={20}
-                
-               
               />
             </button>
           </div>

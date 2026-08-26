@@ -81,6 +81,49 @@ const reportScreenShareError = (err: unknown) => {
   }
 };
 
+// Notifies the companion browser extension when capture starts/stops.
+const postCaptureMessage = (
+  action: "START_CAPTURE" | "STOP_CAPTURE",
+  extra?: Record<string, unknown>
+) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.postMessage({ source: "marvedge-web", action, ...extra }, "*");
+};
+
+// Every recording-store binding the recorder needs, gathered in one place.
+const useRecordingBindings = () => {
+  const state = useRecordingStore(
+    useShallow((s) => ({
+      recording: s.recording,
+      videoUrl: s.videoUrl,
+      micEnabled: s.micEnabled,
+      screenStream: s.screenStream,
+      recordingDuration: s.recordingDuration,
+      showScreenShareModal: s.showScreenShareModal,
+    }))
+  );
+  const setRecording = useRecordingStore((s) => s.setRecording);
+  const setVideoUrl = useRecordingStore((s) => s.setVideoUrl);
+  const toggleMic = useRecordingStore((s) => s.toggleMic);
+  const setScreenStream = useRecordingStore((s) => s.setScreenStream);
+  const setRecordingDuration = useRecordingStore((s) => s.setRecordingDuration);
+  const setShowScreenShareModal = useRecordingStore((s) => s.setShowScreenShareModal);
+  const resetRecordingState = useRecordingStore((s) => s.reset);
+
+  return {
+    ...state,
+    setRecording,
+    setVideoUrl,
+    toggleMic,
+    setScreenStream,
+    setRecordingDuration,
+    setShowScreenShareModal,
+    resetRecordingState,
+  };
+};
+
 export const useScreenRecorder = () => {
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
@@ -94,24 +137,21 @@ export const useScreenRecorder = () => {
   // the feature flag is off or the user never enabled the camera.
   const webcamRecorder = useWebcamRecorder();
 
-  const { recording, videoUrl, micEnabled, screenStream, recordingDuration, showScreenShareModal } =
-    useRecordingStore(
-      useShallow((state) => ({
-        recording: state.recording,
-        videoUrl: state.videoUrl,
-        micEnabled: state.micEnabled,
-        screenStream: state.screenStream,
-        recordingDuration: state.recordingDuration,
-        showScreenShareModal: state.showScreenShareModal,
-      }))
-    );
-  const setRecording = useRecordingStore((state) => state.setRecording);
-  const setVideoUrl = useRecordingStore((state) => state.setVideoUrl);
-  const toggleMic = useRecordingStore((state) => state.toggleMic);
-  const setScreenStream = useRecordingStore((state) => state.setScreenStream);
-  const setRecordingDuration = useRecordingStore((state) => state.setRecordingDuration);
-  const setShowScreenShareModal = useRecordingStore((state) => state.setShowScreenShareModal);
-  const resetRecordingState = useRecordingStore((state) => state.reset);
+  const {
+    recording,
+    videoUrl,
+    micEnabled,
+    screenStream,
+    recordingDuration,
+    showScreenShareModal,
+    setRecording,
+    setVideoUrl,
+    toggleMic,
+    setScreenStream,
+    setRecordingDuration,
+    setShowScreenShareModal,
+    resetRecordingState,
+  } = useRecordingBindings();
 
   const setBlob = useBlobStore((state) => state.setBlob);
   const setSourceDuration = useBlobStore((state) => state.setSourceDuration);
@@ -145,15 +185,7 @@ export const useScreenRecorder = () => {
     setScreenStream(null);
     setRecording(false);
 
-    if (typeof window !== "undefined") {
-      window.postMessage(
-        {
-          source: "marvedge-web",
-          action: "STOP_CAPTURE",
-        },
-        "*"
-      );
-    }
+    postCaptureMessage("STOP_CAPTURE");
   };
 
   const startRecording = async () => {
@@ -189,16 +221,7 @@ export const useScreenRecorder = () => {
       recordingStartTimeRef.current = Date.now();
       setRecordingDuration(0);
 
-      if (typeof window !== "undefined") {
-        window.postMessage(
-          {
-            source: "marvedge-web",
-            action: "START_CAPTURE",
-            demoId: `rec_${Date.now()}`,
-          },
-          "*"
-        );
-      }
+      postCaptureMessage("START_CAPTURE", { demoId: `rec_${Date.now()}` });
     } catch (err) {
       console.error("Recording failed:", err);
       toast.error("Recording failed to start.");

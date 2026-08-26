@@ -230,20 +230,10 @@ async function exportAligned(input: ExportInput): Promise<string> {
  * run continues with what it has). The voiceover and time-alignment are required
  * for a meaningful export, so a hard failure there stops the run with a message.
  */
-export function useAvsPipeline(): AvsPipeline {
-  const {
-    videoUrl,
-    duration,
-    savedDemoId,
-    sidebarTitle,
-    avs,
-    setAvs,
-    selectedBackground,
-    aspectRatio,
-    browserFrameMode,
-    browserFrameDrawShadow,
-    browserFrameDrawBorder,
-  } = useEditorStore(
+// The editor- and zoom-store slices the pipeline reads, memoized so `run` keeps
+// a stable identity while those values are unchanged.
+function useAvsInputs() {
+  const editor = useEditorStore(
     useShallow((s) => ({
       videoUrl: s.videoUrl,
       duration: s.duration,
@@ -259,12 +249,178 @@ export function useAvsPipeline(): AvsPipeline {
     }))
   );
 
-  const { extensionEvents, zoomSegments } = useZoomStore(
+  const zoom = useZoomStore(
     useShallow((s) => ({
       extensionEvents: s.extensionEvents,
       zoomSegments: s.zoomSegments,
     }))
   );
+
+  return React.useMemo(() => ({ editor, zoom }), [editor, zoom]);
+}
+
+type AvsInputs = ReturnType<typeof useAvsInputs>;
+
+interface PipelineContext {
+  inputs: AvsInputs;
+  patchStage: (id: PipelineStageId, patch: Partial<PipelineStage>) => void;
+  mergeAvs: (patch: Partial<AvsState>) => void;
+  resolveScriptLines: (steps: Step[]) => ScriptLine[];
+}
+
+/**
+ * Runs the six stages end to end, reporting progress through `patchStage` and
+ * persisting each result via `mergeAvs`. Resolves with the exported video URL;
+ * throws when a required stage fails.
+ */
+async function runAvsPipeline({
+  inputs,
+  patchStage,
+  mergeAvs,
+  resolveScriptLines,
+}: PipelineContext): Promise<string> {
+  const {
+    avs,
+    duration,
+    videoUrl,
+    savedDemoId,
+    sidebarTitle,
+    selectedBackground,
+    aspectRatio,
+    browserFrameMode,
+    browserFrameDrawShadow,
+    browserFrameDrawBorder,
+  } = inputs.editor;
+  const { extensionEvents, zoomSegments } = inputs.zoom;
+
+  // ---- Stage 1: steps ---------------------------------------------------
+  patchStage("steps", { status: "running" });
+  let steps: Step[] = avs?.steps ?? [];
+  if (steps.length === 0) {
+    steps = deriveSteps(resolveClickTimes(extensionEvents, zoomSegments), duration);
+    mergeAvs({ steps });
+  }
+  if (steps.length === 0) {
+    throw new Error("Could not derive any steps from the video");
+  }
+  patchStage("steps", {
+    status: "done",
+    note: `${steps.length} step${steps.length === 1 ? "" : "s"}`,
+  });
+
+  // ---- Stage 2: AI script ----------------------------------------------
+  patchStage("script", { status: "running" });
+  let lines = resolveScriptLines(steps);
+  if (lines.every((l) => l.text.trim().length === 0)) {
+    throw new Error("No script text — add narration or generate a transcript first");
+  }
+  const tone: ScriptTone = avs?.script?.tone ?? "sales";
+  // Rewrite is best effort — keep the seeded text if OpenAI is unavailable.
+  let scriptWarning: string | undefined;
+  try {
+    lines = await rewriteScript(
+      lines.filter((l) => l.text.trim().length > 0),
+      tone
+    );
+  } catch {
+    scriptWarning = "Rewrite skipped — using the seeded narration";
+  }
+  mergeAvs({ script: { tone, lines } });
+  patchStage("script", {
+    status: scriptWarning ? "warning" : "done",
+    note: scriptWarning ?? `Rewritten in ${tone} tone`,
+  });
+
+  // ---- Stage 3: voiceover ----------------------------------------------
+  patchStage("voiceover", { status: "running" });
+  const voiceId = isAvsVoiceId(avs?.voiceover?.voiceId)
+    ? (avs?.voiceover?.voiceId as string)
+    : DEFAULT_AVS_VOICE;
+  const pronunciation = (avs?.pronunciation ?? []).filter(
+    (r) => r.term.trim().length > 0 && r.phonetic.trim().length > 0
+  );
+  const voiceover = await synthesizeVoiceover(
+    lines.filter((l) => l.text.trim().length > 0),
+    voiceId,
+    pronunciation
+  );
+  mergeAvs({ voiceover });
+  patchStage("voiceover", {
+    status: "done",
+    note: `${voiceover.duration.toFixed(1)}s continuous MP3`,
+  });
+
+  // ---- Stage 4: captions (non-fatal) -----------------------------------
+  patchStage("captions", { status: "running" });
+  let captions: CaptionCue[] = avs?.captions ?? [];
+  try {
+    captions = await generateCaptions(voiceover.audioUrl);
+    mergeAvs({ captions });
+    patchStage("captions", {
+      status: captions.length > 0 ? "done" : "warning",
+      note:
+        captions.length > 0
+          ? `${captions.length} caption${captions.length === 1 ? "" : "s"}`
+          : "No speech detected",
+    });
+  } catch {
+    patchStage("captions", { status: "warning", note: "Skipped — export continues" });
+  }
+
+  // ---- Stage 5: time-alignment -----------------------------------------
+  patchStage("sync", { status: "running" });
+  const aligned = await alignSource({
+    videoUrl: videoUrl as string,
+    audioUrl: voiceover.audioUrl,
+    steps,
+    stepTimings: voiceover.stepTimings,
+    duration,
+    demoId: savedDemoId,
+  });
+  mergeAvs({ aligned });
+  patchStage("sync", {
+    status: "done",
+    note: `Aligned source (${aligned.duration.toFixed(1)}s)`,
+  });
+
+  // ---- Stage 6: export --------------------------------------------------
+  patchStage("export", { status: "running" });
+  const finalUrl = await exportAligned({
+    aligned,
+    captions,
+    title: sidebarTitle?.trim() || "AI Voiceover Demo",
+    demoId: savedDemoId,
+    selectedBackground: selectedBackground ?? "transparent",
+    aspectRatio: aspectRatio || "native",
+    browserFrame: {
+      mode: browserFrameMode,
+      drawShadow: browserFrameDrawShadow,
+      drawBorder: browserFrameDrawBorder,
+    },
+  });
+  patchStage("export", { status: "done", note: "Ready to download" });
+
+  return finalUrl;
+}
+
+function describePipelineError(e: unknown): string {
+  if (axios.isAxiosError(e) && typeof e.response?.data?.error === "string") {
+    return e.response.data.error;
+  }
+  return e instanceof Error ? e.message : "Failed to generate AI voiceover demo";
+}
+
+// Mark the first still-running stage as the failure point.
+function markFailedStage(stages: PipelineStage[], message: string): PipelineStage[] {
+  const idx = stages.findIndex((s) => s.status === "running");
+  return idx === -1
+    ? stages
+    : stages.map((s, i) => (i === idx ? { ...s, status: "error", note: message } : s));
+}
+
+export function useAvsPipeline(): AvsPipeline {
+  const inputs = useAvsInputs();
+  const { videoUrl, duration, savedDemoId, avs, setAvs } = inputs.editor;
 
   const transcriptCues = useSubtitleStore((s) => s.subtitleCues);
 
@@ -338,153 +494,22 @@ export function useAvsPipeline(): AvsPipeline {
     const toastId = toast.loading("Generating AI voiceover demo…");
 
     try {
-      // ---- Stage 1: steps ---------------------------------------------------
-      patchStage("steps", { status: "running" });
-      let steps: Step[] = avs?.steps ?? [];
-      if (steps.length === 0) {
-        steps = deriveSteps(resolveClickTimes(extensionEvents, zoomSegments), duration);
-        mergeAvs({ steps });
-      }
-      if (steps.length === 0) {
-        throw new Error("Could not derive any steps from the video");
-      }
-      patchStage("steps", {
-        status: "done",
-        note: `${steps.length} step${steps.length === 1 ? "" : "s"}`,
-      });
-
-      // ---- Stage 2: AI script ----------------------------------------------
-      patchStage("script", { status: "running" });
-      let lines = resolveScriptLines(steps);
-      if (lines.every((l) => l.text.trim().length === 0)) {
-        throw new Error("No script text — add narration or generate a transcript first");
-      }
-      const tone: ScriptTone = avs?.script?.tone ?? "sales";
-      // Rewrite is best effort — keep the seeded text if OpenAI is unavailable.
-      let scriptWarning: string | undefined;
-      try {
-        lines = await rewriteScript(
-          lines.filter((l) => l.text.trim().length > 0),
-          tone
-        );
-      } catch {
-        scriptWarning = "Rewrite skipped — using the seeded narration";
-      }
-      mergeAvs({ script: { tone, lines } });
-      patchStage("script", {
-        status: scriptWarning ? "warning" : "done",
-        note: scriptWarning ?? `Rewritten in ${tone} tone`,
-      });
-
-      // ---- Stage 3: voiceover ----------------------------------------------
-      patchStage("voiceover", { status: "running" });
-      const voiceId = isAvsVoiceId(avs?.voiceover?.voiceId)
-        ? (avs?.voiceover?.voiceId as string)
-        : DEFAULT_AVS_VOICE;
-      const pronunciation = (avs?.pronunciation ?? []).filter(
-        (r) => r.term.trim().length > 0 && r.phonetic.trim().length > 0
-      );
-      const voiceover = await synthesizeVoiceover(
-        lines.filter((l) => l.text.trim().length > 0),
-        voiceId,
-        pronunciation
-      );
-      mergeAvs({ voiceover });
-      patchStage("voiceover", {
-        status: "done",
-        note: `${voiceover.duration.toFixed(1)}s continuous MP3`,
-      });
-
-      // ---- Stage 4: captions (non-fatal) -----------------------------------
-      patchStage("captions", { status: "running" });
-      let captions: CaptionCue[] = avs?.captions ?? [];
-      try {
-        captions = await generateCaptions(voiceover.audioUrl);
-        mergeAvs({ captions });
-        patchStage("captions", {
-          status: captions.length > 0 ? "done" : "warning",
-          note:
-            captions.length > 0
-              ? `${captions.length} caption${captions.length === 1 ? "" : "s"}`
-              : "No speech detected",
-        });
-      } catch {
-        patchStage("captions", { status: "warning", note: "Skipped — export continues" });
-      }
-
-      // ---- Stage 5: time-alignment -----------------------------------------
-      patchStage("sync", { status: "running" });
-      const aligned = await alignSource({
-        videoUrl: videoUrl as string,
-        audioUrl: voiceover.audioUrl,
-        steps,
-        stepTimings: voiceover.stepTimings,
-        duration,
-        demoId: savedDemoId,
-      });
-      mergeAvs({ aligned });
-      patchStage("sync", {
-        status: "done",
-        note: `Aligned source (${aligned.duration.toFixed(1)}s)`,
-      });
-
-      // ---- Stage 6: export --------------------------------------------------
-      patchStage("export", { status: "running" });
-      const finalUrl = await exportAligned({
-        aligned,
-        captions,
-        title: sidebarTitle?.trim() || "AI Voiceover Demo",
-        demoId: savedDemoId,
-        selectedBackground: selectedBackground ?? "transparent",
-        aspectRatio: aspectRatio || "native",
-        browserFrame: {
-          mode: browserFrameMode,
-          drawShadow: browserFrameDrawShadow,
-          drawBorder: browserFrameDrawBorder,
-        },
+      const finalUrl = await runAvsPipeline({
+        inputs,
+        patchStage,
+        mergeAvs,
+        resolveScriptLines,
       });
       setExportedUrl(finalUrl);
-      patchStage("export", { status: "done", note: "Ready to download" });
-
       toast.success("AI voiceover demo ready", { id: toastId });
     } catch (e: unknown) {
-      const message =
-        axios.isAxiosError(e) && typeof e.response?.data?.error === "string"
-          ? e.response.data.error
-          : e instanceof Error
-            ? e.message
-            : "Failed to generate AI voiceover demo";
-      // Mark the first still-running stage as the failure point.
-      setStages((prev) => {
-        const idx = prev.findIndex((s) => s.status === "running");
-        return idx === -1
-          ? prev
-          : prev.map((s, i) => (i === idx ? { ...s, status: "error", note: message } : s));
-      });
+      const message = describePipelineError(e);
+      setStages((prev) => markFailedStage(prev, message));
       toast.error(message, { id: toastId });
     } finally {
       setRunning(false);
     }
-  }, [
-    running,
-    canRun,
-    blockedReason,
-    avs,
-    mergeAvs,
-    patchStage,
-    resolveScriptLines,
-    extensionEvents,
-    zoomSegments,
-    duration,
-    videoUrl,
-    savedDemoId,
-    sidebarTitle,
-    selectedBackground,
-    aspectRatio,
-    browserFrameMode,
-    browserFrameDrawShadow,
-    browserFrameDrawBorder,
-  ]);
+  }, [running, canRun, blockedReason, inputs, mergeAvs, patchStage, resolveScriptLines]);
 
   return {
     stages,

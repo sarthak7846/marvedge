@@ -69,7 +69,15 @@ const ImageBackgroundTab: React.FC<ImageBackgroundTabProps> = ({
             }`}
             title={localCustomBackground?.name || "Custom"}
           >
-            <img src={customBackgroundUrl} alt="Custom" className="w-full h-[60px] object-cover" />
+            {/* Object URL from a local File upload - next/image cannot optimize blob: sources. */}
+            <Image
+              src={customBackgroundUrl}
+              alt="Custom"
+              width={80}
+              height={60}
+              unoptimized
+              className="w-full h-[60px] object-cover"
+            />
             {localSelectedBackground === "custom" && (
               <div className="absolute top-1 right-1 w-4 h-4 bg-[#7C5CFC] rounded-full flex items-center justify-center">
                 <div className="w-2 h-2 bg-white rounded-full" />
