@@ -19,6 +19,7 @@ export default async function HubPage({ params }: PageProps) {
         select: {
           name: true,
           email: true,
+          image: true,
         },
       },
     },
@@ -78,6 +79,7 @@ export default async function HubPage({ params }: PageProps) {
         subdomain: settings.subdomain || "",
         customDomain: settings.customDomain,
       }}
+      user={{ name: settings.user.name, image: settings.user.image }}
       demos={serializedDemos}
     />
   );
