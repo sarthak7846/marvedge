@@ -82,7 +82,7 @@ const DashboardMain = ({
 
   return (
     <div
-      className="flex-1 p-2 sm:p-4 md:p-8 bg-[#F1ECFF] dark:bg-[#05050d] min-h-screen mt-2 sm:mt-0 pt-2 sm:pt-0 transition-colors duration-300"
+      className="p-2 sm:p-4 md:p-8 bg-[#F1ECFF] dark:bg-[#05050d] min-h-full pt-2 sm:pt-0 transition-colors duration-300"
       style={{ fontFamily: "var(--font-raleway)" }}
     >
       <style jsx>{dashboardAnimationStyles}</style>
