@@ -43,7 +43,7 @@ const DashboardPage = ({
 
   if (status === "loading") {
     return (
-      <div className="flex justify-center items-center h-screen">
+      <div className="flex justify-center items-center h-full">
         <p className="text-gray-500">Loading...</p>
       </div>
     );
@@ -55,14 +55,12 @@ const DashboardPage = ({
         fontFamily: "var(--font-raleway)",
       }}
     >
-      <div className="flex flex-col gap-3 md:gap-4">
-        <DashboardMain
-          totalCount={totalCount}
-          initialDemos={initialDemos}
-          totalViews={totalViews}
-          activeShares={activeShares}
-        />
-      </div>
+      <DashboardMain
+        totalCount={totalCount}
+        initialDemos={initialDemos}
+        totalViews={totalViews}
+        activeShares={activeShares}
+      />
     </div>
   );
 };
