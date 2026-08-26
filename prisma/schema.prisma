@@ -82,33 +82,36 @@ model PasswordReset {
 }
 
 model Demo {
-  id            String         @id @default(uuid())
+  id            String              @id @default(uuid())
   title         String
   description   String?
   videoUrl      String
   startTime     String?
   endTime       String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
   editing       Json?
   userId        String
-  isPublic      Boolean        @default(false)
-  publicLink    String?        @unique
-  shareCount    Int            @default(0)
+  isPublic      Boolean             @default(false)
+  publicLink    String?             @unique
+  shareCount    Int                 @default(0)
   subtitles     Json?
   exportedUrl   String?
   duration      Float?
-  user          User           @relation(fields: [userId], references: [id])
-  tags          String[]       @default([])
-  integrations  String[]       @default([])
-  userRoles     String[]       @default([])
-  featured      Boolean        @default(false)
+  user          User                @relation(fields: [userId], references: [id])
+  tags          String[]            @default([])
+  integrations  String[]            @default([])
+  userRoles     String[]            @default([])
+  featured      Boolean             @default(false)
   exportedVideo ExportedVideo?
   videoJobs     VideoJob[]
   views         View[]
   ctas          Cta[]
   ctaClicks     CtaClick[]
   audioClips    AudioClip[]
+  overlayConfig VideoOverlayConfig?
+  leads         Lead[]
+  playerEvents  PlayerEvent[]
 }
 
 model Tutorial {
@@ -227,14 +230,14 @@ model HubSettings {
   subdomain       String?  @unique
   customDomain    String?  @unique
   sslStatus       String   @default("pending") // pending, active, failed
-  dnsVerification Json?    // To store TXT/CNAME records for verification
+  dnsVerification Json? // To store TXT/CNAME records for verification
   logoUrl         String?
   brandColor      String   @default("#7C5CFC")
   textColor       String   @default("#111827")
   accentColor     String   @default("#F3F0FC")
   hubTitle        String?
   hubDescription  String?
-  cloudflareId    String?  // Cloudflare custom hostname ID
+  cloudflareId    String? // Cloudflare custom hostname ID
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -268,3 +271,83 @@ enum AudioStatus {
   FAILED
 }
 
+// ---------------------------------------------------------------------------
+// OVL — Interactive Video Overlays (GitHub #302)
+// ---------------------------------------------------------------------------
+// Overlay config lives here rather than in Demo.editing: `editing` is the
+// editor's autosaved working draft and gets wholesale-overwritten on every save,
+// whereas this row is read by an unauthenticated public page on every single
+// view and must be a narrow, indexed record.
+//
+// ON DELETE, deliberately, per model:
+//   VideoOverlayConfig · Cascade — config without its demo is meaningless.
+//   Lead               · Cascade — `demoId` is required, so there is no "orphan"
+//                        state to fall into. Deleting a demo therefore destroys
+//                        the leads it captured, which is also the right privacy
+//                        default: viewer PII must never outlive the thing it was
+//                        collected for. Owners export to CSV before deleting.
+//   PlayerEvent        · Cascade — raw telemetry follows its demo.
+//   PlayerEventDaily   · NO foreign key, by design. The rollup is anonymous
+//                        aggregate counts with no PII, and it must survive the
+//                        demo so historical dashboard totals do not silently
+//                        rewrite themselves when an old demo is deleted.
+
+model VideoOverlayConfig {
+  id         String   @id @default(cuid())
+  demoId     String   @unique
+  enabled    Boolean  @default(false)
+  leadGate   Json?
+  branching  Json?
+  scheduling Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  demo       Demo     @relation(fields: [demoId], references: [id], onDelete: Cascade)
+}
+
+model Lead {
+  id          String    @id @default(cuid())
+  demoId      String
+  name        String
+  email       String
+  companySize String?
+  sessionId   String?
+  referrer    String?
+  // The exact consent string that was on screen when this viewer ticked the box.
+  // Stored per lead, never looked up from config, so a later reword of the copy
+  // cannot retroactively misrepresent what someone agreed to.
+  consentText String?
+  consentAt   DateTime?
+  createdAt   DateTime  @default(now())
+  demo        Demo      @relation(fields: [demoId], references: [id], onDelete: Cascade)
+
+  @@unique([demoId, email])
+  @@index([demoId, createdAt])
+}
+
+model PlayerEvent {
+  id              String   @id @default(cuid())
+  demoId          String?
+  // No foreign key: mirrors View.exportedVideoId usage on the /share/video/[id]
+  // route, and keeps an event from a deleted export from failing the insert.
+  exportedVideoId String?
+  sessionId       String
+  name            String
+  positionSec     Float?
+  meta            Json?
+  timestamp       DateTime @default(now())
+  demo            Demo?    @relation(fields: [demoId], references: [id], onDelete: Cascade)
+
+  @@index([demoId, name, timestamp])
+  @@index([sessionId])
+}
+
+model PlayerEventDaily {
+  id     String   @id @default(cuid())
+  demoId String
+  name   String
+  date   DateTime @db.Date
+  count  Int      @default(0)
+
+  @@unique([demoId, name, date])
+  @@index([demoId, date])
+}
