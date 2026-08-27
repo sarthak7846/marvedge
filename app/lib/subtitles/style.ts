@@ -424,10 +424,20 @@ export interface SubtitleCssStyle {
  * strokes OUTSIDE the glyph the way libass does, rather than the four-way
  * `text-shadow` trick that thickens the letterform.
  */
+export interface SubtitleCssOptions {
+  /**
+   * Lay the text out right-to-left (SUB PR 5). Comes from the ACTIVE TRACK's
+   * language, not from the style — RTL is a property of the script, not a knob
+   * the user turns. See `isRtlLanguage` in ./languages.
+   */
+  rtl?: boolean;
+}
+
 export function toCssStyle(
   style: SubtitleStyle | undefined,
   frameHeight: number,
-  renderedHeight?: number
+  renderedHeight?: number,
+  options?: SubtitleCssOptions
 ): SubtitleCssStyle {
   const s = withDefaults(style);
   const m = subtitleMetrics(style, frameHeight);
@@ -458,6 +468,11 @@ export function toCssStyle(
   const shadowPx = px(m.shadowPx);
 
   const text: CSSProperties = {
+    // `direction` reorders the line; `unicodeBidi: isolate` keeps a Latin
+    // product name embedded in an Arabic caption from dragging the surrounding
+    // run with it. The burn-in's equivalent is in the worker — see the RTL note
+    // on RTL_RENDERING_VERIFIED in ./languages for why neither is offered yet.
+    ...(options?.rtl ? { direction: "rtl" as const, unicodeBidi: "isolate" as const } : {}),
     fontFamily: `${SUBTITLE_FONT_NAMES[(s.fontFamily as SubtitleFont) ?? "arial"] ?? "Arial"}, sans-serif`,
     fontSize: `${px(m.fontPx)}px`,
     lineHeight: 1.25,

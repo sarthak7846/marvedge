@@ -658,7 +658,38 @@ function subtitleAssOverrideTags(style, w, h) {
   return "";
 }
 
-function writeAssSubtitles(tempDir, cues, w, h, style) {
+// SUB PR 5: right-to-left scripts. Mirrors `isRtlLanguage` in
+// app/lib/subtitles/languages.ts (Arabic is the only RTL language of the seven
+// the product offers; the others are listed so a future addition behaves).
+//
+// libass performs bidirectional reordering and Arabic shaping through FriBidi
+// and HarfBuzz, but ONLY when the ffmpeg build it is linked into includes them.
+// The container's build has not been inspected, so this path is implemented and
+// left unreachable from the UI — RTL_RENDERING_VERIFIED in languages.ts holds
+// every RTL language out of both pickers until someone confirms a real render.
+const RTL_LANGUAGES = new Set(["ar", "he", "fa", "ur"]);
+
+function isRtlSubtitleLanguage(language) {
+  const code = String(language || "")
+    .trim()
+    .toLowerCase()
+    .split("-")[0];
+  return RTL_LANGUAGES.has(code);
+}
+
+// U+202B RIGHT-TO-LEFT EMBEDDING … U+202C POP DIRECTIONAL FORMATTING.
+//
+// Wrapping each line states the paragraph direction explicitly rather than
+// leaving libass to infer it from the first strong character — which gets a
+// caption that opens with a Latin product name or a digit backwards.
+const RLE = "‫";
+const PDF = "‬";
+
+function applyRtlBidi(text) {
+  return `${RLE}${text}${PDF}`;
+}
+
+function writeAssSubtitles(tempDir, cues, w, h, style, language) {
   // No style config -> master's hardcoded line, verbatim. This branch is what
   // guarantees a demo that predates the style panel exports byte-identically;
   // it deliberately does not route through the mapping above.
@@ -692,10 +723,15 @@ function writeAssSubtitles(tempDir, cues, w, h, style) {
   // lines are unchanged too.
   const tags = style ? subtitleAssOverrideTags(style, w, h) : "";
 
+  // Absent language → untouched text, so every existing demo's Dialogue lines
+  // are byte-for-byte what they were.
+  const rtl = isRtlSubtitleLanguage(language);
+
   const lines = cues.map((c) => {
     const start = formatAssTime(c.start);
     const end = formatAssTime(c.end);
-    const t = escapeAssText(c.text);
+    const escaped = escapeAssText(c.text);
+    const t = rtl ? applyRtlBidi(escaped) : escaped;
     return `Dialogue: 0,${start},${end},Default,,0,0,0,,${tags}${t}`;
   });
 
@@ -1264,7 +1300,8 @@ async function renderChunkFromRecipe({
       remappedSubtitleCues,
       targetWidth,
       targetHeight,
-      subtitleStyle
+      subtitleStyle,
+      typeof recipe.subtitleLanguage === "string" ? recipe.subtitleLanguage : null
     );
     const safeAss = ffmpegEscapeFilterValue(assPath);
     // Inter and Poppins ship in the image at /app/fonts but are not in a
@@ -1386,4 +1423,14 @@ module.exports = {
   subtitleAssStyleLine,
   subtitleAssOverrideTags,
   subtitleAssColour,
+  isRtlSubtitleLanguage,
+  // Exported for app/lib/subtitles/burnInInvariant.test.ts, which drives the
+  // real chunk-slice -> trim-remap -> ASS path with cue lists an editing session
+  // can actually produce. remapSubtitleCuesToTrimmedTimeline ASSUMES ITS INPUT
+  // IS SORTED AND NON-OVERLAPPING; that test is what stops the assumption from
+  // going unchecked now that a user can drag cues on top of each other.
+  remapSubtitleCuesToTrimmedTimeline,
+  overlapSliceAbsolute,
+  normalizeRemoveSegments,
+  invertToKeepSegments,
 };

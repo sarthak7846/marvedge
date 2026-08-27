@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { Storage } from "@google-cloud/storage";
 import { authOptions } from "@/app/lib/auth/options";
 import { prisma } from "@/app/lib/prisma";
+import { isVideoUploadKind, validateVideoUpload } from "@/app/lib/subtitles";
 
 function getStorageClient() {
   const projectId = (
@@ -113,9 +114,37 @@ export async function POST(req: NextRequest) {
       filename?: string;
       contentType?: string;
       kind?: string;
+      size?: number;
     };
     const kind = toSafeKind(body.kind);
     const contentType = String(body.contentType || "application/octet-stream");
+
+    // Container and size limits (PRD §6.1), enforced HERE and not only at the
+    // file input: this route mints a signed URL that writes straight into the
+    // bucket, so the browser check is a courtesy and this is the control. Only
+    // video kinds are measured against a video's rules — a watermark PNG or a
+    // background image goes through this same route and must not be judged
+    // against them.
+    //
+    // `size` is what the client SAYS it is about to upload, and an absent one is
+    // not fatal. Note the honest limitation: the signed URL this route returns
+    // carries no length constraint, so a client that declares 10 MB and then
+    // PUTs 10 GB is not stopped here. Closing that needs either a
+    // `x-goog-content-length-range` condition on the signed URL or a bucket-side
+    // policy, neither of which is configured today. This check stops the
+    // ordinary case — a user picking a file that is too big — not a determined
+    // attacker.
+    if (isVideoUploadKind(kind)) {
+      const check = validateVideoUpload({
+        filename: body.filename,
+        contentType,
+        size: typeof body.size === "number" ? body.size : null,
+      });
+      if (!check.ok) {
+        return NextResponse.json({ ok: false, error: check.error }, { status: 400 });
+      }
+    }
+
     const fallbackName = contentType.startsWith("video/") ? "upload.webm" : "upload.bin";
     const safeOriginal = sanitizeFilename(body.filename || fallbackName);
     const ext = extFromFilename(safeOriginal) || extFromContentType(contentType);

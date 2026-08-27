@@ -3,7 +3,7 @@ import { prisma } from "@/app/lib/prisma";
 import { invokeGcpWorker } from "@/app/lib/gcpWorker";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
-import { sanitizeSubtitleStyle } from "@/app/lib/subtitles";
+import { normalizeLanguage, sanitizeSubtitleStyle } from "@/app/lib/subtitles";
 import { isWtmEnabled } from "@/app/lib/wtm/flags";
 import { isWtmAllowed } from "@/app/lib/wtm/access";
 import { resolveWatermarkForPlan as resolveWatermarkForIsPro } from "@/app/lib/wtm/watermark";
@@ -250,13 +250,28 @@ export async function POST(req: NextRequest) {
     // identical to today and non-WTM exports are unchanged.
     const watermark = resolveWatermarkForPlan(user.plan, data.watermark);
 
+    // SUB PR 6: burn-in is now an explicit choice (PRD §6.8). Absent or true →
+    // burn them in, which is what every export did before the switch existed;
+    // only an explicit `false` turns it off, and it does so by handing the
+    // worker no cues at all rather than by adding a branch over there. Style and
+    // language go with them — they describe subtitles that will not be drawn.
+    const burnSubtitles = data.burnSubtitles !== false;
+    const recipeSubtitles = burnSubtitles && Array.isArray(subtitles) ? subtitles : [];
+
     // SUB: the subtitle style is re-sanitized here, never trusted as sent — the
     // client's object reaches ffmpeg as an ASS style line, so an unvalidated
     // colour or font would be injected into the render. undefined when the demo
     // was never styled, which leaves the recipe (and therefore the burn-in)
     // exactly as it is today. Unlike the watermark this is NOT plan-gated:
     // subtitle styling is free for every plan, including anonymous.
-    const subtitleStyle = sanitizeSubtitleStyle(data.subtitleStyle);
+    const subtitleStyle = burnSubtitles ? sanitizeSubtitleStyle(data.subtitleStyle) : undefined;
+
+    // SUB: the active track's language, re-normalized here rather than trusted.
+    // Only carried into the recipe when it is a real language — auto-detect is
+    // the existing behaviour and leaves the recipe byte-identical to today's.
+    const rawSubtitleLanguage = normalizeLanguage(data.subtitleLanguage);
+    const subtitleLanguage =
+      !burnSubtitles || rawSubtitleLanguage === "multi" ? null : rawSubtitleLanguage;
 
     // 1. Create a job record in the database
     const jobRecord = await prisma.videoJob.create({
@@ -269,7 +284,7 @@ export async function POST(req: NextRequest) {
           segments: segments || [],
           zoomEffects: zoomEffects || [],
           textOverlays: textOverlays || [],
-          subtitles: Array.isArray(subtitles) ? subtitles : [],
+          subtitles: recipeSubtitles,
           selectedBackground: selectedBackground || null,
           customBackgroundUrl: customBackgroundUrl || null,
           imageMap: imageMap || {},
@@ -283,6 +298,7 @@ export async function POST(req: NextRequest) {
           // Spread into a fresh object literal so the Prisma Json field accepts
           // it (a named interface lacks the implicit index signature Prisma wants).
           ...(subtitleStyle ? { subtitleStyle: { ...subtitleStyle } } : {}),
+          ...(subtitleLanguage ? { subtitleLanguage } : {}),
           ...(watermark ? { watermark: { ...watermark } } : {}),
         },
       },
@@ -296,7 +312,7 @@ export async function POST(req: NextRequest) {
       segments: segments || [],
       zoomEffects: zoomEffects || [],
       textOverlays: textOverlays || [],
-      subtitles: Array.isArray(subtitles) ? subtitles : [],
+      subtitles: recipeSubtitles,
       selectedBackground: selectedBackground || null,
       customBackgroundUrl: customBackgroundUrl || null,
       imageMap: imageMap || {},
@@ -308,6 +324,7 @@ export async function POST(req: NextRequest) {
         drawBorder: false,
       },
       ...(subtitleStyle ? { subtitleStyle } : {}),
+      ...(subtitleLanguage ? { subtitleLanguage } : {}),
       ...(watermark ? { watermark } : {}),
     };
 

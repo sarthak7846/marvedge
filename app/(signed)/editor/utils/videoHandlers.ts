@@ -55,6 +55,8 @@ interface SaveDemoParams {
   subtitles?: { start: number; end: number; text: string }[];
   /** SUB PR 4: the demo's persisted subtitle appearance, or null when unstyled. */
   subtitleStyle?: SubtitleStyle | null;
+  /** SUB PR 5: the active track's language, or undefined for auto-detect. */
+  subtitleLanguage?: string;
   selectedBackground?: string | null;
   backgroundType?: string;
   aspectRatio?: string;
@@ -188,6 +190,7 @@ export async function handleSaveDemo(
     zoomEffects,
     subtitles,
     subtitleStyle,
+    subtitleLanguage,
     selectedBackground,
     backgroundType,
     aspectRatio,
@@ -242,6 +245,7 @@ export async function handleSaveDemo(
       // SUB PR 4: this path replaces `editing` wholesale, so a saved style has
       // to be re-sent or an explicit Save would wipe what autosave wrote.
       subtitleStyle: subtitleStyle ?? null,
+      subtitleLanguage: subtitleLanguage || null,
       textOverlays: textOverlays || [],
       backgroundType: backgroundType || "",
       aspectRatio: aspectRatio || "native",
@@ -541,6 +545,14 @@ interface ExportVideoParams {
   // route re-sanitizes it server-side. Undefined for a demo that was never
   // styled, which is what keeps its export byte-identical to master.
   subtitleStyle?: SubtitleStyle;
+  // SUB: the active track's language. Only a *request* — the route re-normalizes
+  // it. Omitted/auto-detect leaves the recipe as it is today.
+  subtitleLanguage?: string;
+  // SUB PR 6: whether to burn the subtitles into the picture. Undefined means
+  // yes, which is what burn-in did before it was a choice; only an explicit
+  // `false` reaches the request body, so a caller that ignores this field sends
+  // exactly the payload it sends today.
+  burnSubtitles?: boolean;
   // WTM: the demo's `editing.wtm.watermark`, if any. Only a *request* — the
   // server re-resolves the effective watermark from the user's plan.
   watermark?: WatermarkConfig;
@@ -803,6 +815,8 @@ export const exportVideo = async ({
   savedDemoId,
   settings,
   subtitleStyle,
+  subtitleLanguage,
+  burnSubtitles,
   watermark,
   prepareSourceUrl,
 }: ExportVideoParams): Promise<ExportVideoResult | null> => {
@@ -889,6 +903,12 @@ export const exportVideo = async ({
       // SUB: omitted entirely when the demo was never styled, so the request
       // body — and therefore the burned-in result — is identical to today.
       ...(subtitleStyle ? { subtitleStyle } : {}),
+      // Omitted for auto-detect, so a demo that never chose a language sends
+      // exactly the body it sends today.
+      ...(subtitleLanguage && subtitleLanguage !== "multi" ? { subtitleLanguage } : {}),
+      // Sent only to turn burn-in OFF. The route reads `!== false`, so leaving
+      // it out is the burn-in-on path every export has always taken.
+      ...(burnSubtitles === false ? { burnSubtitles: false } : {}),
       // WTM: omitted entirely when the demo has no watermark config, so the
       // request body is identical to today for non-WTM demos.
       ...(watermark ? { watermark } : {}),
