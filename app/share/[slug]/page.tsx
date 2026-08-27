@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/app/lib/prisma";
 import ShareVideoPageClient from "./ShareVideoPageClient";
+import { resolveShareOverlays } from "./overlayContext";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -127,6 +128,9 @@ export default async function SharePage({ params }: PageProps) {
     notFound();
   }
 
+  // undefined — and no extra query — whenever OVERLAYS_ENABLED is off.
+  const overlayContext = await resolveShareOverlays(demo.id);
+
   return (
     <ShareVideoPageClient
       title={demo.title}
@@ -140,6 +144,9 @@ export default async function SharePage({ params }: PageProps) {
       }
       demoId={demo.id}
       ctas={demo.ctas}
+      overlays={overlayContext?.overlays}
+      ownerName={overlayContext?.ownerName}
+      leadCaptured={overlayContext?.leadCaptured}
     />
   );
 }

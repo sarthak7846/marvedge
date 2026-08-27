@@ -4,6 +4,7 @@ import { MainTab } from "./backgroundOptions";
 import { isAvsPanelEnabled } from "@/app/lib/avs/flags";
 import { isWtmPanelEnabled } from "@/app/lib/wtm/flags";
 import { isAudioPanelEnabled } from "@/app/lib/audio/flags";
+import { isOverlaysPanelEnabled } from "@/app/lib/overlays/flags";
 
 interface SidebarHeaderProps {
   title: string;
@@ -130,6 +131,16 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({
             onClick={() => setActiveTab("branding")}
           >
             Branding
+          </button>
+        )}
+        {isOverlaysPanelEnabled() && (
+          <button
+            className={`tab-item flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
+              activeTab === "overlays" ? "active bg-white text-[#7C5CFC] shadow" : "text-gray-600"
+            }`}
+            onClick={() => setActiveTab("overlays")}
+          >
+            Overlays
           </button>
         )}
       </div>
