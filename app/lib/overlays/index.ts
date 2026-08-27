@@ -51,6 +51,41 @@ export {
 } from "./events";
 
 export {
+  FREE_EMAIL_DOMAINS,
+  MAX_EMAIL_LENGTH,
+  emailDomain,
+  isDeniedDomain,
+  isValidEmail,
+  isWorkEmail,
+  normalizeEmail,
+} from "./email";
+
+export {
+  COMPANY_SIZE_BUCKETS,
+  CONSENT_OWNER_FALLBACK,
+  MAX_CONSENT_TEXT_LENGTH,
+  gateShouldOpen,
+  isCompanySize,
+  leadConsentText,
+  renderConsentText,
+  resolveGateTriggerSec,
+  type CompanySize,
+  type GateTriggerInput,
+} from "./leadGate";
+
+export {
+  HONEYPOT_FIELD,
+  MAX_LEAD_NAME_LENGTH,
+  MIN_TIME_ON_FORM_MS,
+  isHoneypotTripped,
+  isTooFastSubmission,
+  leadSubmissionSchema,
+  parseLeadSubmission,
+  type LeadSubmission,
+  type ParsedLead,
+} from "./lead";
+
+export {
   COMPLETION_RATIO,
   SEEK_STEP_SECONDS,
   bufferedEndAt,
