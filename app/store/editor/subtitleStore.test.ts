@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { SUBTITLE_UNDO_LIMIT, useSubtitleStore } from "./subtitleStore";
+import { SUBTITLE_FONT_PCT_MAX } from "@/app/lib/subtitles";
 import {
   applyDemoEditing,
   buildEditingPayload,
@@ -189,6 +190,8 @@ describe("persistence", () => {
       selectedBackground: null,
       backgroundType: "",
       subtitleCues: edited,
+      subtitleStyle: store().subtitleStyle,
+      subtitleLanguage: store().subtitleLanguage,
       textOverlays: [],
       aspectRatio: "native",
       browserFrameMode: "default",
@@ -210,6 +213,8 @@ describe("persistence", () => {
       setCurrentSegments: noop,
       setZoomSegments: noop,
       setSubtitleCues: store().setSubtitleCues,
+      setSubtitleStyle: store().setSubtitleStyle,
+      setSubtitleLanguage: store().setSubtitleLanguage,
       setTextOverlays: noop,
       setSelectedBackground: noop,
       setBackgroundType: noop,
@@ -222,6 +227,196 @@ describe("persistence", () => {
     });
 
     expect(store().subtitleCues).toEqual(edited);
+  });
+
+  /**
+   * SUB PR 4 persists the style the same way, through `editing.subtitleStyle`.
+   * The important half is the NEGATIVE case: a demo that was never styled must
+   * round-trip back to `null`, not to the defaults, because "no style config" is
+   * exactly what makes its export byte-identical to master.
+   */
+  it("round-trips a subtitle style, and keeps an unstyled demo unstyled", () => {
+    const unstyled = buildEditingPayload({
+      segments: [],
+      zoomSegments: [],
+      selectedBackground: null,
+      backgroundType: "",
+      subtitleCues: [],
+      subtitleStyle: null,
+      subtitleLanguage: "multi",
+      textOverlays: [],
+      aspectRatio: "native",
+      browserFrameMode: "default",
+      browserFrameDrawShadow: true,
+      browserFrameDrawBorder: false,
+      avs: null,
+      wtm: null,
+    });
+    expect(unstyled.subtitleStyle).toBeNull();
+
+    const noop = () => {};
+    const setters = {
+      setSegments: noop,
+      setCurrentSegments: noop,
+      setZoomSegments: noop,
+      setSubtitleCues: store().setSubtitleCues,
+      setSubtitleStyle: store().setSubtitleStyle,
+      setSubtitleLanguage: store().setSubtitleLanguage,
+      setTextOverlays: noop,
+      setSelectedBackground: noop,
+      setBackgroundType: noop,
+      setAspectRatio: noop,
+      setBrowserFrameMode: noop,
+      setBrowserFrameDrawShadow: noop,
+      setBrowserFrameDrawBorder: noop,
+      setAvs: noop,
+      setWtm: noop,
+    };
+
+    store().reset();
+    applyDemoEditing(JSON.parse(JSON.stringify(unstyled)) as DemoEditing, setters);
+    expect(store().subtitleStyle).toBeNull();
+
+    store().setSubtitleStyle({ alignment: "top", color: "#8A76FC" });
+    const styled = store().subtitleStyle;
+    expect(styled).toMatchObject({ alignment: "top", color: "#8A76FC" });
+
+    const payload = buildEditingPayload({
+      segments: [],
+      zoomSegments: [],
+      selectedBackground: null,
+      backgroundType: "",
+      subtitleCues: [],
+      subtitleStyle: styled,
+      subtitleLanguage: "multi",
+      textOverlays: [],
+      aspectRatio: "native",
+      browserFrameMode: "default",
+      browserFrameDrawShadow: true,
+      browserFrameDrawBorder: false,
+      avs: null,
+      wtm: null,
+    });
+
+    store().reset();
+    expect(store().subtitleStyle).toBeNull();
+    applyDemoEditing(JSON.parse(JSON.stringify(payload)) as DemoEditing, setters);
+    expect(store().subtitleStyle).toEqual(styled);
+  });
+
+  it("sanitizes a style on the way into the store", () => {
+    store().reset();
+    store().setSubtitleStyle({ alignment: "sideways" as never, fontSizePct: 999 });
+    expect(store().subtitleStyle?.alignment).toBe("bottom");
+    expect(store().subtitleStyle?.fontSizePct).toBe(SUBTITLE_FONT_PCT_MAX);
+    store().setSubtitleStyle(null);
+    expect(store().subtitleStyle).toBeNull();
+  });
+});
+
+describe("selection", () => {
+  it("selects a cue and bumps the focus nonce", () => {
+    const before = store().cueFocusNonce;
+    store().selectCue(1);
+    expect(store().selectedCueIndex).toBe(1);
+    expect(store().cueFocusNonce).toBe(before + 1);
+  });
+
+  it("bumps the nonce again when the same cue is re-selected", () => {
+    // The sidebar list scrolls the selected row into view off the nonce, so
+    // clicking the same timeline block twice has to be observable.
+    store().selectCue(1);
+    const nonce = store().cueFocusNonce;
+    store().selectCue(1);
+    expect(store().cueFocusNonce).toBe(nonce + 1);
+  });
+
+  it("treats an out-of-range index as no selection", () => {
+    store().selectCue(9);
+    expect(store().selectedCueIndex).toBeNull();
+  });
+
+  it("does nothing when clearing an already-empty selection", () => {
+    const nonce = store().cueFocusNonce;
+    store().selectCue(null);
+    expect(store().cueFocusNonce).toBe(nonce);
+  });
+
+  it("drops a selection a delete has left pointing past the end", () => {
+    store().selectCue(2);
+    store().removeCue(2);
+    expect(store().selectedCueIndex).toBeNull();
+  });
+
+  it("drops the selection when the whole list is replaced", () => {
+    store().selectCue(1);
+    store().setSubtitleCues([{ start: 0, end: 1, text: "different demo" }]);
+    expect(store().selectedCueIndex).toBeNull();
+  });
+});
+
+describe("timeline drag", () => {
+  /** Re-time cue 1 as a whole-list candidate, the way resolveCueDrag does. */
+  const moved = (start: number, end: number): SubtitleCue[] => {
+    const next = store().subtitleCues.map((c) => ({ ...c }));
+    next[1] = { ...next[1], start, end };
+    return next;
+  };
+
+  it("ignores a move with no gesture open", () => {
+    store().dragCues(moved(2.5, 5.5));
+    expect(store().subtitleCues).toEqual(CUES);
+  });
+
+  it("applies frames while a gesture is open", () => {
+    store().beginCueDrag();
+    store().dragCues(moved(2.5, 5.5));
+    expect(store().subtitleCues[1]).toEqual({ start: 2.5, end: 5.5, text: CUES[1].text });
+  });
+
+  it("spends exactly one undo step on a whole drag, however many frames", () => {
+    store().beginCueDrag();
+    for (let i = 1; i <= 40; i++) {
+      store().dragCues(moved(2 + i * 0.01, 5 + i * 0.01));
+    }
+    expect(store().subtitleUndoStack).toHaveLength(0); // Nothing banked mid-drag.
+    store().endCueDrag();
+
+    expect(store().subtitleUndoStack).toHaveLength(1);
+    store().undoCueEdit();
+    expect(store().subtitleCues).toEqual(CUES);
+  });
+
+  it("spends no undo step when the drag ends where it started", () => {
+    store().beginCueDrag();
+    store().dragCues(moved(2.5, 5.5));
+    store().dragCues(moved(2, 5));
+    store().endCueDrag();
+    expect(store().subtitleUndoStack).toHaveLength(0);
+  });
+
+  it("keeps the original snapshot if the gesture is re-opened mid-drag", () => {
+    // A zoom change under a live drag re-subscribes the listener; re-snapshotting
+    // there would make dragging back restore the half-dragged list.
+    store().beginCueDrag();
+    store().dragCues(moved(2.5, 5.5));
+    store().beginCueDrag();
+    expect(store().subtitleDragOrigin).toEqual(CUES);
+  });
+
+  it("normalizes every frame, so a drag can never leave an overlap", () => {
+    store().beginCueDrag();
+    const next = store().subtitleCues.map((c) => ({ ...c }));
+    next[1] = { ...next[1], start: 1, end: 6.5 }; // Straddles both neighbours.
+    store().dragCues(next, { durationSeconds: 10 });
+    expect(isSortedAndNonOverlapping(store().subtitleCues)).toBe(true);
+    store().endCueDrag();
+  });
+
+  it("clears an in-flight gesture when the whole list is replaced", () => {
+    store().beginCueDrag();
+    store().setSubtitleCues([{ start: 0, end: 1, text: "different demo" }]);
+    expect(store().subtitleDragOrigin).toBeNull();
   });
 });
 

@@ -11,6 +11,7 @@ import BrandingPanel from "./editorSidebar/BrandingPanel";
 import { isAvsPanelEnabled } from "@/app/lib/avs/flags";
 import { isWtmPanelEnabled } from "@/app/lib/wtm/flags";
 import { isSubtitleEditorEnabled } from "@/app/lib/subtitles";
+import { useSubtitleStore } from "@/app/store/editor/subtitleStore";
 import type { CtaItem } from "@/app/(signed)/editor/apiTypes";
 
 interface EditorSidebarProps {
@@ -47,6 +48,9 @@ interface EditorSidebarProps {
   onClearSubtitles?: () => void;
   subtitlesLoading?: boolean;
   hasSubtitles?: boolean;
+  /** Stop waiting on a running subtitle job (PRD §13). */
+  onCancelSubtitles?: () => void;
+  cancelling?: boolean;
   /** Seek the player. The subtitle panel uses it to jump to a cue. */
   onSeek?: (seconds: number) => void;
   className?: string;
@@ -94,6 +98,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   onClearSubtitles,
   subtitlesLoading = false,
   hasSubtitles = false,
+  onCancelSubtitles,
+  cancelling = false,
   onSeek,
   onOpenSaveDemo,
   savingDemo = false,
@@ -106,6 +112,18 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   onReorderCta,
 }) => {
   const [activeTab, setActiveTab] = React.useState<MainTab>("background");
+
+  // Picking a cue on the timeline's subtitle track (SUB PR 3) has to bring the
+  // cue list up, or "selecting a block scrolls the list to it" only works when
+  // the user happened to already be on this tab. Driven off the store's focus
+  // nonce rather than the selected index, so re-picking the same block after
+  // switching away still comes back here.
+  const cueFocusNonce = useSubtitleStore((s) => s.cueFocusNonce);
+  React.useEffect(() => {
+    if (isSubtitleEditorEnabled() && useSubtitleStore.getState().selectedCueIndex !== null) {
+      setActiveTab("subtitles");
+    }
+  }, [cueFocusNonce]);
 
   return (
     <aside
@@ -164,6 +182,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
               onClearSubtitles={onClearSubtitles}
               subtitlesLoading={subtitlesLoading}
               hasSubtitles={hasSubtitles}
+              onCancelSubtitles={onCancelSubtitles}
+              cancelling={cancelling}
             />
           )}
         </div>
@@ -187,6 +207,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
           onClearSubtitles={onClearSubtitles}
           subtitlesLoading={subtitlesLoading}
           hasSubtitles={hasSubtitles}
+          onCancelSubtitles={onCancelSubtitles}
+          cancelling={cancelling}
           onSeek={onSeek}
         />
       )}

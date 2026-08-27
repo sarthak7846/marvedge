@@ -1,4 +1,5 @@
 import CameraBubblePreview from "@/app/components/CameraBubblePreview";
+import { UPLOAD_VIDEO_ACCEPT } from "@/app/lib/subtitles";
 
 interface RecorderMainPanelProps {
   uploadedFileUrl: string | null;
@@ -130,7 +131,7 @@ export default function RecorderMainPanel({
 
           <input
             type="file"
-            accept="video/mp4,video/webm,video/*"
+            accept={UPLOAD_VIDEO_ACCEPT}
             ref={fileInputRef}
             className="hidden"
             onChange={handleFileUpload}

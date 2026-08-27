@@ -2,14 +2,19 @@ import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
 
 import {
+  AUTO_DETECT_LANGUAGE,
+  DEFAULT_SUBTITLE_STYLE,
   MIN_CUE_SECONDS,
   deleteCue,
   findActiveCue,
   insertCue,
   mergeCues,
   normalizeCues,
+  normalizeLanguage,
+  sanitizeSubtitleStyle,
   splitCueAt,
 } from "@/app/lib/subtitles";
+import type { SubtitleStyle, SubtitleTrackSource } from "@/app/lib/subtitles";
 import type { SubtitleCue } from "@/app/(signed)/editor/types";
 
 /**
@@ -31,6 +36,23 @@ import type { SubtitleCue } from "@/app/(signed)/editor/types";
  * `normalizeCues()`. Mutations reach `Demo.editing.subtitles` through the
  * existing autosave, which already serializes this store's `subtitleCues`; there
  * is deliberately no save path here.
+ *
+ * SUB PR 3 adds the two things the timeline subtitle track needs from shared
+ * state: the selected cue (so the track and the sidebar list highlight the same
+ * one, in both directions) and a drag-scoped mutation path — `beginCueDrag` /
+ * `dragCues` / `endCueDrag` — so a drag lands as ONE undo step instead of one
+ * per mousemove.
+ *
+ * SUB PR 5 adds the language axis: `subtitleLanguage` (which language the ACTIVE
+ * track is in — it drives RTL in both the preview and the burn-in, so it has to
+ * reach the export recipe) and `subtitleTracks` (the demo's per-language tracks,
+ * for the switcher). `subtitleCues` stays the working copy of whichever track is
+ * active, so nothing about the export payload changes shape.
+ *
+ * SUB PR 4 adds `subtitleStyle`: the appearance the preview overlay and the
+ * burned-in export both read, through the one mapping in app/lib/subtitles/style.
+ * It stays `null` until the user actually changes something, because "no style
+ * config" is what makes an untouched demo export byte-identically to master.
  */
 
 /**
@@ -50,6 +72,19 @@ const NEW_CUE_SECONDS = 2;
  */
 export const SUBTITLE_UNDO_LIMIT = 50;
 
+/**
+ * One row of the track switcher. The cues are NOT held here — only the active
+ * track's cues live in the store (as `subtitleCues`), so switching tracks is a
+ * fetch rather than keeping every language's cue list in memory at once.
+ */
+export interface SubtitleTrackSummary {
+  language: string;
+  source: SubtitleTrackSource;
+  status: string;
+  cueCount: number;
+  updatedAt?: string;
+}
+
 /** Context a mutation needs beyond the cue list itself. */
 export interface SubtitleMutationOptions {
   /**
@@ -65,6 +100,55 @@ export interface SubtitleStoreState {
   subtitlesLoading: boolean;
   /** Previous cue lists, most recent last. Bounded by `SUBTITLE_UNDO_LIMIT`. */
   subtitleUndoStack: SubtitleCue[][];
+  /**
+   * The cue the user is working on, shared by the timeline track and the
+   * sidebar list so selecting in either highlights the other. `null` when
+   * nothing is selected.
+   */
+  selectedCueIndex: number | null;
+  /**
+   * Bumped on every `selectCue`, including a re-selection of the cue that is
+   * already selected. The sidebar list scrolls the selected row into view off
+   * this rather than off the index, so clicking the same timeline block twice
+   * still brings the row back into view.
+   */
+  cueFocusNonce: number;
+  /**
+   * The cue list as it stood when the current timeline drag began; `null` when
+   * no drag is in flight. Every frame of a drag is resolved against THIS, not
+   * against the previous frame — see `dragCues`.
+   */
+  subtitleDragOrigin: SubtitleCue[] | null;
+  /**
+   * User-chosen appearance, persisted to `editing.subtitleStyle`. `null` means
+   * the demo has never opened the style panel, which is what keeps the export
+   * byte-identical to master — the worker then falls back to its own hardcoded
+   * style rather than being handed one. Never default this to an object.
+   */
+  subtitleStyle: SubtitleStyle | null;
+  /**
+   * Language of the ACTIVE track — the one `subtitleCues` holds and the export
+   * will burn in. `"multi"` (auto-detect) is the default and what every demo
+   * predating this feature is implicitly in.
+   */
+  subtitleLanguage: string;
+  /**
+   * Language the NEXT generation run should transcribe in. Kept separate from
+   * `subtitleLanguage` because choosing "generate in Hindi" must not relabel the
+   * English track currently on screen — it only takes effect when generation
+   * actually returns cues.
+   */
+  generationLanguage: string;
+  /** The demo's tracks, newest fetch wins. Empty until the panel loads them. */
+  subtitleTracks: SubtitleTrackSummary[];
+  /** True while the translate route is running, so the panel can disable itself. */
+  subtitleTranslating: boolean;
+  /**
+   * Whether the server has translation switched on. SUBTITLE_TRANSLATE_ENABLED
+   * is server-only, so this is reported by /api/subtitles/tracks rather than
+   * read from env in the browser. Defaults false — the flag defaults off.
+   */
+  subtitleTranslateEnabled: boolean;
 
   setSubtitleCues: Dispatch<SetStateAction<SubtitleCue[]>>;
   setSubtitlesLoading: Dispatch<SetStateAction<boolean>>;
@@ -88,6 +172,54 @@ export interface SubtitleStoreState {
   /** Restore the cue list as it was before the last mutation. */
   undoCueEdit: () => void;
 
+  /** Select a cue (or clear the selection). Out-of-range indexes clear it. */
+  selectCue: (index: number | null) => void;
+
+  /** Set the language of the active track. Unknown codes fall back to auto-detect. */
+  setSubtitleLanguage: (code: string) => void;
+  /** Set the language the next generation run will use. */
+  setGenerationLanguage: (code: string) => void;
+  /** Replace the known track list. */
+  setSubtitleTracks: (tracks: SubtitleTrackSummary[]) => void;
+  setSubtitleTranslating: (translating: boolean) => void;
+  setSubtitleTranslateEnabled: (enabled: boolean) => void;
+  /**
+   * Switch the active track: adopt its cues as the working copy and its language
+   * as the active one. Wholesale replacement, so the undo stack is dropped —
+   * it holds edits to a cue list that is no longer on screen.
+   */
+  activateTrack: (language: string, cues: readonly SubtitleCue[]) => void;
+
+  /**
+   * Replace the subtitle style. Sanitized on the way in so the preview can only
+   * ever render a style the export can also produce; `null` clears it back to
+   * "no style config", restoring master's burn-in exactly.
+   *
+   * A partial patch is merged onto the current style (or onto the defaults, the
+   * first time a knob is touched), so the panel's controls can each set one
+   * field without restating the rest.
+   */
+  setSubtitleStyle: (patch: Partial<SubtitleStyle> | null) => void;
+
+  /**
+   * Open a continuous re-timing gesture (a timeline drag), snapshotting the cue
+   * list so the whole gesture costs one undo step. Idempotent: a second call
+   * while a drag is already open keeps the original snapshot.
+   */
+  beginCueDrag: () => void;
+  /**
+   * Apply an in-flight gesture's candidate list. Normalizes like every other
+   * mutation, but records NO undo step — sixty mousemoves must not spend sixty
+   * of the fifty the stack holds. The caller recomputes `candidate` from
+   * `subtitleDragOrigin` each frame, so this is idempotent and reversible.
+   */
+  dragCues: (candidate: readonly SubtitleCue[], options?: SubtitleMutationOptions) => void;
+  /**
+   * Close the gesture, recording one undo step for everything it changed — or
+   * none at all if the cues ended up where they started.
+   */
+  endCueDrag: () => void;
+
   reset: () => void;
 }
 
@@ -99,6 +231,15 @@ const initialState = {
   subtitleCues: [] as SubtitleCue[],
   subtitlesLoading: false,
   subtitleUndoStack: [] as SubtitleCue[][],
+  selectedCueIndex: null as number | null,
+  cueFocusNonce: 0,
+  subtitleDragOrigin: null as SubtitleCue[] | null,
+  subtitleStyle: null as SubtitleStyle | null,
+  subtitleLanguage: AUTO_DETECT_LANGUAGE,
+  generationLanguage: AUTO_DETECT_LANGUAGE,
+  subtitleTracks: [] as SubtitleTrackSummary[],
+  subtitleTranslating: false,
+  subtitleTranslateEnabled: false,
 };
 
 /**
@@ -113,9 +254,9 @@ const initialState = {
  */
 function commit(
   state: SubtitleStoreState,
-  candidate: SubtitleCue[],
+  candidate: readonly SubtitleCue[],
   options: SubtitleMutationOptions | undefined
-): Partial<Pick<SubtitleStoreState, "subtitleCues" | "subtitleUndoStack">> {
+): Partial<Pick<SubtitleStoreState, "subtitleCues" | "subtitleUndoStack" | "selectedCueIndex">> {
   const duration = options?.durationSeconds;
   const subtitleCues = normalizeCues(
     candidate,
@@ -131,12 +272,53 @@ function commit(
   const subtitleUndoStack = [...state.subtitleUndoStack, state.subtitleCues].slice(
     -SUBTITLE_UNDO_LIMIT
   );
-  return { subtitleCues, subtitleUndoStack };
+  return { subtitleCues, subtitleUndoStack, ...clampSelection(state, subtitleCues) };
+}
+
+/**
+ * Drop a selection that a mutation has left pointing past the end of the list —
+ * a deleted or merged cue. Deliberately only a range check: after a split every
+ * index past the split point shifts by one and there is no honest way to follow
+ * the user's intent, so the selection stays where it is rather than guessing.
+ */
+function clampSelection(
+  state: SubtitleStoreState,
+  cues: readonly SubtitleCue[]
+): Partial<Pick<SubtitleStoreState, "selectedCueIndex">> {
+  if (state.selectedCueIndex !== null && state.selectedCueIndex >= cues.length) {
+    return { selectedCueIndex: null };
+  }
+  return {};
 }
 
 /** `true` when `index` addresses a cue in `cues`. */
 const inRange = (cues: readonly SubtitleCue[], index: number): boolean =>
   Number.isInteger(index) && index >= 0 && index < cues.length;
+
+/**
+ * Merge a style patch onto the current style.
+ *
+ * `null` clears the style entirely, which is the state that makes an export
+ * byte-identical to master — it is not the same as writing the defaults. Any
+ * other patch is merged onto the current style, or onto the defaults the first
+ * time a knob is touched, so what gets persisted is a complete, self-describing
+ * object rather than one field the reader would have to guess the rest of.
+ *
+ * Sanitizing here rather than at save time means the preview can only ever show
+ * a style the renderer can also produce.
+ */
+function applySubtitleStylePatch(
+  current: SubtitleStyle | null,
+  patch: Partial<SubtitleStyle> | null
+): Partial<Pick<SubtitleStoreState, "subtitleStyle">> {
+  if (patch === null) {
+    return current === null ? {} : { subtitleStyle: null };
+  }
+  return {
+    subtitleStyle:
+      sanitizeSubtitleStyle({ ...(current ?? DEFAULT_SUBTITLE_STYLE), ...patch }) ?? null,
+  };
+}
 
 /** Cue-by-cue equality, to spot a mutation the normalizer undid. */
 const sameCues = (a: readonly SubtitleCue[], b: readonly SubtitleCue[]): boolean =>
@@ -151,7 +333,14 @@ export const useSubtitleStore = create<SubtitleStoreState>((set) => ({
   // them: it holds edits to a cue list that no longer exists, and replaying one
   // onto the new list would restore cues from a different demo.
   setSubtitleCues: (v) =>
-    set((s) => ({ subtitleCues: resolve(v, s.subtitleCues), subtitleUndoStack: [] })),
+    set((s) => ({
+      subtitleCues: resolve(v, s.subtitleCues),
+      subtitleUndoStack: [],
+      // The selection and any in-flight drag address cues from the list being
+      // replaced; carrying either across would point at a different demo's cue.
+      selectedCueIndex: null,
+      subtitleDragOrigin: null,
+    })),
   setSubtitlesLoading: (v) => set((s) => ({ subtitlesLoading: resolve(v, s.subtitlesLoading) })),
 
   setCueText: (index, text, options) =>
@@ -255,7 +444,85 @@ export const useSubtitleStore = create<SubtitleStoreState>((set) => ({
       const previous = stack.pop() as SubtitleCue[];
       // Restored as it was recorded, not re-normalized: undo owes the user the
       // list they had, including one a generator produced un-normalized.
-      return { subtitleCues: previous, subtitleUndoStack: stack };
+      return {
+        subtitleCues: previous,
+        subtitleUndoStack: stack,
+        ...clampSelection(s, previous),
+      };
+    }),
+
+  selectCue: (index) =>
+    set((s) => {
+      const next = index === null || !inRange(s.subtitleCues, index) ? null : index;
+      // Clearing an already-empty selection is what every click on an empty
+      // stretch of ruler does; it must not churn the store or fire the
+      // focus listeners.
+      if (next === null && s.selectedCueIndex === null) {
+        return {};
+      }
+      return { selectedCueIndex: next, cueFocusNonce: s.cueFocusNonce + 1 };
+    }),
+
+  setSubtitleStyle: (patch) => set((s) => applySubtitleStylePatch(s.subtitleStyle, patch)),
+
+  setSubtitleLanguage: (code) => set({ subtitleLanguage: normalizeLanguage(code) }),
+
+  setGenerationLanguage: (code) => set({ generationLanguage: normalizeLanguage(code) }),
+
+  setSubtitleTracks: (tracks) => set({ subtitleTracks: [...tracks] }),
+
+  setSubtitleTranslating: (translating) => set({ subtitleTranslating: Boolean(translating) }),
+
+  setSubtitleTranslateEnabled: (enabled) => set({ subtitleTranslateEnabled: Boolean(enabled) }),
+
+  activateTrack: (language, cues) =>
+    set(() => ({
+      subtitleCues: normalizeCues(cues),
+      subtitleLanguage: normalizeLanguage(language),
+      // A wholesale replacement, like generation or a demo load: the undo stack
+      // describes edits to a cue list that is no longer on screen, and the
+      // selection points into it by index.
+      subtitleUndoStack: [],
+      selectedCueIndex: null,
+    })),
+
+  beginCueDrag: () =>
+    set((s) =>
+      // Idempotent: a mid-gesture re-subscribe (the zoom level changing under a
+      // drag, say) must not re-snapshot, or the origin becomes the half-dragged
+      // list and dragging back no longer restores what was there.
+      s.subtitleDragOrigin ? {} : { subtitleDragOrigin: s.subtitleCues }
+    ),
+
+  dragCues: (candidate, options) =>
+    set((s) => {
+      if (!s.subtitleDragOrigin) {
+        return {}; // No gesture open — a stray move event after the mouse came up.
+      }
+      const duration = options?.durationSeconds;
+      const subtitleCues = normalizeCues(
+        candidate,
+        typeof duration === "number" && duration > 0 ? { durationSeconds: duration } : {}
+      );
+      if (sameCues(subtitleCues, s.subtitleCues)) {
+        return {}; // The pointer moved less than a cue boundary; no re-render.
+      }
+      return { subtitleCues, ...clampSelection(s, subtitleCues) };
+    }),
+
+  endCueDrag: () =>
+    set((s) => {
+      const origin = s.subtitleDragOrigin;
+      if (!origin) {
+        return {};
+      }
+      if (sameCues(origin, s.subtitleCues)) {
+        return { subtitleDragOrigin: null }; // Nothing moved: no undo step to spend.
+      }
+      return {
+        subtitleDragOrigin: null,
+        subtitleUndoStack: [...s.subtitleUndoStack, origin].slice(-SUBTITLE_UNDO_LIMIT),
+      };
     }),
 
   reset: () => set({ ...initialState }),

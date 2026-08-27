@@ -42,6 +42,10 @@ export async function uploadBlobToGcs({
       filename,
       contentType: blob.type || "application/octet-stream",
       kind,
+      // Declared up front so the route can refuse an oversized video BEFORE a
+      // signed URL exists, rather than after the browser has pushed gigabytes
+      // straight into the bucket.
+      size: blob.size,
     }),
   });
 

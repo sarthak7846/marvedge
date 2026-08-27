@@ -80,6 +80,34 @@ export type DragTextState =
       endValue: number;
     };
 
+/**
+ * An in-flight drag on the subtitle track (SUB-6.4).
+ *
+ * The same `edge` / `segment` discrimination as `DragState` and `DragTextState`
+ * above, addressed by index into the cue list. `resolveCueDrag` guarantees a cue
+ * can never cross a neighbour during a gesture, so that index stays valid even
+ * though `normalizeCues` re-sorts the list on every frame.
+ *
+ * No `startY` / `startTrack`, unlike its three siblings: subtitles occupy a
+ * single fixed lane on the ruler, so there is no track for a vertical drag to
+ * move a cue to.
+ */
+export type DragSubtitleState =
+  | {
+      mode: "edge";
+      index: number;
+      side: "left" | "right";
+      startX: number;
+      startValue: number;
+    }
+  | {
+      mode: "segment";
+      index: number;
+      startX: number;
+      startValue: number;
+      endValue: number;
+    };
+
 export interface TimelineRulerProps {
   minValue?: number;
   maxValue?: number;
