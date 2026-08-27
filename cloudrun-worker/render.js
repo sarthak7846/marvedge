@@ -1424,4 +1424,13 @@ module.exports = {
   subtitleAssOverrideTags,
   subtitleAssColour,
   isRtlSubtitleLanguage,
+  // Exported for app/lib/subtitles/burnInInvariant.test.ts, which drives the
+  // real chunk-slice -> trim-remap -> ASS path with cue lists an editing session
+  // can actually produce. remapSubtitleCuesToTrimmedTimeline ASSUMES ITS INPUT
+  // IS SORTED AND NON-OVERLAPPING; that test is what stops the assumption from
+  // going unchecked now that a user can drag cues on top of each other.
+  remapSubtitleCuesToTrimmedTimeline,
+  overlapSliceAbsolute,
+  normalizeRemoveSegments,
+  invertToKeepSegments,
 };
