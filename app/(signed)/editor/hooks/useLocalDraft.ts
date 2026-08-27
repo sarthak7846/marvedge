@@ -96,7 +96,14 @@ export function useLocalDraft({
   text,
 }: UseLocalDraftProps) {
   const { zoomSegments, setZoomSegments } = zoom;
-  const { subtitleCues, setSubtitleCues } = subtitles;
+  const {
+    subtitleCues,
+    setSubtitleCues,
+    subtitleStyle,
+    setSubtitleStyle,
+    subtitleLanguage,
+    setSubtitleLanguage,
+  } = subtitles;
   const { textOverlays, setTextOverlays } = text;
   const {
     savedDemoId,
@@ -165,6 +172,8 @@ export function useLocalDraft({
       setCurrentSegments,
       setZoomSegments,
       setSubtitleCues,
+      setSubtitleStyle,
+      setSubtitleLanguage,
       setTextOverlays,
       setSelectedBackground,
       setBackgroundType,
@@ -184,6 +193,8 @@ export function useLocalDraft({
     setCurrentSegments,
     setZoomSegments,
     setSubtitleCues,
+    setSubtitleStyle,
+    setSubtitleLanguage,
     setTextOverlays,
     setSelectedBackground,
     setBackgroundType,
@@ -214,6 +225,8 @@ export function useLocalDraft({
         selectedBackground,
         backgroundType,
         subtitleCues,
+        subtitleStyle,
+        subtitleLanguage,
         textOverlays,
         aspectRatio,
         browserFrameMode,
@@ -241,6 +254,8 @@ export function useLocalDraft({
     segments,
     zoomSegments,
     subtitleCues,
+    subtitleStyle,
+    subtitleLanguage,
     textOverlays,
     selectedBackground,
     backgroundType,

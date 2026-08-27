@@ -20,6 +20,7 @@
 // `normalizeCues()` in ./cues. A serializer that quietly re-times its input is a
 // serializer you cannot use to round-trip a file.
 
+import { AUTO_DETECT_LANGUAGE } from "./languages";
 import type { SubtitleCue } from "./types";
 
 // Split seconds into the clock parts every timestamp format needs.
@@ -148,4 +149,91 @@ export function parseSrt(input: string): SubtitleCue[] {
 /** Parse a WebVTT document. See `parseSubtitleFile` — the grammars overlap. */
 export function parseVtt(input: string): SubtitleCue[] {
   return parseSubtitleFile(input);
+}
+
+// ---------------------------------------------------------------------------
+// Download metadata (SUB PR 6 / US-5, PRD §6.8)
+//
+// The MIME type and the filename belong next to the serializers rather than in
+// the route: the route sets a `Content-Type` header, the browser panel sets a
+// `Blob` type, and the share page sets a `<track>` src — three callers that must
+// agree on what an `.srt` is. Still pure: naming a file is string work.
+// ---------------------------------------------------------------------------
+
+/** A downloadable subtitle format. */
+export type SubtitleFormat = "srt" | "vtt" | "txt";
+
+/** Every format the export route and the panel offer, in the order they appear. */
+export const SUBTITLE_FORMATS: readonly SubtitleFormat[] = ["srt", "vtt", "txt"];
+
+/**
+ * MIME type for each format, without a charset.
+ *
+ * `application/x-subrip` is the registered type for SubRip; `text/vtt` is
+ * required by the `<track>` element (a VTT served as `text/plain` is silently
+ * ignored by every browser). Callers that write an HTTP header should append
+ * `; charset=utf-8` — these files carry translated text, so the encoding is not
+ * something to leave to a receiver's guess.
+ */
+export const SUBTITLE_FORMAT_MIME: Record<SubtitleFormat, string> = {
+  srt: "application/x-subrip",
+  vtt: "text/vtt",
+  txt: "text/plain",
+};
+
+/** `true` when `value` names a format this module can serialize. */
+export function isSubtitleFormat(value: unknown): value is SubtitleFormat {
+  return typeof value === "string" && (SUBTITLE_FORMATS as readonly string[]).includes(value);
+}
+
+/**
+ * Serialize cues in the named format. The one place the format string is turned
+ * into a serializer, so a new format is added in exactly one switch.
+ */
+export function serializeCues(cues: readonly SubtitleCue[], format: SubtitleFormat): string {
+  switch (format) {
+    case "srt":
+      return cuesToSrt(cues);
+    case "vtt":
+      return cuesToVtt(cues);
+    case "txt":
+      return cuesToTxt(cues);
+  }
+}
+
+/** Longest slug taken from a demo title, so a long title cannot produce a long path. */
+const FILENAME_SLUG_MAX = 60;
+
+/** Used when a title slugs down to nothing — an emoji-only title, or no title. */
+const FILENAME_FALLBACK = "subtitles";
+
+/**
+ * Filename for a downloaded subtitle file: `<demo-title>-<language>.<format>`.
+ *
+ * Deliberately ASCII-only and path-free. This string is interpolated into a
+ * `Content-Disposition` header, where a stray quote, newline or slash is a
+ * header-injection bug rather than a cosmetic one — so everything outside
+ * `[a-z0-9]` collapses to a hyphen instead of being escaped.
+ *
+ * The language is omitted for an auto-detected track, whose code (`multi`) names
+ * nothing a user would recognise in their downloads folder.
+ */
+export function subtitleFileName(
+  title: string | null | undefined,
+  language: string | null | undefined,
+  format: SubtitleFormat
+): string {
+  const base = slugForFilename(title) || FILENAME_FALLBACK;
+  const code = language && language !== AUTO_DETECT_LANGUAGE ? slugForFilename(language) : "";
+  return code ? `${base}-${code}.${format}` : `${base}.${format}`;
+}
+
+/** Lowercase, hyphenated, ASCII-only. Never empty-ish enough to become a dotfile. */
+function slugForFilename(value: string | null | undefined): string {
+  return (value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, FILENAME_SLUG_MAX)
+    .replace(/-+$/g, "");
 }

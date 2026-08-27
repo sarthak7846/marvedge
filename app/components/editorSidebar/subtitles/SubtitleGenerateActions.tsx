@@ -5,6 +5,14 @@ export interface SubtitleGenerateActionsProps {
   onClearSubtitles?: () => void;
   subtitlesLoading: boolean;
   hasSubtitles: boolean;
+  /**
+   * Stop waiting on the running job (PRD §13). Optional: with no handler the
+   * Cancel button does not render, so a caller that has not adopted it sees the
+   * panel exactly as it was.
+   */
+  onCancelSubtitles?: () => void;
+  /** True while the cancel request itself is in flight. */
+  cancelling?: boolean;
 }
 
 /**
@@ -25,6 +33,8 @@ const SubtitleGenerateActions: React.FC<SubtitleGenerateActionsProps> = ({
   onClearSubtitles,
   subtitlesLoading,
   hasSubtitles,
+  onCancelSubtitles,
+  cancelling = false,
 }) => {
   return (
     <div>
@@ -41,7 +51,30 @@ const SubtitleGenerateActions: React.FC<SubtitleGenerateActionsProps> = ({
             ? "Regenerate Subtitles"
             : "Add Subtitles"}
       </button>
-      {hasSubtitles && (
+
+      {/* Cancel (PR 7 / PRD §13). Only while a job is actually running — there
+          is nothing to cancel otherwise. The copy is deliberately literal: the
+          Cloud Run call cannot be aborted, so what the user gets back is the
+          editor, and the transcript is discarded rather than stopped. Saying
+          "stop generating" here would promise something this cannot do. */}
+      {subtitlesLoading && onCancelSubtitles && (
+        <>
+          <button
+            type="button"
+            disabled={cancelling}
+            onClick={() => onCancelSubtitles()}
+            className="w-full mt-2 rounded-lg border border-[#8A76FC] text-[#8A76FC] py-2 text-sm font-semibold hover:bg-[#F6F3FF] transition disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {cancelling ? "Cancelling..." : "Cancel"}
+          </button>
+          <p className="mt-2 text-[11px] text-[#6B6B6B] dark:text-inherit">
+            Cancelling frees up the editor right away. Transcription that has already started
+            finishes on the server and its result is discarded.
+          </p>
+        </>
+      )}
+
+      {hasSubtitles && !subtitlesLoading && (
         <button
           type="button"
           onClick={() => onClearSubtitles && onClearSubtitles()}

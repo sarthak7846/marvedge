@@ -2,14 +2,19 @@ import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
 
 import {
+  AUTO_DETECT_LANGUAGE,
+  DEFAULT_SUBTITLE_STYLE,
   MIN_CUE_SECONDS,
   deleteCue,
   findActiveCue,
   insertCue,
   mergeCues,
   normalizeCues,
+  normalizeLanguage,
+  sanitizeSubtitleStyle,
   splitCueAt,
 } from "@/app/lib/subtitles";
+import type { SubtitleStyle, SubtitleTrackSource } from "@/app/lib/subtitles";
 import type { SubtitleCue } from "@/app/(signed)/editor/types";
 
 /**
@@ -37,6 +42,17 @@ import type { SubtitleCue } from "@/app/(signed)/editor/types";
  * one, in both directions) and a drag-scoped mutation path — `beginCueDrag` /
  * `dragCues` / `endCueDrag` — so a drag lands as ONE undo step instead of one
  * per mousemove.
+ *
+ * SUB PR 5 adds the language axis: `subtitleLanguage` (which language the ACTIVE
+ * track is in — it drives RTL in both the preview and the burn-in, so it has to
+ * reach the export recipe) and `subtitleTracks` (the demo's per-language tracks,
+ * for the switcher). `subtitleCues` stays the working copy of whichever track is
+ * active, so nothing about the export payload changes shape.
+ *
+ * SUB PR 4 adds `subtitleStyle`: the appearance the preview overlay and the
+ * burned-in export both read, through the one mapping in app/lib/subtitles/style.
+ * It stays `null` until the user actually changes something, because "no style
+ * config" is what makes an untouched demo export byte-identically to master.
  */
 
 /**
@@ -55,6 +71,19 @@ const NEW_CUE_SECONDS = 2;
  * for, and it bounds the cost at fifty cue lists.
  */
 export const SUBTITLE_UNDO_LIMIT = 50;
+
+/**
+ * One row of the track switcher. The cues are NOT held here — only the active
+ * track's cues live in the store (as `subtitleCues`), so switching tracks is a
+ * fetch rather than keeping every language's cue list in memory at once.
+ */
+export interface SubtitleTrackSummary {
+  language: string;
+  source: SubtitleTrackSource;
+  status: string;
+  cueCount: number;
+  updatedAt?: string;
+}
 
 /** Context a mutation needs beyond the cue list itself. */
 export interface SubtitleMutationOptions {
@@ -90,6 +119,36 @@ export interface SubtitleStoreState {
    * against the previous frame — see `dragCues`.
    */
   subtitleDragOrigin: SubtitleCue[] | null;
+  /**
+   * User-chosen appearance, persisted to `editing.subtitleStyle`. `null` means
+   * the demo has never opened the style panel, which is what keeps the export
+   * byte-identical to master — the worker then falls back to its own hardcoded
+   * style rather than being handed one. Never default this to an object.
+   */
+  subtitleStyle: SubtitleStyle | null;
+  /**
+   * Language of the ACTIVE track — the one `subtitleCues` holds and the export
+   * will burn in. `"multi"` (auto-detect) is the default and what every demo
+   * predating this feature is implicitly in.
+   */
+  subtitleLanguage: string;
+  /**
+   * Language the NEXT generation run should transcribe in. Kept separate from
+   * `subtitleLanguage` because choosing "generate in Hindi" must not relabel the
+   * English track currently on screen — it only takes effect when generation
+   * actually returns cues.
+   */
+  generationLanguage: string;
+  /** The demo's tracks, newest fetch wins. Empty until the panel loads them. */
+  subtitleTracks: SubtitleTrackSummary[];
+  /** True while the translate route is running, so the panel can disable itself. */
+  subtitleTranslating: boolean;
+  /**
+   * Whether the server has translation switched on. SUBTITLE_TRANSLATE_ENABLED
+   * is server-only, so this is reported by /api/subtitles/tracks rather than
+   * read from env in the browser. Defaults false — the flag defaults off.
+   */
+  subtitleTranslateEnabled: boolean;
 
   setSubtitleCues: Dispatch<SetStateAction<SubtitleCue[]>>;
   setSubtitlesLoading: Dispatch<SetStateAction<boolean>>;
@@ -115,6 +174,32 @@ export interface SubtitleStoreState {
 
   /** Select a cue (or clear the selection). Out-of-range indexes clear it. */
   selectCue: (index: number | null) => void;
+
+  /** Set the language of the active track. Unknown codes fall back to auto-detect. */
+  setSubtitleLanguage: (code: string) => void;
+  /** Set the language the next generation run will use. */
+  setGenerationLanguage: (code: string) => void;
+  /** Replace the known track list. */
+  setSubtitleTracks: (tracks: SubtitleTrackSummary[]) => void;
+  setSubtitleTranslating: (translating: boolean) => void;
+  setSubtitleTranslateEnabled: (enabled: boolean) => void;
+  /**
+   * Switch the active track: adopt its cues as the working copy and its language
+   * as the active one. Wholesale replacement, so the undo stack is dropped —
+   * it holds edits to a cue list that is no longer on screen.
+   */
+  activateTrack: (language: string, cues: readonly SubtitleCue[]) => void;
+
+  /**
+   * Replace the subtitle style. Sanitized on the way in so the preview can only
+   * ever render a style the export can also produce; `null` clears it back to
+   * "no style config", restoring master's burn-in exactly.
+   *
+   * A partial patch is merged onto the current style (or onto the defaults, the
+   * first time a knob is touched), so the panel's controls can each set one
+   * field without restating the rest.
+   */
+  setSubtitleStyle: (patch: Partial<SubtitleStyle> | null) => void;
 
   /**
    * Open a continuous re-timing gesture (a timeline drag), snapshotting the cue
@@ -149,6 +234,12 @@ const initialState = {
   selectedCueIndex: null as number | null,
   cueFocusNonce: 0,
   subtitleDragOrigin: null as SubtitleCue[] | null,
+  subtitleStyle: null as SubtitleStyle | null,
+  subtitleLanguage: AUTO_DETECT_LANGUAGE,
+  generationLanguage: AUTO_DETECT_LANGUAGE,
+  subtitleTracks: [] as SubtitleTrackSummary[],
+  subtitleTranslating: false,
+  subtitleTranslateEnabled: false,
 };
 
 /**
@@ -203,6 +294,31 @@ function clampSelection(
 /** `true` when `index` addresses a cue in `cues`. */
 const inRange = (cues: readonly SubtitleCue[], index: number): boolean =>
   Number.isInteger(index) && index >= 0 && index < cues.length;
+
+/**
+ * Merge a style patch onto the current style.
+ *
+ * `null` clears the style entirely, which is the state that makes an export
+ * byte-identical to master — it is not the same as writing the defaults. Any
+ * other patch is merged onto the current style, or onto the defaults the first
+ * time a knob is touched, so what gets persisted is a complete, self-describing
+ * object rather than one field the reader would have to guess the rest of.
+ *
+ * Sanitizing here rather than at save time means the preview can only ever show
+ * a style the renderer can also produce.
+ */
+function applySubtitleStylePatch(
+  current: SubtitleStyle | null,
+  patch: Partial<SubtitleStyle> | null
+): Partial<Pick<SubtitleStoreState, "subtitleStyle">> {
+  if (patch === null) {
+    return current === null ? {} : { subtitleStyle: null };
+  }
+  return {
+    subtitleStyle:
+      sanitizeSubtitleStyle({ ...(current ?? DEFAULT_SUBTITLE_STYLE), ...patch }) ?? null,
+  };
+}
 
 /** Cue-by-cue equality, to spot a mutation the normalizer undid. */
 const sameCues = (a: readonly SubtitleCue[], b: readonly SubtitleCue[]): boolean =>
@@ -346,6 +462,29 @@ export const useSubtitleStore = create<SubtitleStoreState>((set) => ({
       }
       return { selectedCueIndex: next, cueFocusNonce: s.cueFocusNonce + 1 };
     }),
+
+  setSubtitleStyle: (patch) => set((s) => applySubtitleStylePatch(s.subtitleStyle, patch)),
+
+  setSubtitleLanguage: (code) => set({ subtitleLanguage: normalizeLanguage(code) }),
+
+  setGenerationLanguage: (code) => set({ generationLanguage: normalizeLanguage(code) }),
+
+  setSubtitleTracks: (tracks) => set({ subtitleTracks: [...tracks] }),
+
+  setSubtitleTranslating: (translating) => set({ subtitleTranslating: Boolean(translating) }),
+
+  setSubtitleTranslateEnabled: (enabled) => set({ subtitleTranslateEnabled: Boolean(enabled) }),
+
+  activateTrack: (language, cues) =>
+    set(() => ({
+      subtitleCues: normalizeCues(cues),
+      subtitleLanguage: normalizeLanguage(language),
+      // A wholesale replacement, like generation or a demo load: the undo stack
+      // describes edits to a cue list that is no longer on screen, and the
+      // selection points into it by index.
+      subtitleUndoStack: [],
+      selectedCueIndex: null,
+    })),
 
   beginCueDrag: () =>
     set((s) =>

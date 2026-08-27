@@ -1,10 +1,14 @@
 import React from "react";
 import { Plus, Undo2 } from "lucide-react";
 
+import SubtitleDownloadButtons from "@/app/components/subtitles/SubtitleDownloadButtons";
 import CueList from "./subtitles/CueList";
 import SubtitleGenerateActions from "./subtitles/SubtitleGenerateActions";
+import SubtitleLanguageControls from "./subtitles/SubtitleLanguageControls";
+import SubtitleStyleControls from "./subtitles/SubtitleStyleControls";
 import type { SubtitleGenerateActionsProps } from "./subtitles/SubtitleGenerateActions";
 import { useSubtitleEditing } from "./subtitles/useSubtitleEditing";
+import { useSubtitleLanguages } from "./subtitles/useSubtitleLanguages";
 import { formatTimecode } from "./subtitles/timecode";
 
 interface SubtitlePanelProps extends SubtitleGenerateActionsProps {
@@ -26,14 +30,21 @@ interface SubtitlePanelProps extends SubtitleGenerateActionsProps {
  * both ways — picking a block there scrolls this list to the matching row and
  * highlights it, and picking a row here highlights the block.
  *
- * PR 4 adds styling (font, size, colour, outline, position), shared by the live
- * preview overlay and the burned-in export through one style module.
+ * PR 4 adds the Style section below: font, size, colour, background box, border,
+ * shadow, position and animation. The live preview overlay and the burned-in
+ * export both read those numbers from app/lib/subtitles/style.ts, so what the
+ * panel shows is what the render produces — before this they were two separate
+ * hardcoded implementations that had already drifted apart.
  *
- * PR 5 adds languages: pick the spoken language before generating, and translate
- * a finished track into another one (PRO/ENTERPRISE, gated server-side).
+ * PR 5 adds the Language section: pick the spoken language before generating,
+ * switch between the demo's per-language tracks, and translate the active one
+ * into another language. Translation is the ONLY gated surface in the feature —
+ * PRO/ENTERPRISE, decided server-side from the user's real plan; generating,
+ * editing and styling stay free on every plan.
  *
- * PR 6 adds file export — .srt / .vtt / .txt — plus importing an existing
- * subtitle file.
+ * PR 6 adds the Download section at the bottom — .srt / .vtt / .txt of the track
+ * on screen — and makes burning subtitles into the video an explicit choice in
+ * the export settings rather than something that happens whenever cues exist.
  *
  * Edits persist through the existing autosave, which already serializes the
  * subtitle store's cues into `Demo.editing.subtitles`; there is no save button
@@ -48,9 +59,12 @@ const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
   onClearSubtitles,
   subtitlesLoading,
   hasSubtitles,
+  onCancelSubtitles,
+  cancelling,
   onSeek,
 }) => {
   const editing = useSubtitleEditing({ onSeek });
+  const languages = useSubtitleLanguages();
 
   return (
     <div className="space-y-6">
@@ -59,6 +73,21 @@ const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
         onClearSubtitles={onClearSubtitles}
         subtitlesLoading={subtitlesLoading}
         hasSubtitles={hasSubtitles}
+        onCancelSubtitles={onCancelSubtitles}
+        cancelling={cancelling}
+      />
+
+      <SubtitleLanguageControls
+        generationLanguage={languages.generationLanguage}
+        onGenerationLanguageChange={languages.setGenerationLanguage}
+        activeLanguage={languages.activeLanguage}
+        tracks={languages.tracks}
+        onSelectTrack={languages.handleSelectTrack}
+        onTranslate={languages.handleTranslate}
+        translating={languages.translating}
+        busy={subtitlesLoading}
+        canTranslate={languages.canTranslate}
+        translateEnabled={languages.translateEnabled}
       />
 
       <div className="border-t border-[#ede7fa] pt-6">
@@ -109,6 +138,22 @@ const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
         <p className="mt-3 text-[11px] text-[#6B6B6B] dark:text-inherit">
           {editing.cues.length} subtitle{editing.cues.length === 1 ? "" : "s"}
           {" · click one to jump to it · edits save automatically."}
+        </p>
+      </div>
+
+      <SubtitleStyleControls />
+
+      {/* Download (PR 6 / US-5). A section rather than its own component: it is
+          three buttons around a shared widget that ExportResultModal renders
+          too, and the only thing that differs between the two is the chrome. */}
+      <div className="border-t border-[#ede7fa] pt-6">
+        <h3 className="control-block-label mb-3 text-sm font-bold text-[#A594F9]">
+          Download subtitles
+        </h3>
+        <SubtitleDownloadButtons />
+        <p className="mt-2 text-[11px] text-[#6B6B6B] dark:text-inherit">
+          The track on screen, with your edits. Burning them into the video is a separate choice in
+          the export settings.
         </p>
       </div>
     </div>

@@ -7,6 +7,7 @@ import ExportSettingsModal from "@/app/components/ExportSettingsModal";
 import SaveDemoModal from "@/app/components/SaveDemoModal";
 import ZoomEffectsPopup from "@/app/components/ZoomEffectsPopup";
 import { useEditorStore } from "@/app/store/editor/editorStore";
+import { useSubtitleStore } from "@/app/store/editor/subtitleStore";
 import type { EditorState, ExportFlowApi } from "../apiTypes";
 
 interface EditorModalsProps {
@@ -52,6 +53,9 @@ export default function EditorModals({
 
   const { pendingExport, shareLinkSaved, setShowExportResultModal, setPendingExport } = exportFlow;
 
+  // SUB PR 6: the burn-in switch only appears for a demo that has cues to burn.
+  const hasSubtitles = useSubtitleStore((s) => s.subtitleCues.length > 0);
+
   return (
     <>
       <ExportSettingsModal
@@ -59,6 +63,7 @@ export default function EditorModals({
         onClose={() => exportFlow.setShowExportSettings(false)}
         onConfirm={exportFlow.onExportVideo}
         durationInSeconds={resolvedDuration || 0}
+        hasSubtitles={hasSubtitles}
       />
       <ExportResultModal
         isOpen={exportFlow.showExportResultModal}
