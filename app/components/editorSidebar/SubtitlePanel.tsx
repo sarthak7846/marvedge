@@ -1,6 +1,7 @@
 import React from "react";
 import { Plus, Undo2 } from "lucide-react";
 
+import SubtitleDownloadButtons from "@/app/components/subtitles/SubtitleDownloadButtons";
 import CueList from "./subtitles/CueList";
 import SubtitleGenerateActions from "./subtitles/SubtitleGenerateActions";
 import SubtitleLanguageControls from "./subtitles/SubtitleLanguageControls";
@@ -41,8 +42,9 @@ interface SubtitlePanelProps extends SubtitleGenerateActionsProps {
  * PRO/ENTERPRISE, decided server-side from the user's real plan; generating,
  * editing and styling stay free on every plan.
  *
- * PR 6 adds file export — .srt / .vtt / .txt — plus importing an existing
- * subtitle file.
+ * PR 6 adds the Download section at the bottom — .srt / .vtt / .txt of the track
+ * on screen — and makes burning subtitles into the video an explicit choice in
+ * the export settings rather than something that happens whenever cues exist.
  *
  * Edits persist through the existing autosave, which already serializes the
  * subtitle store's cues into `Demo.editing.subtitles`; there is no save button
@@ -57,6 +59,8 @@ const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
   onClearSubtitles,
   subtitlesLoading,
   hasSubtitles,
+  onCancelSubtitles,
+  cancelling,
   onSeek,
 }) => {
   const editing = useSubtitleEditing({ onSeek });
@@ -69,6 +73,8 @@ const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
         onClearSubtitles={onClearSubtitles}
         subtitlesLoading={subtitlesLoading}
         hasSubtitles={hasSubtitles}
+        onCancelSubtitles={onCancelSubtitles}
+        cancelling={cancelling}
       />
 
       <SubtitleLanguageControls
@@ -136,6 +142,20 @@ const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
       </div>
 
       <SubtitleStyleControls />
+
+      {/* Download (PR 6 / US-5). A section rather than its own component: it is
+          three buttons around a shared widget that ExportResultModal renders
+          too, and the only thing that differs between the two is the chrome. */}
+      <div className="border-t border-[#ede7fa] pt-6">
+        <h3 className="control-block-label mb-3 text-sm font-bold text-[#A594F9]">
+          Download subtitles
+        </h3>
+        <SubtitleDownloadButtons />
+        <p className="mt-2 text-[11px] text-[#6B6B6B] dark:text-inherit">
+          The track on screen, with your edits. Burning them into the video is a separate choice in
+          the export settings.
+        </p>
+      </div>
     </div>
   );
 };

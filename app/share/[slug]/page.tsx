@@ -1,5 +1,13 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/app/lib/prisma";
+import {
+  AUTO_DETECT_LANGUAGE,
+  cuesToVtt,
+  isSubtitleEditorEnabled,
+  normalizeCues,
+  normalizeLanguage,
+  readCueList,
+} from "@/app/lib/subtitles";
 import ShareVideoPageClient from "./ShareVideoPageClient";
 
 type PageProps = {
@@ -102,6 +110,56 @@ function backgroundStyleFromEditing(editing: unknown) {
   };
 }
 
+/**
+ * SUB PR 6: soft captions for the share page, as a WebVTT document.
+ *
+ * ONLY WHEN THE PAGE IS SERVING THE UN-EXPORTED SOURCE. Two reasons, and both
+ * are hard blocks rather than preferences:
+ *
+ *   1. An exported MP4 already has the subtitles drawn into the picture (unless
+ *      the user turned burn-in off, which nothing on the demo records), so a
+ *      soft track would double them up on screen.
+ *   2. `editing.subtitles` is timed against the ORIGINAL recording. The export
+ *      re-times every cue across the trim segments — that is what
+ *      remapSubtitleCuesToTrimmedTimeline() in the worker does — so those cue
+ *      times do not describe the exported file at all. The raw source is the one
+ *      video they are correct for.
+ *
+ * Returns null when there is nothing to attach, when the demo has been exported,
+ * or when NEXT_PUBLIC_SUBTITLE_EDITOR_ENABLED is off — so a share page without
+ * the feature renders exactly as it does today.
+ */
+function captionsForSource(demo: {
+  exportedUrl: string | null;
+  subtitles: unknown;
+  editing: unknown;
+}): { vtt: string; language: string } | null {
+  if (!isSubtitleEditorEnabled() || demo.exportedUrl) {
+    return null;
+  }
+
+  const editing =
+    demo.editing && typeof demo.editing === "object"
+      ? (demo.editing as Record<string, unknown>)
+      : {};
+
+  // The editor's working copy first — it carries the user's corrections;
+  // `Demo.subtitles` is what generation wrote and only matters for a demo that
+  // was never opened in the panel afterwards.
+  const raw = readCueList(editing.subtitles);
+  const cues = normalizeCues(raw.length > 0 ? raw : readCueList(demo.subtitles));
+  if (cues.length === 0) {
+    return null;
+  }
+
+  return {
+    vtt: cuesToVtt(cues),
+    language: normalizeLanguage(
+      typeof editing.subtitleLanguage === "string" ? editing.subtitleLanguage : AUTO_DETECT_LANGUAGE
+    ),
+  };
+}
+
 export default async function SharePage({ params }: PageProps) {
   const { slug } = await params;
   const demo = await prisma.demo.findFirst({
@@ -116,6 +174,7 @@ export default async function SharePage({ params }: PageProps) {
       videoUrl: true,
       exportedUrl: true,
       editing: true,
+      subtitles: true,
       ctas: {
         select: { id: true, label: true, url: true, order: true },
         orderBy: { order: "asc" },
@@ -126,6 +185,8 @@ export default async function SharePage({ params }: PageProps) {
   if (!demo) {
     notFound();
   }
+
+  const captions = captionsForSource(demo);
 
   return (
     <ShareVideoPageClient
@@ -140,6 +201,8 @@ export default async function SharePage({ params }: PageProps) {
       }
       demoId={demo.id}
       ctas={demo.ctas}
+      captionsVtt={captions?.vtt}
+      captionsLanguage={captions?.language}
     />
   );
 }

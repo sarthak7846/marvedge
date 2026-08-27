@@ -20,17 +20,40 @@ export {
 } from "./cues";
 
 export {
+  SUBTITLE_FORMATS,
+  SUBTITLE_FORMAT_MIME,
   cuesToSrt,
   cuesToTxt,
   cuesToVtt,
   formatSrtTimestamp,
   formatVttTimestamp,
+  isSubtitleFormat,
   parseSrt,
   parseSubtitleFile,
   parseVtt,
+  serializeCues,
+  subtitleFileName,
+  type SubtitleFormat,
 } from "./formats";
 
 export { isSubtitleEditorEnabled, isSubtitleTranslateEnabled } from "./flags";
+
+export {
+  MAX_SUBTITLE_DURATION_SECONDS,
+  MAX_UPLOAD_BYTES,
+  UPLOAD_FORMAT_HINT,
+  UPLOAD_VIDEO_ACCEPT,
+  UPLOAD_VIDEO_EXTENSIONS,
+  fileExtension,
+  formatBytes,
+  formatDuration,
+  isVideoUploadKind,
+  subtitleWorkerTimeoutMs,
+  validateSubtitleDuration,
+  validateVideoUpload,
+  type UploadCandidate,
+  type UploadValidation,
+} from "./limits";
 
 export {
   DEFAULT_SUBTITLE_STYLE,

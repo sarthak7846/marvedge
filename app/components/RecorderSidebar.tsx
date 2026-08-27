@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import { UPLOAD_VIDEO_ACCEPT } from "@/app/lib/subtitles";
 
 interface RecorderSidebarProps {
   title: string;
@@ -68,7 +69,7 @@ const RecorderSidebar: React.FC<RecorderSidebarProps> = ({
             </button>
             <input
               type="file"
-              accept="video/mp4,video/webm,video/*"
+              accept={UPLOAD_VIDEO_ACCEPT}
               ref={fileInputRef}
               className="hidden"
               onChange={onFileChange}

@@ -46,6 +46,10 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         PROCESSING: "active",
         COMPLETED: "completed",
         FAILED: "failed",
+        // Written by /api/subtitles/cancel. Mapped explicitly so the client's
+        // poll loop has a terminal state to stop on that is not "failed" — a
+        // cancel the user asked for is not an error to report to them.
+        CANCELLED: "cancelled",
       }[job.status] ??
       job.status.toLowerCase();
 

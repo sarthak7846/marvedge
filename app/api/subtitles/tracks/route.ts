@@ -3,7 +3,12 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/app/lib/auth/options";
 import { prisma } from "@/app/lib/prisma";
-import { isSubtitleTranslateEnabled, readCueList } from "@/app/lib/subtitles";
+import {
+  isAutoDetect,
+  isSubtitleTranslateEnabled,
+  isSupportedLanguage,
+  readCueList,
+} from "@/app/lib/subtitles";
 
 /**
  * GET /api/subtitles/tracks?demoId=…  — the demo's subtitle tracks, for the
@@ -34,6 +39,17 @@ export async function GET(req: NextRequest) {
     const language = req.nextUrl.searchParams.get("language") ?? "";
     if (!demoId) {
       return NextResponse.json({ error: "Missing demoId" }, { status: 400 });
+    }
+    // An unknown code is refused rather than quietly looked up and missed: a
+    // track lookup for a language that cannot exist returns the same "no track"
+    // as a typo, and the caller has no way to tell which happened. Auto-detect
+    // is a legitimate track language here — it is what every demo predating the
+    // picker is stored under.
+    if (language && !isAutoDetect(language) && !isSupportedLanguage(language)) {
+      return NextResponse.json(
+        { error: `"${language}" is not a supported subtitle language.` },
+        { status: 400 }
+      );
     }
 
     const user = await prisma.user.findFirst({
