@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import TimelineRuler from "@/app/components/TimeLine";
 import { useEditorStore } from "@/app/store/editor/editorStore";
+import { useAudioClipStore } from "@/app/store/audioClipStore";
 import type { EditorState, TextOverlaysApi, ZoomEditorApi } from "../apiTypes";
 
 type EditorMode = "main" | "trim" | "zoom" | "text";
@@ -64,6 +65,14 @@ export default function EditorTimelineSection({
       setTimelineStartTime: s.setTimelineStartTime,
       setTimelineEndTime: s.setTimelineEndTime,
     }))
+  );
+
+  const audioClips = useAudioClipStore(
+    useShallow((s) =>
+      s.clips.filter(
+        (c) => c.status === "READY" || c.status === "PROCESSING" || c.status === "TRIM_PROCESSING"
+      )
+    )
   );
 
   if (resolvedDuration <= 0) {
@@ -134,6 +143,7 @@ export default function EditorTimelineSection({
         text.setTextOverlayColor(overlay.color);
       }}
       isDraggingTimelineRef={isDraggingTimelineRef}
+      audioClips={audioClips}
     />
   );
 }

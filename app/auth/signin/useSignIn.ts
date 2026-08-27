@@ -58,7 +58,19 @@ export const useSignIn = () => {
       if (res?.ok) {
         toast.success("Signed in successfully!");
         await update(); // refresh session
-        router.push("/dashboard"); // ✅ only one redirect
+
+        const params = new URLSearchParams(window.location.search);
+        let callbackUrl = params.get("callbackUrl") ?? "/dashboard";
+        if (!callbackUrl.startsWith("/")) {
+          try {
+            const url = new URL(callbackUrl);
+            callbackUrl =
+              url.origin === window.location.origin ? url.pathname + url.search : "/dashboard";
+          } catch {
+            callbackUrl = "/dashboard";
+          }
+        }
+        router.push(callbackUrl); // ✅ redirect to where the user came from
       } else {
         toast.error(res?.error || "Invalid credentials.");
       }

@@ -18,7 +18,6 @@ const EditorTopbar = ({ onBack, userInitials, onToggleMenu }: EditorTopbarProps)
   const { data: session } = useSession();
   const [showDropdown, setShowDropdown] = useState(false);
   const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(false);
-  const profileImage = useUserStore((state) => state.profileImage);
   const fetchProfileImage = useUserStore((state) => state.fetchProfileImage);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const hamburgerRef = useRef<HTMLDivElement>(null);
@@ -109,7 +108,6 @@ const EditorTopbar = ({ onBack, userInitials, onToggleMenu }: EditorTopbarProps)
         username={username}
         session={session}
         userInitials={userInitials}
-        profileImage={profileImage}
         showDropdown={showDropdown}
         setShowDropdown={setShowDropdown}
         dropdownRef={dropdownRef}

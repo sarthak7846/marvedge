@@ -4,6 +4,7 @@ import { MainTab } from "./backgroundOptions";
 import { isAvsPanelEnabled } from "@/app/lib/avs/flags";
 import { isWtmPanelEnabled } from "@/app/lib/wtm/flags";
 import { isSubtitleEditorEnabled } from "@/app/lib/subtitles";
+import { isAudioPanelEnabled } from "@/app/lib/audio/flags";
 
 interface SidebarHeaderProps {
   title: string;
@@ -120,6 +121,16 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({
             onClick={() => setActiveTab("subtitles")}
           >
             Subtitles
+          </button>
+        )}
+        {isAudioPanelEnabled() && (
+          <button
+            className={`tab-item flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
+              activeTab === "audio" ? "active bg-white text-[#7C5CFC] shadow" : "text-gray-600"
+            }`}
+            onClick={() => setActiveTab("audio")}
+          >
+            Audio
           </button>
         )}
         {isWtmPanelEnabled() && (

@@ -109,6 +109,7 @@ model Demo {
   ctas           Cta[]
   ctaClicks      CtaClick[]
   subtitleTracks SubtitleTrack[]
+  audioClips     AudioClip[]
 }
 
 model Tutorial {
@@ -259,4 +260,32 @@ model SubtitleTrack {
 
   @@unique([demoId, language])
   @@index([demoId])
+}
+
+model AudioClip {
+  id           String      @id @default(cuid())
+  demoId       String
+  demo         Demo        @relation(fields: [demoId], references: [id], onDelete: Cascade)
+  originalKey  String
+  trimmedKey   String?
+  fileName     String
+  mimeType     String
+  durationSec  Float?
+  trimStartSec Float       @default(0)
+  trimEndSec   Float?
+  order        Int         @default(0)
+  status       AudioStatus @default(UPLOADING)
+  error        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([demoId, order])
+}
+
+enum AudioStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  TRIM_PROCESSING
+  FAILED
 }

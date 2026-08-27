@@ -5,3 +5,13 @@ export const videoQueue = new Queue("video-processing", {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   connection: connection as any,
 });
+
+export const subtitleQueue = new Queue("subtitle-processing", {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  connection: connection as any,
+});
+
+export const audioQueue = new Queue("audio-processing", {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  connection: connection as any,
+});

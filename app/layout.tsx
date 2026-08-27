@@ -51,7 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
       className={`overflow-x-hidden ${raleway.variable} ${inter.variable} ${roboto.variable} ${poppins.variable} ${caveat.variable}`}
     >
-      <body className="overflow-x-hidden bg-white">
+      <body className="overflow-x-hidden bg-white" suppressHydrationWarning>
         <Providers>
           {children}
           <SonnerToaster />

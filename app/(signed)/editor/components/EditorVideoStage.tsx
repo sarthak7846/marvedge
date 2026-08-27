@@ -2,6 +2,7 @@ import React from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { useEditorStore } from "@/app/store/editor/editorStore";
+import AudioPreviewLayer from "@/app/components/editorSidebar/audio/AudioPreviewLayer";
 import SubtitleOverlay from "./SubtitleOverlay";
 import TextOverlayLayer from "./TextOverlayLayer";
 import VideoPreviewPlayer from "./VideoPreviewPlayer";
@@ -123,6 +124,9 @@ export default function EditorVideoStage({
         style={subtitles.subtitleStyle}
         language={subtitles.subtitleLanguage}
       />
+
+      {/* Audio clips uploaded for this demo, kept in sync with the video player. */}
+      <AudioPreviewLayer playbackSpeed={playbackSpeed} />
 
       {shouldShowZoomFocusBox && activeEditedZoomSegment && (
         <ZoomFocusOverlay

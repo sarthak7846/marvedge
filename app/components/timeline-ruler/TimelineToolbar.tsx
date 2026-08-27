@@ -1,6 +1,10 @@
 import React from "react";
 import Image from "next/image";
+import { Music } from "lucide-react";
 import { ZoomEffect } from "../../types/editor/zoom-effect";
+import { useAudioClipStore } from "../../store/audioClipStore";
+import AudioUploadModal from "../editorSidebar/audio/AudioUploadModal";
+import { isAudioPanelEnabled } from "../../lib/audio/flags";
 import { EditorAction } from "./types";
 
 type TimelineMode = "main" | "trim" | "zoom" | "text";
@@ -152,6 +156,10 @@ function ToolbarRight({
   handleRedo: () => void;
   redoStack: EditorAction[];
 }) {
+  const selectedAudioClipId = useAudioClipStore((s) => s.selectedTimelineClipId);
+  const deleteAudioClip = useAudioClipStore((s) => s.deleteClip);
+  const [showAudioModal, setShowAudioModal] = React.useState(false);
+
   return (
     <div className="flex gap-2 sm:gap-3 items-center">
       <div className="btn-toolbar-item h-[51px] px-3 flex items-center justify-center bg-white rounded-lg border border-[#E6E1FA]">
@@ -170,8 +178,27 @@ function ToolbarRight({
         </select>
       </div>
 
+      {isAudioPanelEnabled() && (
+        <>
+          <button
+            type="button"
+            onClick={() => setShowAudioModal(true)}
+            className="btn-toolbar-item h-[51px] px-3 sm:px-4 flex items-center justify-center gap-2 font-medium bg-white text-[#8A76FC] text-sm rounded-lg hover:shadow-md transition-all duration-200"
+            title="Add audio"
+          >
+            <Music size={18} />
+            <span className="text-sm font-medium leading-none hidden lg:inline">Add Audio</span>
+          </button>
+          <AudioUploadModal open={showAudioModal} onClose={() => setShowAudioModal(false)} />
+        </>
+      )}
+
       <button
         onClick={() => {
+          if (selectedAudioClipId) {
+            void deleteAudioClip(selectedAudioClipId);
+            return;
+          }
           if (mode === "trim" && activeSegment >= 0 && activeSegment < segments.length) {
             removeSegment(activeSegment);
           } else if (mode === "zoom" && activeZoomIdx >= 0 && activeZoomIdx < zoomSegments.length) {
@@ -181,10 +208,11 @@ function ToolbarRight({
           }
         }}
         disabled={
-          mode === "main" ||
-          (mode === "trim" && (segments.length === 0 || activeSegment === -1)) ||
-          (mode === "zoom" && (zoomSegments.length === 0 || activeZoomIdx === -1)) ||
-          (mode === "text" && !selectedTextOverlayId)
+          !selectedAudioClipId &&
+          (mode === "main" ||
+            (mode === "trim" && (segments.length === 0 || activeSegment === -1)) ||
+            (mode === "zoom" && (zoomSegments.length === 0 || activeZoomIdx === -1)) ||
+            (mode === "text" && !selectedTextOverlayId))
         }
         className="btn-toolbar-item h-[51px] w-[51px] px-3 flex items-center justify-center font-medium bg-white hover:bg-gray-50 text-gray-700 text-sm rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         title="Delete"

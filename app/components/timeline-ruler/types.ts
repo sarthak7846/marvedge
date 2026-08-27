@@ -1,6 +1,7 @@
 import React from "react";
 import ReactPlayer from "react-player";
 import { ZoomEffect } from "../../types/editor/zoom-effect";
+import { AudioClipDto } from "../../types/audio";
 
 export type TextOverlayItem = {
   id: string;
@@ -108,6 +109,22 @@ export type DragSubtitleState =
       endValue: number;
     };
 
+/** Audio clips live on dedicated lanes, so drags are horizontal-only. */
+export type DragAudioState =
+  | {
+      mode: "edge";
+      id: string;
+      side: "left" | "right";
+      startX: number;
+      startValue: number;
+    }
+  | {
+      mode: "segment";
+      id: string;
+      startX: number;
+      startValue: number;
+    };
+
 export interface TimelineRulerProps {
   minValue?: number;
   maxValue?: number;
@@ -146,5 +163,7 @@ export interface TimelineRulerProps {
   selectedTextOverlayId: string | null;
   setSelectedTextOverlayId: React.Dispatch<React.SetStateAction<string | null>>;
   setTextOverlayInspectorValues: (overlay: TextOverlayItem) => void;
+  /** READY/PROCESSING audio clips shown on their own lanes below the tracks. */
+  audioClips?: AudioClipDto[];
   isDraggingTimelineRef: React.MutableRefObject<boolean>;
 }
