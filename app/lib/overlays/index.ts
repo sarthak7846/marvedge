@@ -7,6 +7,10 @@
 // all import from this one barrel. `process.env` is read in flags.ts and nowhere
 // else; the NEXT_PUBLIC_ half of that is inlined at build time and safe on the
 // client.
+//
+// ONE MODULE IS DELIBERATELY MISSING: ./beacon. It reaches for `navigator` and
+// `fetch`, so re-exporting it here would quietly make this barrel non-isomorphic
+// for everyone importing anything from it. Import it by path.
 
 export {
   DEFAULT_CONSENT_TEXT,
@@ -45,6 +49,31 @@ export {
   type PlayerEventName,
   type SelectedEvents,
 } from "./events";
+
+export {
+  COMPLETION_RATIO,
+  SEEK_STEP_SECONDS,
+  bufferedEndAt,
+  clampSeek,
+  completionThresholdSec,
+  crossedThreshold,
+  formatClock,
+  isCompleted,
+  progressFraction,
+  trackFraction,
+  type BufferedRange,
+} from "./playback";
+
+export {
+  OVERLAY_PRIORITY,
+  areControlsLocked,
+  resolveActiveOverlay,
+  shouldHoldPlayback,
+  type OverlayKind,
+  type OverlaySlot,
+} from "./overlayHost";
+
+export { classifySource, isHlsUrl, type PlayerSourceKind } from "./source";
 
 export { isOverlaysCrmEnabled, isOverlaysEnabled, isOverlaysPanelEnabled } from "./flags";
 

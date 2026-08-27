@@ -159,6 +159,9 @@ export default async function BrandedSharePage({ params }: PageProps) {
       demoId={demo.id}
       ctas={demo.ctas}
       shareQrUrl={shareQrUrl}
+      // The player's controls take the customer's brand colour here. Marvedge
+      // purple on someone else's domain is our branding leaking onto their page.
+      accentColor={settings?.brandColor}
     />
   );
 }
