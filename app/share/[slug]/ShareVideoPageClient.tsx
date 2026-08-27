@@ -3,13 +3,18 @@
 import { useSession } from "next-auth/react";
 import type { CSSProperties } from "react";
 
+import MarvedgePlayer from "@/app/components/player/MarvedgePlayer";
 import ShareQrCode from "@/app/components/qr/ShareQrCode";
+import { isOverlaysPanelEnabled } from "@/app/lib/overlays/flags";
 
 import { useViewTracking } from "./hooks/useViewTracking";
 import { getPreviewStage } from "./utils/previewStage";
 import ShareHeader from "./components/ShareHeader";
 import ShareSignupCTA from "./components/ShareSignupCTA";
 import ShareCtaButtons, { type ShareCta } from "./components/ShareCtaButtons";
+
+/** Share of the viewport height the video stage may occupy. */
+const MAX_STAGE_VH = 74;
 
 type ShareVideoPageClientProps = {
   title: string;
@@ -32,7 +37,42 @@ type ShareVideoPageClientProps = {
    * prop away, deliberately not decided here.
    */
   shareQrUrl?: string;
+  /**
+   * Brand accent for the player's controls. The customer-hub route passes its
+   * own HubSettings.brandColor: a player on someone else's domain must not be
+   * Marvedge purple just because we are. Unset elsewhere, where purple is right.
+   *
+   * Only read on the overlay path — the flag-off page has native controls, whose
+   * colour the browser owns.
+   */
+  accentColor?: string;
 };
+
+/**
+ * Size the stage frame to the demo's own aspect ratio.
+ *
+ * Width drives and height follows from `aspect-ratio`. The three-way min() is
+ * what makes it fit both budgets at once: a preferred maximum, the space
+ * actually available, and `74vh * ratio` — the width at which the derived
+ * height would exactly fill the height budget. Constraining width and height
+ * independently instead would let the browser satisfy both by breaking the
+ * ratio, which is the letterboxing this replaces.
+ *
+ * The preferred widths are chosen for THIS frame rather than reused from
+ * getPreviewStage's stageWidth/stageMaxWidth. Those are tuned for an inner box
+ * nested inside a 16/9 outer frame (52vw and a 46% max-width for portrait), and
+ * they only make sense while that outer frame exists — on a phone they would
+ * render a 9:16 demo about 200px wide.
+ */
+function stageFrameStyle(previewFrameAspectRatio: string, ratio: number): CSSProperties {
+  const isPortrait = ratio < 1;
+  const isSquare = Math.abs(ratio - 1) < 0.05;
+  const preferred = isPortrait ? "440px" : isSquare ? "700px" : "1120px";
+  return {
+    aspectRatio: previewFrameAspectRatio,
+    width: `min(${preferred}, 100%, calc(${MAX_STAGE_VH}vh * ${ratio}))`,
+  };
+}
 
 export default function ShareVideoPageClient({
   title,
@@ -44,14 +84,23 @@ export default function ShareVideoPageClient({
   videoId,
   ctas = [],
   shareQrUrl,
+  accentColor,
 }: ShareVideoPageClientProps) {
+  // Keeps POSTing /api/views on mount and heartbeating duration every 5s, and
+  // still owns the ref the <video> uses — on BOTH paths below. It is what feeds
+  // every number on the analytics page, so if this ever stops pointing at a real
+  // element the dashboard silently reads zero.
   const videoRef = useViewTracking(demoId, videoId);
 
   const { status } = useSession();
   const isLoggedIn = status === "authenticated";
 
-  const { previewFrameAspectRatio, stageWidth, stageHeight, stageMaxWidth } =
+  const { previewFrameAspectRatio, stageWidth, stageHeight, stageMaxWidth, previewRatioValue } =
     getPreviewStage(aspectRatio);
+
+  // NEXT_PUBLIC_OVERLAYS_ENABLED. Inlined by Next at build time, so the server
+  // and the client agree and there is no hydration mismatch to worry about.
+  const overlaysEnabled = isOverlaysPanelEnabled();
 
   return (
     <main className="min-h-screen bg-[#F2EDFF]">
@@ -67,34 +116,60 @@ export default function ShareVideoPageClient({
           className="relative overflow-hidden rounded-[34px] border border-[#BEB0F8]/60 p-8 shadow-[0_28px_85px_rgba(76,57,162,0.22)]"
           style={backgroundStyle}
         >
-          <div
-            className="mx-auto flex w-full items-center justify-center overflow-hidden rounded-[22px] border border-white/30 bg-[#1A1338]/20 p-3 shadow-[0_16px_40px_rgba(22,16,54,0.35)] backdrop-blur-sm"
-            style={{
-              aspectRatio: "16 / 9",
-              minHeight: "240px",
-            }}
-          >
+          {overlaysEnabled ? (
+            /* THE OVERLAY PATH. The outer frame follows the demo's own aspect
+               ratio instead of a hardcoded 16/9 one, so a 9:16 demo fills the
+               card rather than sitting letterboxed in the middle of it. The
+               extra nesting the old layout needed to centre that letterbox is
+               gone with it — the frame IS the stage now. */
             <div
-              className="overflow-hidden rounded-[16px] bg-black/55"
-              style={{
-                width: stageWidth,
-                maxWidth: stageMaxWidth,
-                height: stageHeight,
-                maxHeight: "74vh",
-                aspectRatio: previewFrameAspectRatio,
-              }}
+              className="mx-auto overflow-hidden rounded-[22px] border border-white/30 bg-black shadow-[0_16px_40px_rgba(22,16,54,0.35)]"
+              style={stageFrameStyle(previewFrameAspectRatio, previewRatioValue)}
             >
-              <video
-                ref={videoRef}
-                className="h-full w-full object-contain"
+              <MarvedgePlayer
                 src={videoUrl}
-                controls
-                preload="metadata"
-                playsInline
-                controlsList="nodownload"
+                title={title}
+                videoRef={videoRef}
+                demoId={demoId}
+                exportedVideoId={videoId}
+                accentColor={accentColor}
               />
             </div>
-          </div>
+          ) : (
+            /* TODAY'S MARKUP, UNCHANGED. Backward compatibility is the
+               acceptance criterion for this feature: with the flag unset every
+               share route must render byte-for-byte what it renders on master —
+               the same wrappers, the same native <video controls>. Do not
+               "tidy" anything in here; it is a reference copy. */
+            <div
+              className="mx-auto flex w-full items-center justify-center overflow-hidden rounded-[22px] border border-white/30 bg-[#1A1338]/20 p-3 shadow-[0_16px_40px_rgba(22,16,54,0.35)] backdrop-blur-sm"
+              style={{
+                aspectRatio: "16 / 9",
+                minHeight: "240px",
+              }}
+            >
+              <div
+                className="overflow-hidden rounded-[16px] bg-black/55"
+                style={{
+                  width: stageWidth,
+                  maxWidth: stageMaxWidth,
+                  height: stageHeight,
+                  maxHeight: "74vh",
+                  aspectRatio: previewFrameAspectRatio,
+                }}
+              >
+                <video
+                  ref={videoRef}
+                  className="h-full w-full object-contain"
+                  src={videoUrl}
+                  controls
+                  preload="metadata"
+                  playsInline
+                  controlsList="nodownload"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <ShareCtaButtons ctas={ctas} demoId={demoId} />

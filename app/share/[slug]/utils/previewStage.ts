@@ -11,6 +11,15 @@ export type PreviewStage = {
   stageWidth: string;
   stageHeight: string;
   stageMaxWidth: string;
+  /**
+   * previewFrameAspectRatio as a number (width / height).
+   *
+   * Additive: it is already computed below, and the overlay player's stage
+   * needs it to size a frame that follows the demo's own ratio rather than
+   * being letterboxed inside a hardcoded 16/9 one. Returning it beats parsing
+   * "9 / 16" a second time at the call site.
+   */
+  previewRatioValue: number;
 };
 
 export function getPreviewStage(aspectRatio: string): PreviewStage {
@@ -30,5 +39,5 @@ export function getPreviewStage(aspectRatio: string): PreviewStage {
   const stageHeight = isPortraitPreview ? "88%" : "84%";
   const stageMaxWidth = isPortraitPreview ? "46%" : isSquarePreview ? "62%" : "92%";
 
-  return { previewFrameAspectRatio, stageWidth, stageHeight, stageMaxWidth };
+  return { previewFrameAspectRatio, stageWidth, stageHeight, stageMaxWidth, previewRatioValue };
 }
