@@ -3,9 +3,11 @@
 import { useSession } from "next-auth/react";
 import type { CSSProperties } from "react";
 
+import LeadGateOverlay from "@/app/components/player/LeadGateOverlay";
 import MarvedgePlayer from "@/app/components/player/MarvedgePlayer";
 import ShareQrCode from "@/app/components/qr/ShareQrCode";
 import { isOverlaysPanelEnabled } from "@/app/lib/overlays/flags";
+import type { OverlayConfig } from "@/app/lib/overlays/types";
 
 import { useViewTracking } from "./hooks/useViewTracking";
 import { getPreviewStage } from "./utils/previewStage";
@@ -46,6 +48,16 @@ type ShareVideoPageClientProps = {
    * colour the browser owns.
    */
   accentColor?: string;
+  /**
+   * The demo's sanitised overlay config, resolved server-side by
+   * resolveShareOverlays(). Absent whenever OVERLAYS_ENABLED is off, so the
+   * overlay layer costs nothing when the feature is not deployed.
+   */
+  overlays?: OverlayConfig;
+  /** Substituted for `{owner}` in the consent sentence. */
+  ownerName?: string | null;
+  /** This browser has already given this demo a lead; do not gate it again. */
+  leadCaptured?: boolean;
 };
 
 /**
@@ -85,6 +97,9 @@ export default function ShareVideoPageClient({
   ctas = [],
   shareQrUrl,
   accentColor,
+  overlays,
+  ownerName,
+  leadCaptured = false,
 }: ShareVideoPageClientProps) {
   // Keeps POSTing /api/views on mount and heartbeating duration every 5s, and
   // still owns the ref the <video> uses — on BOTH paths below. It is what feeds
@@ -101,6 +116,15 @@ export default function ShareVideoPageClient({
   // NEXT_PUBLIC_OVERLAYS_ENABLED. Inlined by Next at build time, so the server
   // and the client agree and there is no hydration mismatch to worry about.
   const overlaysEnabled = isOverlaysPanelEnabled();
+
+  // BOTH flags have to be on for a gate to mount: the server one for `overlays`
+  // to have been resolved at all, the client one for the player that hosts it to
+  // be rendered. And it needs a demoId — a Lead hangs off a Demo, so there is
+  // nowhere to put a lead captured on a bare exported-video page.
+  const leadGate =
+    overlaysEnabled && demoId && overlays?.enabled && overlays.leadGate.enabled
+      ? overlays.leadGate
+      : null;
 
   return (
     <main className="min-h-screen bg-[#F2EDFF]">
@@ -133,7 +157,17 @@ export default function ShareVideoPageClient({
                 demoId={demoId}
                 exportedVideoId={videoId}
                 accentColor={accentColor}
-              />
+              >
+                {leadGate && demoId ? (
+                  <LeadGateOverlay
+                    demoId={demoId}
+                    config={leadGate}
+                    ownerName={ownerName}
+                    accentColor={accentColor}
+                    alreadyCaptured={leadCaptured}
+                  />
+                ) : null}
+              </MarvedgePlayer>
             </div>
           ) : (
             /* TODAY'S MARKUP, UNCHANGED. Backward compatibility is the

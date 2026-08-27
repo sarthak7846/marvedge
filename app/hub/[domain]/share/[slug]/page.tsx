@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/app/lib/prisma";
 import { hubShareUrl } from "@/app/lib/share/qrTarget";
 import ShareVideoPageClient from "@/app/share/[slug]/ShareVideoPageClient";
+import { resolveShareOverlays } from "@/app/share/[slug]/overlayContext";
 
 type PageProps = {
   params: Promise<{ domain: string; slug: string }>;
@@ -145,6 +146,11 @@ export default async function BrandedSharePage({ params }: PageProps) {
   // demo.publicLink so the QR resolves to the same URL the visitor is reading.
   const shareQrUrl = hubShareUrl((await headers()).get("host"), slug);
 
+  // The hub title is the second `{owner}` candidate in the consent sentence: on
+  // a customer's own domain the viewer knows the brand on the page, not the name
+  // on our user record.
+  const overlayContext = await resolveShareOverlays(demo.id, { hubTitle: settings?.hubTitle });
+
   return (
     <ShareVideoPageClient
       title={demo.title}
@@ -162,6 +168,9 @@ export default async function BrandedSharePage({ params }: PageProps) {
       // The player's controls take the customer's brand colour here. Marvedge
       // purple on someone else's domain is our branding leaking onto their page.
       accentColor={settings?.brandColor}
+      overlays={overlayContext?.overlays}
+      ownerName={overlayContext?.ownerName}
+      leadCaptured={overlayContext?.leadCaptured}
     />
   );
 }
