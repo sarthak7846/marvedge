@@ -1,4 +1,5 @@
 import { prisma } from "@/app/lib/prisma";
+import { BRANCH_PLACEMENTS } from "@/app/lib/overlays/branch";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
 import { NextRequest, NextResponse } from "next/server";
@@ -36,8 +37,18 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return owned.error;
   }
 
+  // Branch cards are Cta rows (decision 6) but they are OWNED BY THE OVERLAYS
+  // PANEL, not by this list: their label and url are rewritten from the overlay
+  // config on every save, so offering them here would offer an edit that the
+  // next save silently reverts — and a delete that would quietly stop the cards
+  // writing CtaClick rows. `placement` is null on every CTA created through this
+  // route, so nothing that belongs in the list is excluded by it. The OR is
+  // spelled out because SQL's `NOT IN` is NULL, not true, for a null column.
   const ctas = await prisma.cta.findMany({
-    where: { demoId: id },
+    where: {
+      demoId: id,
+      OR: [{ placement: null }, { placement: { notIn: [...BRANCH_PLACEMENTS] } }],
+    },
     orderBy: [{ order: "asc" }, { createdAt: "asc" }],
   });
 

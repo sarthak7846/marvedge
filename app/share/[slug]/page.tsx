@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/app/lib/prisma";
 import ShareVideoPageClient from "./ShareVideoPageClient";
+import { BRANCH_PLACEMENTS } from "@/app/lib/overlays/branch";
 import { resolveShareOverlays } from "./overlayContext";
 
 type PageProps = {
@@ -118,6 +119,14 @@ export default async function SharePage({ params }: PageProps) {
       exportedUrl: true,
       editing: true,
       ctas: {
+        // Branch cards are Cta rows too (decision 6), and they are rendered by
+        // the player's overlay — not as a button under the video. Excluding
+        // them by placement is what stops a demo with branching configured
+        // growing two extra buttons down here. `placement` is null on every CTA
+        // that exists today, so the rendered output is unchanged for all of them
+        // — and the OR is spelled out because SQL's `NOT IN` is NULL, not true,
+        // for a null column.
+        where: { OR: [{ placement: null }, { placement: { notIn: [...BRANCH_PLACEMENTS] } }] },
         select: { id: true, label: true, url: true, order: true },
         orderBy: { order: "asc" },
       },
@@ -147,6 +156,7 @@ export default async function SharePage({ params }: PageProps) {
       overlays={overlayContext?.overlays}
       ownerName={overlayContext?.ownerName}
       leadCaptured={overlayContext?.leadCaptured}
+      branchCards={overlayContext?.branchCards}
     />
   );
 }

@@ -40,6 +40,7 @@ export default async function SharedExportedVideoPage({ params }: PageProps) {
       overlays={overlayContext?.overlays}
       ownerName={overlayContext?.ownerName}
       leadCaptured={overlayContext?.leadCaptured}
+      branchCards={overlayContext?.branchCards}
     />
   );
 }

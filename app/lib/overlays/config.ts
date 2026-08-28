@@ -106,7 +106,7 @@ function defaultLeadGate(): LeadGateConfig {
 }
 
 function defaultBranchCard(label: string): BranchCard {
-  return { label, description: "", target: { kind: "url", href: "" } };
+  return { label, description: "", thumbnailUrl: "", target: { kind: "url", href: "" } };
 }
 
 function defaultBranching(): BranchingConfig {
@@ -262,7 +262,13 @@ export function sanitizeBranchTarget(raw: unknown): BranchTarget | undefined {
     return { kind: "demo", demoId };
   }
   if (raw.kind === "url") {
-    const href = toHttpUrl(raw.href);
+    // https only. A branch card is a link a stranger clicks from a page that is
+    // itself https — an http destination is a downgrade the viewer never asked
+    // for, and browsers increasingly refuse it anyway. Enforced HERE rather than
+    // only in the resolver so the editor, the PUT route and the public page all
+    // agree about what is storable; resolveBranchHref() runs the same check
+    // again on read, because a hand-edited row never passed through here.
+    const href = toHttpUrl(raw.href, { httpsOnly: true });
     return href ? { kind: "url", href } : undefined;
   }
   // Any other `kind` — including a "tutorial" someone added by hand — is not a
@@ -321,6 +327,10 @@ function sanitizeCard(raw: unknown, fallback: BranchCard): BranchCard {
   return {
     label: readString(source.label, fallback.label, MAX.cardLabel),
     description: readString(source.description, fallback.description, MAX.cardDescription),
+    // An unusable image is dropped to "" rather than disabling the card: a
+    // missing thumbnail costs the card some polish, a missing destination costs
+    // the viewer the click.
+    thumbnailUrl: toHttpUrl(source.thumbnailUrl, { httpsOnly: true }) ?? fallback.thumbnailUrl,
     target: sanitizeBranchTarget(source.target) ?? fallback.target,
   };
 }

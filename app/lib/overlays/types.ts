@@ -77,6 +77,12 @@ export type BranchTarget = { kind: "demo"; demoId: string } | { kind: "url"; hre
 export interface BranchCard {
   label: string;
   description: string;
+  /**
+   * Optional artwork for the card. An absolute https URL, or "" for none —
+   * https because the card renders on a page that is itself https, where an
+   * http image is blocked as mixed content and simply never appears.
+   */
+  thumbnailUrl: string;
   target: BranchTarget;
 }
 

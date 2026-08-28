@@ -16,8 +16,10 @@ import { z } from "zod";
 import { authOptions } from "@/app/lib/auth/options";
 import { prisma } from "@/app/lib/prisma";
 import { isOverlaysAllowed } from "@/app/lib/overlays/access";
+import { BRANCH_SLOTS } from "@/app/lib/overlays/branch";
 import { overlayConfigFromRow, sanitizeOverlayConfig } from "@/app/lib/overlays/config";
 import { isOverlaysEnabled } from "@/app/lib/overlays/flags";
+import type { BranchingConfig } from "@/app/lib/overlays/types";
 
 export const runtime = "nodejs";
 
@@ -50,6 +52,60 @@ async function resolveOwnedDemo(id: string) {
   }
 
   return { demo, plan: demo.user.plan };
+}
+
+/**
+ * Mirror the two branch cards into `Cta` rows.
+ *
+ * DECISION 6: A BRANCH CARD IS A CTA. It has to be a real row, not a notion —
+ * POST /api/cta-clicks has always required a `ctaId` and `CtaClick.ctaId` is a
+ * foreign key, so without these rows a card click could not be recorded at all
+ * and the CTA numbers on app/(signed)/analytics/page.tsx would not move for the
+ * one overlay whose entire job is getting clicked.
+ *
+ * The row is the ANALYTICS ANCHOR, not a second source of truth: the overlay
+ * renders from the config, and `label`/`url` are rewritten from it here on every
+ * save so `CtaClick.label` reads as whatever the card actually said. `url` is the
+ * root-relative share path for a demo target, which resolves on marvedge.com and
+ * on a customer hub alike; the href the viewer actually follows is rebuilt per
+ * request by resolveBranchHref() and is never read from here.
+ *
+ * ROWS ARE NEVER DELETED, only rewritten — not when branching is switched off,
+ * and not when a target changes. Deleting one would null out the `ctaId` on every
+ * historical `CtaClick` that pointed at it (onDelete: SetNull) and detach clicks
+ * an owner has already been shown. Both share routes and the owner-facing CTA
+ * list filter these placements out, so a stale row is invisible until branching
+ * is turned back on.
+ *
+ * Failure is swallowed: losing the mirror costs analytics on the cards, and that
+ * is not worth failing the owner's save over.
+ */
+async function syncBranchCtas(demoId: string, branching: BranchingConfig): Promise<void> {
+  try {
+    const existing = await prisma.cta.findMany({
+      where: { demoId, placement: { in: BRANCH_SLOTS.map((slot) => slot.placement) } },
+      select: { id: true, placement: true },
+    });
+
+    await Promise.all(
+      BRANCH_SLOTS.map(({ key, placement }, index) => {
+        const card = branching[key];
+        const label = card.label.trim() || placement;
+        const url =
+          card.target.kind === "demo"
+            ? `/share/${encodeURIComponent(card.target.demoId)}`
+            : card.target.href;
+        const row = existing.find((cta) => cta.placement === placement);
+        return row
+          ? prisma.cta.update({ where: { id: row.id }, data: { label, url } })
+          : prisma.cta.create({ data: { demoId, label, url, placement, order: index } });
+      })
+    );
+  } catch (error) {
+    // Never the card's contents — this is an owner string, but the precedent in
+    // app/api/views/route.ts is to log a literal and nothing derived from input.
+    console.error("Failed to sync branch CTA rows", error instanceof Error ? error.name : "error");
+  }
 }
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -149,6 +205,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       scheduling: config.scheduling as unknown as Prisma.InputJsonValue,
     },
   });
+
+  // Awaited rather than fired into after(): the panel re-reads the config right
+  // after this responds, and an owner who saves and immediately opens the share
+  // link should not get cards whose clicks are not being counted yet.
+  await syncBranchCtas(id, config.branching);
 
   // Echo the stored row back through the same reader the public page uses, so
   // the editor sees exactly what a viewer will get rather than what it sent.

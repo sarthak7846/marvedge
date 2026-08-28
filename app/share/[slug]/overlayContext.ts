@@ -13,14 +13,20 @@
 // exactly as they did on master — no extra query, no cookie read, nothing that
 // could opt a page out of a cache it is in today.
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 import { prisma } from "@/app/lib/prisma";
 import { isOverlaysAllowed } from "@/app/lib/overlays/access";
+import {
+  BRANCH_PLACEMENTS,
+  resolveBranchCards,
+  type BranchPlacement,
+  type ResolvedBranchCard,
+} from "@/app/lib/overlays/branch";
 import { overlayConfigFromRow } from "@/app/lib/overlays/config";
 import { isOverlaysEnabled } from "@/app/lib/overlays/flags";
 import { SID_COOKIE } from "@/app/lib/overlays/session";
-import type { OverlayConfig } from "@/app/lib/overlays/types";
+import type { BranchingConfig, OverlayConfig } from "@/app/lib/overlays/types";
 
 export interface ShareOverlayContext {
   /** Already sanitised, already plan-checked. Safe to serialize to the client. */
@@ -36,6 +42,19 @@ export interface ShareOverlayContext {
    * at all. Resolved at render precisely so there is nothing to flash.
    */
   leadCaptured: boolean;
+  /**
+   * The two branch cards with their hrefs already resolved against THIS
+   * REQUEST'S HOST, or empty.
+   *
+   * Resolved on the server rather than in the browser for two reasons. The href
+   * has to carry the domain the viewer is already on, and the only reliable
+   * source of that on a customer hub is the request host — reading
+   * window.location after hydration would render the pair href-less for a
+   * moment and would put nothing in the server HTML. And the demo variant needs
+   * a database lookup to turn a demoId into a slug, which a public client has no
+   * business being able to ask for.
+   */
+  branchCards: ResolvedBranchCard[];
 }
 
 /**
@@ -77,6 +96,67 @@ async function hasSubmittedLead(demoId: string): Promise<boolean> {
 }
 
 /**
+ * Turn the configured branch targets into clickable cards.
+ *
+ * Two lookups, and only when a pair could actually mount:
+ *
+ *  - THE TARGET DEMOS, scoped to `userId` and `isPublic`. Scoped to the owner
+ *    because that is exactly what the editor's picker offers, so a card can only
+ *    point where the owner could have pointed it; scoped to public because an
+ *    unlisted demo's share page 404s and a card at one is a dead end. A target
+ *    that has since been deleted or unpublished simply drops out of the map, and
+ *    resolveBranchCards() then renders NEITHER card rather than a lopsided pair.
+ *    `publicLink ?? id` because /share/[slug] resolves either.
+ *
+ *  - THE MIRRORED CTA ROWS, for the ctaId a CtaClick needs. Missing rows are not
+ *    fatal: the card still renders and still emits cta_click.
+ *
+ * Any failure degrades to no cards. This runs on an unauthenticated public page
+ * and losing an overlay is always better than losing the page.
+ */
+async function resolveBranchCardsForDemo(
+  demoId: string,
+  userId: string,
+  branching: BranchingConfig
+): Promise<ResolvedBranchCard[]> {
+  const targetIds = [branching.a.target, branching.b.target]
+    .filter((target) => target.kind === "demo")
+    .map((target) => target.demoId);
+
+  try {
+    const [targets, ctas, host] = await Promise.all([
+      targetIds.length > 0
+        ? prisma.demo.findMany({
+            where: { id: { in: [...new Set(targetIds)] }, userId, isPublic: true },
+            select: { id: true, publicLink: true },
+          })
+        : Promise.resolve([]),
+      prisma.cta.findMany({
+        where: { demoId, placement: { in: [...BRANCH_PLACEMENTS] } },
+        select: { id: true, placement: true },
+      }),
+      headers().then((list) => list.get("host")),
+    ]);
+
+    const slugs: Record<string, string> = {};
+    for (const target of targets) {
+      slugs[target.id] = target.publicLink ?? target.id;
+    }
+
+    const ctaIds: Partial<Record<BranchPlacement, string>> = {};
+    for (const cta of ctas) {
+      if (cta.placement === "branch-a" || cta.placement === "branch-b") {
+        ctaIds[cta.placement] = cta.id;
+      }
+    }
+
+    return resolveBranchCards(branching, host, slugs, ctaIds);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Resolve the overlay config for a demo, or undefined when there is nothing to
  * render.
  *
@@ -93,7 +173,7 @@ export async function resolveShareOverlays(
 
   const demo = await prisma.demo.findUnique({
     where: { id: demoId },
-    select: { overlayConfig: true, user: { select: { name: true, plan: true } } },
+    select: { userId: true, overlayConfig: true, user: { select: { name: true, plan: true } } },
   });
   if (!demo) {
     return undefined;
@@ -113,11 +193,15 @@ export async function resolveShareOverlays(
     : { ...config, leadGate: { ...config.leadGate, enabled: false } };
 
   const gateActive = overlays.enabled && overlays.leadGate.enabled;
+  const branchingActive = overlays.enabled && overlays.branching.enabled;
 
   return {
     overlays,
     ownerName: demo.user?.name ?? hubTitle ?? null,
     // Only worth a query when a gate could actually mount.
     leadCaptured: gateActive ? await hasSubmittedLead(demoId) : false,
+    branchCards: branchingActive
+      ? await resolveBranchCardsForDemo(demoId, demo.userId, overlays.branching)
+      : [],
   };
 }
