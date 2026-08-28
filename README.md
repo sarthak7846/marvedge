@@ -285,6 +285,216 @@ build time: flipping it needs a rebuild for the client, only a restart for the
 server.
 
 
+## AI Subtitles (SUB)
+
+SUB generates subtitles from a demo's audio, then lets you correct, re-time,
+restyle, translate and export them. It ships behind a feature flag and is a
+complete no-op when the flag is off: a demo with no subtitle style, no track and
+no language selection exports **byte-identically** to what it produced before the
+feature existed.
+
+Unlike AVS, it is **not** plan-gated. Generation, editing, timeline retiming,
+styling and `.srt` / `.vtt` / `.txt` export are free on every plan, including FREE
+and anonymous. **Translation is the only PRO/ENTERPRISE surface**, gated
+server-side in `/api/subtitles/translate` from the user's real plan — it is the
+one part that spends money per use at an external vendor. Do not add a plan check
+to any other subtitle path.
+
+### The flow
+
+Open a demo in the editor and switch to the **Subtitles** sidebar tab:
+
+1. **Generate** — `/api/subtitles/create` creates a `VideoJob` and returns a
+   `jobId` in the same tick, dispatching the work through Next's `after()`. The
+   Cloud Run worker's `POST /subtitles` downloads the source, extracts 16 kHz mono
+   PCM with ffmpeg, and transcribes it with Deepgram (`nova-2`, or `nova-3` for
+   Arabic), clustering word timings into cues. The client polls `/api/jobs/{id}`.
+   A blob-URL source is uploaded to GCS first, as `kind: "subtitle-source"`.
+2. **Edit** — fix a mis-transcribed word, retime a cue to the centisecond, split a
+   long cue at the playhead, merge two short ones, delete or add one. Every
+   mutation goes through the pure helpers in `app/lib/subtitles/cues.ts` and ends
+   in `normalizeCues()`.
+3. **Retime on the timeline** — cues appear as a track on the timeline ruler and
+   drag and resize like trim segments. A whole drag lands as one undo step.
+4. **Style** — font, size, colour, background box, border, shadow, position and
+   animation. The preview overlay and the burned-in export read the same numbers
+   from `app/lib/subtitles/style.ts` (see the parity rule below).
+5. **Language & translate** — pick the spoken language before generating, switch
+   between the demo's per-language tracks, or translate the active one with
+   OpenAI. Translation is the gated step.
+6. **Export** — download `.srt` / `.vtt` / `.txt`, and/or burn the cues into the
+   video. Burn-in is an explicit choice in the export settings, not something that
+   happens whenever cues exist.
+
+Cues, the active language and the style all persist to `Demo.editing` through the
+normal autosave — there is no save button and no DB migration for them. Generated
+and translated tracks are also written to `SubtitleTrack`, one row per
+`(demo, language)` holding `cues` as JSON. That is a deliberate, signed-off
+deviation from PRD §10's per-segment `SubtitleSegment` table.
+
+### Preview ↔ burn-in parity — the rule that keeps exports honest
+
+**`app/lib/subtitles/style.ts` is the single source of truth for what a subtitle
+looks like, and both sides must read it.** The editor preview
+(`SubtitleOverlay.tsx`) imports it directly. The renderer cannot —
+`cloudrun-worker/` is a standalone package with its own `package.json` and nothing
+in it can import from `app/` — so the CSS→ASS mapping exists twice: a TypeScript
+original and a JavaScript port in `cloudrun-worker/render.js`.
+
+Two lookalike implementations is exactly the failure this feature was built to
+fix. Before it, `SubtitleOverlay.tsx` hardcoded a fixed `16px` while
+`writeAssSubtitles()` used a height-proportional `clamp(20, h*0.05, 58)` — they had
+already silently drifted, so the preview was not showing what the export produced.
+
+`app/lib/subtitles/workerParity.test.ts` is what stops that recurring: it loads the
+**real worker file** and asserts the two produce identical output across a matrix
+of styles and frame sizes. **If it fails, the port and the original have drifted —
+fix whichever is wrong. Do not relax the assertion.** It is the only mechanical
+reason to believe the preview matches the render. The mapping has real traps: ASS
+colours are `&H00BBGGRR` (reversed byte order) with *inverted* alpha, and font size
+must be resolution-independent (% of frame height), because "24 px" means one thing
+on a 640 px preview and another on a 1920 px export.
+
+### The sorted, non-overlapping cue invariant
+
+`remapSubtitleCuesToTrimmedTimeline()` in `cloudrun-worker/render.js` — which
+re-times cues across trim segments and slices them per 10 s export chunk —
+**assumes its input is sorted and non-overlapping**, and two overlapping ASS
+`Dialogue` lines render *stacked on top of each other*, not one after the other.
+
+That assumption used to hold by luck, because the worker was the only producer of
+cues and its clustering never overlaps. Once a user can drag a cue's edge over its
+neighbour, an overlap is one gesture away (PRD §13 lists it explicitly).
+
+`normalizeCues()` is the single place the invariant is established: it drops junk,
+clamps to the video's length, enforces a minimum duration, sorts, and resolves
+every overlap — truncating the earlier cue, pushing the later one when truncation
+would erase it, and dropping only as a last resort. Every store mutation ends in
+it, and `/api/subtitles/export` re-runs it server-side — never trust the client's
+ordering. The other helpers in `cues.ts` are deliberately dumb array operations
+that do **not** normalize; composing them and normalizing once at the end is what
+keeps an undo stack reasonable.
+
+`app/lib/subtitles/burnInInvariant.test.ts` drives the real worker functions end to
+end (chunk slice → trim remap → ASS serialization) on overlapping-by-construction
+cue sets and asserts the `Dialogue` lines come out ordered and non-overlapping at
+the centisecond resolution ASS actually stores.
+
+### Which worker is live
+
+**`cloudrun-worker/` is the deployed worker.** It is what `GCP_VIDEO_WORKER_URL`
+points at, it is the only one with a `Dockerfile`, and its `package.json` declares
+`main: server.js` with a Cloud Run `start` script.
+
+`video-worker/index.ts` is a near-identical TypeScript twin with its **own** copies
+of `writeAssSubtitles` / `transcribeWithDeepgram` /
+`remapSubtitleCuesToTrimmedTimeline`. It is a BullMQ/Redis-era leftover: it has no
+`Dockerfile`, nothing dispatches to it, and it was last touched by an unrelated
+dependency bump. **Do not edit it.** A change to the wrong copy is a silent no-op
+that passes every test.
+
+### Generation performance
+
+PRD §7 targets **under 60 s for a 10-minute video** — a ratio of 0.1 s of wall
+clock per second of video.
+
+> ⚠️ **This has not been measured yet.** It needs a real 10-minute video pushed
+> through a deployed worker, and no `GCP_VIDEO_WORKER_URL` or `DEEPGRAM_API_KEY` is
+> configured in this checkout. **The target above is the PRD's requirement, not a
+> measurement — do not quote it as one.**
+
+The worker logs everything needed to close this out. Run a 10-minute video through
+generation and read one line from the Cloud Run logs:
+
+```
+[subtitles] Timing download_ms=… extract_ms=… deepgram_ms=… total_ms=… cues=… duration_s=… source_bytes=… ratio=…
+```
+
+`ratio` is the number to compare against the target: seconds of wall clock per
+second of video, so **`ratio` < 0.1 meets PRD §7**. `duration_s` is derived exactly
+from the extracted WAV (16 kHz mono PCM s16le, so bytes ÷ 32000 is the duration).
+The three phase timings say where the time goes if it misses: `download_ms` scales
+with file size and GCS locality, `extract_ms` is ffmpeg and scales with duration
+and codec, and `deepgram_ms` is one upload-and-wait round trip to the vendor.
+**Record the actual numbers here, and if it misses, say by how much and which phase
+dominates.**
+
+### Edge cases and limits
+
+| Case | Behaviour |
+| :-- | :-- |
+| No speech in the video | The job succeeds with zero cues, and the editor says **"No speech detected in this video"** rather than "Subtitles ready". |
+| No audio track at all | Distinguished from a corrupted file: *"This video has no audio track, so there is nothing to transcribe."* |
+| Corrupted / incomplete upload | The ffmpeg failure is reduced to its last meaningful stderr lines and surfaced as *"This video could not be read — it may be corrupted or the upload may be incomplete."* Never a raw ffmpeg banner dump, never a bare 500. |
+| Cancel mid-job | See below — the work does not stop, the result is discarded. |
+| Video longer than 2 hours | Refused with the actual length named, client-side and again in the route. |
+| Upload not MP4/MOV/AVI/MKV | Refused at the file input **and** in `/api/gcs/upload` with a 400 naming the extension. |
+| Upload over 2 GB | Same, with the actual size named. |
+| Unsupported language code | The routes reject it with a 400 rather than silently falling back to auto-detect. An **absent** code still means auto-detect. |
+| Overlapping cues after editing | Resolved by `normalizeCues()`; see the invariant above. |
+| Speaker diarization | **Explicitly not supported** (PRD §15). Cues carry no speaker labels and there is no "who said this" axis anywhere in the data model. Deepgram can diarize; the feature deliberately does not ask it to. |
+
+**Cancelling does not stop the work.** `POST /api/subtitles/cancel` marks the
+`VideoJob` `CANCELLED` and the client stops polling immediately, so the editor is
+usable again at once. But `/subtitles` is one long opaque HTTP call to Cloud Run
+with no cancellation channel: **the worker runs to completion and the Deepgram
+minutes are spent either way.** What cancelling buys is that the *result is
+discarded* — the dispatcher re-reads the job status before writing anything, so
+cues from a cancelled run never land on the demo. The UI copy says exactly this; do
+not "improve" it into a promise the mechanism cannot keep.
+
+Uploads are validated in both halves, because they have to be: the browser check is
+a courtesy (`accept` is trivially bypassed by drag-and-drop), and `/api/gcs/upload`
+mints a signed URL that writes straight into the bucket, so the server check is the
+control. Both read the same constants from `app/lib/subtitles/limits.ts`. Note that
+**`.webm` is accepted alongside the PRD's four containers** — Marvedge is
+recording-first and `MediaRecorder` produces webm, so enforcing the PRD's list
+literally would reject the product's primary path.
+
+### If subtitles look wrong in the export
+
+1. **Two lines stacked on top of each other.** The cue list reaching the worker was
+   overlapping. Something bypassed `normalizeCues()` — check the mutation path, not
+   the renderer. `npm test` runs `burnInInvariant.test.ts`, which covers this.
+2. **The style does not match the preview.** The ASS port in
+   `cloudrun-worker/render.js` has drifted from `app/lib/subtitles/style.ts`. Run
+   `npm test`; `workerParity.test.ts` names the exact field.
+3. **Text is the wrong size on a different aspect ratio.** Size is stored as a % of
+   frame height on purpose. A px value that leaked into the persisted style will
+   look right at one resolution and wrong at every other.
+4. **Subtitles drift out of sync after a trim.** `remapSubtitleCuesToTrimmedTimeline`
+   re-times cues across keep-segments. Check the recipe's `subtitles` are in
+   **source** time, not already-trimmed time.
+5. **Subtitles are missing entirely from the export.** Burn-in is an explicit toggle
+   in the export settings — having cues is not sufficient. Also check the export
+   recipe actually carries `subtitles`.
+6. **Arabic renders as disconnected, left-to-right letterforms.** Expected, and why
+   `RTL_RENDERING_VERIFIED` in `languages.ts` is `false` and Arabic appears in no
+   picker. libass only reorders and shapes bidirectional text when it was built with
+   FriBidi and HarfBuzz; the container's ffmpeg build has not been inspected. Verify
+   a real 1080p export before flipping that flag.
+7. **You edited the worker and nothing changed.** You probably edited
+   `video-worker/`. See "Which worker is live" above.
+
+### Environment variables
+
+| Variable | Where | Purpose |
+| :-- | :-- | :-- |
+| `NEXT_PUBLIC_SUBTITLE_EDITOR_ENABLED` | Next app (client) | Shows the "Subtitles" sidebar panel, and through it the timeline track and style controls. Set to `true` to enable. |
+| `SUBTITLE_TRANSLATE_ENABLED` | Next app (server) | Gates the AI translation route. Server-only — never expose it with a `NEXT_PUBLIC_` prefix. |
+| `OPENAI_API_KEY` | Next app (server) | Already required by AVS. Reused for translation — no new vendor and no new key. |
+| `GCP_VIDEO_WORKER_URL` | Next app (server) | Already required. Reaches the Cloud Run worker for transcription. |
+| `DEEPGRAM_API_KEY` | **Cloud Run worker only** | Already required by AVS. Speech-to-text. The Next app never holds this key. |
+
+**Both SUB flags default OFF**, like AVS and WTM and unlike the QR kill-switch.
+That is deliberate: the editor panel rewrites cues that get burned into an export
+and the translate route spends money, so "unset" has to mean "behave exactly as
+today". `SUBTITLE_TRANSLATE_ENABLED` is the *feature* gate, not the paywall — the
+PRO/ENTERPRISE check is a separate server-side plan lookup. `NEXT_PUBLIC_…` is
+inlined at build time: flipping it needs a rebuild for the client, only a restart
+for the server. SUB needs **no new package and no new vendor**. See `.env.example`
+for the full list.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

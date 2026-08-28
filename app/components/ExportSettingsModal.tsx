@@ -13,6 +13,12 @@ export interface ExportSettings {
   compression: "Web" | "Medium" | "High" | "Ultra";
   // Speed is controlled from the main editor (not this modal).
   speed: "Default" | "0.75" | "1.25" | "1.5" | "1.75" | "2";
+  // SUB PR 6: burn the subtitles into the picture (PRD §6.8 — "Or Burn into
+  // Video"). Before this, burn-in simply happened whenever a demo had cues, with
+  // no way to say no. DEFAULTS TO TRUE, and every reader treats an absent value
+  // as true, so an export that does not touch this switch is the export that
+  // shipped before it existed.
+  burnSubtitles: boolean;
 }
 
 interface ExportSettingsModalProps {
@@ -20,6 +26,12 @@ interface ExportSettingsModalProps {
   onClose: () => void;
   onConfirm: (settings: ExportSettings) => void;
   durationInSeconds: number; // to estimate file size
+  /**
+   * Whether the demo has subtitles at all. The burn-in switch is hidden without
+   * them — a toggle for something that does not exist is noise, and hiding it
+   * keeps this modal identical to today for every demo with no cues.
+   */
+  hasSubtitles?: boolean;
 }
 
 const EXEMPT_EMAILS = [
@@ -70,6 +82,7 @@ export default function ExportSettingsModal({
   onClose,
   onConfirm,
   durationInSeconds,
+  hasSubtitles = false,
 }: ExportSettingsModalProps) {
   const defaultSettings: ExportSettings = useMemo(
     () => ({
@@ -77,6 +90,7 @@ export default function ExportSettingsModal({
       fps: "24 FPS",
       compression: "Web",
       speed: "Default",
+      burnSubtitles: true,
     }),
     []
   );
@@ -144,6 +158,33 @@ export default function ExportSettingsModal({
 
         {/* Compression */}
         <ExportCompression settings={settings} setSettings={setSettings} />
+
+        {/* Subtitles — burn in, or keep the picture clean and take the .srt.
+            Only for demos that actually have cues. */}
+        {hasSubtitles && (
+          <div className="mb-6">
+            <label className="flex cursor-pointer items-center justify-between gap-3">
+              <span className="text-[15px] text-[#8A76FC]">Burn subtitles into video</span>
+              <span className="relative inline-flex items-center">
+                <input
+                  type="checkbox"
+                  checked={settings.burnSubtitles}
+                  onChange={(e) =>
+                    setSettings((prev) => ({ ...prev, burnSubtitles: e.target.checked }))
+                  }
+                  className="peer sr-only"
+                />
+                <span className="h-5 w-9 rounded-full bg-[#EAE5FB] transition peer-checked:bg-[#8A76FC] peer-focus-visible:ring-2 peer-focus-visible:ring-[#A594F9]" />
+                <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
+              </span>
+            </label>
+            <p className="mt-1 text-[13px] text-[#8A76FC] opacity-80">
+              {settings.burnSubtitles
+                ? "Subtitles are drawn into the picture and cannot be turned off by the viewer."
+                : "The video exports with no subtitles — download them as .srt or .vtt instead."}
+            </p>
+          </div>
+        )}
 
         {/* License Info Box */}
         {limitReached ? (

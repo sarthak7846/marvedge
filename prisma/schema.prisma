@@ -82,33 +82,34 @@ model PasswordReset {
 }
 
 model Demo {
-  id            String         @id @default(uuid())
-  title         String
-  description   String?
-  videoUrl      String
-  startTime     String?
-  endTime       String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  editing       Json?
-  userId        String
-  isPublic      Boolean        @default(false)
-  publicLink    String?        @unique
-  shareCount    Int            @default(0)
-  subtitles     Json?
-  exportedUrl   String?
-  duration      Float?
-  user          User           @relation(fields: [userId], references: [id])
-  tags          String[]       @default([])
-  integrations  String[]       @default([])
-  userRoles     String[]       @default([])
-  featured      Boolean        @default(false)
-  exportedVideo ExportedVideo?
-  videoJobs     VideoJob[]
-  views         View[]
-  ctas          Cta[]
-  ctaClicks     CtaClick[]
-  audioClips    AudioClip[]
+  id             String          @id @default(uuid())
+  title          String
+  description    String?
+  videoUrl       String
+  startTime      String?
+  endTime        String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  editing        Json?
+  userId         String
+  isPublic       Boolean         @default(false)
+  publicLink     String?         @unique
+  shareCount     Int             @default(0)
+  subtitles      Json?
+  exportedUrl    String?
+  duration       Float?
+  user           User            @relation(fields: [userId], references: [id])
+  tags           String[]        @default([])
+  integrations   String[]        @default([])
+  userRoles      String[]        @default([])
+  featured       Boolean         @default(false)
+  exportedVideo  ExportedVideo?
+  videoJobs      VideoJob[]
+  views          View[]
+  ctas           Cta[]
+  ctaClicks      CtaClick[]
+  subtitleTracks SubtitleTrack[]
+  audioClips     AudioClip[]
 }
 
 model Tutorial {
@@ -227,17 +228,38 @@ model HubSettings {
   subdomain       String?  @unique
   customDomain    String?  @unique
   sslStatus       String   @default("pending") // pending, active, failed
-  dnsVerification Json?    // To store TXT/CNAME records for verification
+  dnsVerification Json? // To store TXT/CNAME records for verification
   logoUrl         String?
   brandColor      String   @default("#7C5CFC")
   textColor       String   @default("#111827")
   accentColor     String   @default("#F3F0FC")
   hubTitle        String?
   hubDescription  String?
-  cloudflareId    String?  // Cloudflare custom hostname ID
+  cloudflareId    String? // Cloudflare custom hostname ID
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// One subtitle track per (demo, language), holding the whole cue array as JSON.
+///
+/// Deliberately NOT the PRD's per-segment SubtitleSegment table: cues are always
+/// read and written as a whole array, so per-segment rows would mean thousands of
+/// inserts and a join on every render for no query benefit. See
+/// Subtitle-Implementation-Plan.md section 3, decision 5.
+model SubtitleTrack {
+  id        String   @id @default(uuid())
+  demoId    String
+  language  String
+  status    String   @default("READY")
+  source    String   @default("stt") // stt | translation | manual
+  cues      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  demo      Demo     @relation(fields: [demoId], references: [id], onDelete: Cascade)
+
+  @@unique([demoId, language])
+  @@index([demoId])
 }
 
 model AudioClip {
@@ -267,4 +289,3 @@ enum AudioStatus {
   TRIM_PROCESSING
   FAILED
 }
-

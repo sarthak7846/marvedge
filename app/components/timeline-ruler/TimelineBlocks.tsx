@@ -1,10 +1,19 @@
 import React from "react";
 import Image from "next/image";
+import { Captions, Search } from "lucide-react";
 import { ZoomEffect } from "../../types/editor/zoom-effect";
+import {
+  DragState,
+  DragSubtitleState,
+  DragZoomState,
+  DragTextState,
+  DragAudioState,
+  TextOverlayItem,
+} from "./types";
+import type { SubtitleClusterItem, SubtitleCueItem } from "./subtitleTrackLayout";
 import { AudioClipDto } from "../../types/audio";
 import { ClipPlacement, getClipTimelineWindow } from "../../store/audioClipStore";
 import { TIMELINE_RULER_HEIGHT } from "../Linepage";
-import { DragState, DragZoomState, DragTextState, DragAudioState, TextOverlayItem } from "./types";
 
 type TimelineMode = "main" | "trim" | "zoom" | "text";
 
@@ -350,6 +359,163 @@ export function TextOverlayBlock({
         <div className="w-px h-[20px] bg-white/80" />
       </div>
     </div>
+  );
+}
+
+/** Shared geometry so the subtitle blocks line up with the trim/zoom/text lanes. */
+const SUBTITLE_TOP = (trackIdx: number) => `${38 + trackIdx * 36}px`;
+
+/** Edge handle width. Two of these plus a body is SUBTITLE_MIN_BLOCK_PX. */
+const SUBTITLE_HANDLE_PX = 9;
+
+/**
+ * One subtitle on the timeline (SUB-6.4): drag the body to move it, drag either
+ * edge to resize it.
+ *
+ * Purple, so it reads as a subtitle at a glance next to the red trim, green zoom
+ * and yellow text blocks it shares the ruler with.
+ *
+ * The handles sit INSIDE the block rather than overhanging it like the trim and
+ * zoom ones do. Cues routinely butt up against each other — the transcriber
+ * breaks a cue on length as often as on a pause — and overhanging handles would
+ * cover the neighbour's, leaving the boundary between two adjacent cues
+ * ungrabbable.
+ */
+export function SubtitleCueBlock({
+  item,
+  isSelected,
+  isDragging,
+  trackIdx,
+  onSelect,
+  setDragSubtitleState,
+}: {
+  item: SubtitleCueItem;
+  isSelected: boolean;
+  isDragging: boolean;
+  trackIdx: number;
+  onSelect: (index: number) => void;
+  setDragSubtitleState: React.Dispatch<React.SetStateAction<DragSubtitleState | null>>;
+}) {
+  const { index, cue, leftPx, widthPx } = item;
+  const label = cue.text.trim() || `Subtitle ${index + 1}`;
+
+  return (
+    <div
+      className={`subtitle-cue-block absolute h-[32px] group cursor-grab rounded-md border transition-opacity ${
+        isSelected || isDragging
+          ? "bg-[#8A76FC]/55 border-[#6E5AD8] opacity-95 z-10"
+          : "bg-[#A594F9]/35 border-[#A594F9]/70 opacity-80 hover:opacity-100 z-8"
+      }`}
+      style={{ left: `${leftPx}px`, width: `${widthPx}px`, top: SUBTITLE_TOP(trackIdx) }}
+      title={`${label} — drag to move, drag an edge to retime`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect(index);
+      }}
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        setDragSubtitleState({
+          mode: "segment",
+          index,
+          startX: e.clientX,
+          startValue: cue.start,
+          endValue: cue.end,
+        });
+      }}
+    >
+      <div
+        className="flex h-full items-center justify-center overflow-hidden"
+        style={{ paddingLeft: SUBTITLE_HANDLE_PX + 2, paddingRight: SUBTITLE_HANDLE_PX + 2 }}
+      >
+        <Captions size={12} className="mr-1 shrink-0 text-[#2D1F61]" />
+        <span className="truncate text-[11px] font-semibold text-[#2D1F61] select-none track-text">
+          {label}
+        </span>
+      </div>
+
+      <div
+        className="absolute top-0 left-0 flex h-[32px] items-center justify-center rounded-l-md bg-[#8A76FC]/70 cursor-ew-resize transition-colors hover:bg-[#6E5AD8]"
+        style={{ width: `${SUBTITLE_HANDLE_PX}px` }}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          setDragSubtitleState({
+            mode: "edge",
+            index,
+            side: "left",
+            startX: e.clientX,
+            startValue: cue.start,
+          });
+        }}
+        aria-label="Resize subtitle start"
+        title="Drag to retime the start"
+      >
+        <div className="h-[16px] w-px bg-white/80" />
+      </div>
+
+      <div
+        className="absolute top-0 right-0 flex h-[32px] items-center justify-center rounded-r-md bg-[#8A76FC]/70 cursor-ew-resize transition-colors hover:bg-[#6E5AD8]"
+        style={{ width: `${SUBTITLE_HANDLE_PX}px` }}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          setDragSubtitleState({
+            mode: "edge",
+            index,
+            side: "right",
+            startX: e.clientX,
+            startValue: cue.end,
+          });
+        }}
+        aria-label="Resize subtitle end"
+        title="Drag to retime the end"
+      >
+        <div className="h-[16px] w-px bg-white/80" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A run of cues too narrow to draw individually at this zoom — the level-of-
+ * detail half of the density solution (see `layoutSubtitleTrack`).
+ *
+ * Not draggable, and it does not pretend to be: it is drawn hatched and carries
+ * a magnifier, because the only thing it does is zoom the ruler in until the
+ * cues underneath it become real blocks.
+ */
+export function SubtitleClusterBlock({
+  item,
+  trackIdx,
+  onFocus,
+}: {
+  item: SubtitleClusterItem;
+  trackIdx: number;
+  onFocus: (cluster: SubtitleClusterItem) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="subtitle-cue-cluster absolute h-[32px] rounded-md border border-[#A594F9]/70 bg-[#A594F9]/25 opacity-80 transition-opacity hover:opacity-100 z-8 cursor-zoom-in overflow-hidden"
+      style={{
+        left: `${item.leftPx}px`,
+        width: `${item.widthPx}px`,
+        top: SUBTITLE_TOP(trackIdx),
+        backgroundImage:
+          "repeating-linear-gradient(45deg, rgba(138,118,252,0.35) 0 3px, transparent 3px 7px)",
+      }}
+      title={`${item.count} subtitles between ${item.startSeconds.toFixed(1)}s and ${item.endSeconds.toFixed(
+        1
+      )}s — click to zoom in and edit them`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onFocus(item);
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <span className="flex h-full items-center justify-center gap-1 px-1 text-[10px] font-bold text-[#2D1F61] select-none track-text">
+        <Search size={10} className="shrink-0" />
+        {item.count}
+      </span>
+    </button>
   );
 }
 

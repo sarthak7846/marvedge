@@ -9,6 +9,7 @@ import ZoomModal from "@/app/components/ZoomModal";
 import { useEditorStore } from "@/app/store/editor/editorStore";
 import type {
   CtaItem,
+  EditorState,
   ExportFlowApi,
   SubtitlesApi,
   TextOverlaysApi,
@@ -21,6 +22,8 @@ interface EditorSidebarRegionProps {
   subtitles: SubtitlesApi;
   exportFlow: ExportFlowApi;
   thumbnailUrl: string | null;
+  /** The player itself stays a ref (never in the store), so it is passed in. */
+  playerRef: EditorState["playerRef"];
 }
 
 export default function EditorSidebarRegion({
@@ -29,6 +32,7 @@ export default function EditorSidebarRegion({
   subtitles,
   exportFlow,
   thumbnailUrl,
+  playerRef,
 }: EditorSidebarRegionProps) {
   const {
     isSidebarOpen,
@@ -56,6 +60,7 @@ export default function EditorSidebarRegion({
     savingDemo,
     demoSaved,
     setShowSaveDemoModal,
+    setCurrentTime,
   } = useEditorStore(
     useShallow((s) => ({
       isSidebarOpen: s.isSidebarOpen,
@@ -83,11 +88,20 @@ export default function EditorSidebarRegion({
       savingDemo: s.savingDemo,
       demoSaved: s.demoSaved,
       setShowSaveDemoModal: s.setShowSaveDemoModal,
+      setCurrentTime: s.setCurrentTime,
     }))
   );
 
   const toggleDashboardMenu = () => setIsDashboardMenuOpen(!isDashboardMenuOpen);
   const closeDashboardMenu = () => setIsDashboardMenuOpen(false);
+
+  // Move the player from the sidebar — the subtitle panel jumps to a cue with
+  // it. Both halves are needed, as in the preview's own controls: the store
+  // drives the playhead UI, the ref drives the video.
+  const handleSeek = (seconds: number) => {
+    setCurrentTime(seconds);
+    playerRef.current?.seekTo(seconds, "seconds");
+  };
 
   // CTA CRUD. Definitions live in the Cta table (not demo.editing) and are
   // managed over HTTP. Local state is updated optimistically and rolled back on
@@ -219,6 +233,9 @@ export default function EditorSidebarRegion({
     onClearSubtitles: subtitles.handleSkipSubtitles,
     subtitlesLoading: subtitles.subtitlesLoading,
     hasSubtitles: subtitles.subtitleCues.length > 0,
+    onCancelSubtitles: subtitles.handleCancelSubtitles,
+    cancelling: subtitles.cancelling,
+    onSeek: handleSeek,
     onOpenSaveDemo: () => setShowSaveDemoModal(true),
     savingDemo: savingDemo,
     demoSaved: demoSaved,
