@@ -29,6 +29,7 @@ model User {
   tutorials      Tutorial[]      @relation("UserTutorials")
   videoJobs      VideoJob[]
   hubSettings    HubSettings?
+  crmConnections CrmConnection[]
 }
 
 model Account {
@@ -305,7 +306,7 @@ model VideoOverlayConfig {
 }
 
 model Lead {
-  id          String    @id @default(cuid())
+  id          String         @id @default(cuid())
   demoId      String
   name        String
   email       String
@@ -317,8 +318,9 @@ model Lead {
   // cannot retroactively misrepresent what someone agreed to.
   consentText String?
   consentAt   DateTime?
-  createdAt   DateTime  @default(now())
-  demo        Demo      @relation(fields: [demoId], references: [id], onDelete: Cascade)
+  createdAt   DateTime       @default(now())
+  demo        Demo           @relation(fields: [demoId], references: [id], onDelete: Cascade)
+  deliveries  LeadDelivery[]
 
   @@unique([demoId, email])
   @@index([demoId, createdAt])
@@ -350,4 +352,71 @@ model PlayerEventDaily {
 
   @@unique([demoId, name, date])
   @@index([demoId, date])
+}
+
+// ---------------------------------------------------------------------------
+// OVL — CRM delivery (PR 4)
+// ---------------------------------------------------------------------------
+// The outbound half of #302 §2.1. A captured Lead is forwarded to whatever the
+// demo's OWNER has connected. "Workspace" in the issue = that User (locked
+// decision 3): this repo has no Workspace/Team/membership model, and
+// `CrmConnection.userId` is the one column that moves if one ever lands.
+//
+// CrmConnection.credentials is THE FIRST PER-USER SECRET THIS APP STORES.
+// It is NEVER plaintext: app/lib/crm/crypto.ts wraps it in AES-256-GCM and what
+// lands in this column is an envelope of { v, iv, tag, ct }. Nothing reads a
+// decrypted credential back out to a route response or a log line.
+//
+// LeadDelivery is one row per (lead × connection) — the delivery ledger that
+// stands in for a queue (locked decision 10: no BullMQ). `status` + `attempts` +
+// `lastError` is what makes POST /api/v3/leads/retry idempotent: a retry looks
+// for FAILED rows, and a row that already reads DELIVERED is never touched
+// again, so calling the endpoint twice cannot deliver a lead twice.
+//
+// ON DELETE:
+//   CrmConnection · Cascade from User — a deleted account takes its (encrypted)
+//                   credentials with it. app/api/user/delete/route.ts relies on
+//                   exactly this.
+//   LeadDelivery  · Cascade from BOTH Lead and CrmConnection. A delivery record
+//                   about a lead that no longer exists is a dangling reference
+//                   to deleted PII, and a delivery to a disconnected CRM is
+//                   unretryable — neither is worth keeping.
+
+model CrmConnection {
+  id          String         @id @default(cuid())
+  userId      String
+  /// "hubspot" | "salesforce" | "webhook" — see app/lib/crm/types.ts.
+  provider    String
+  /// ENCRYPTED AT REST. An AES-256-GCM envelope, never a plaintext credential.
+  credentials Json
+  /// Optional per-connection property/field overrides; provider-specific shape.
+  fieldMap    Json?
+  enabled     Boolean        @default(true)
+  lastOkAt    DateTime?
+  lastError   String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries  LeadDelivery[]
+
+  @@index([userId])
+}
+
+model LeadDelivery {
+  id           String        @id @default(cuid())
+  leadId       String
+  connectionId String
+  /// PENDING | DELIVERED | FAILED — see app/lib/crm/state.ts.
+  status       String        @default("PENDING")
+  attempts     Int           @default(0)
+  lastError    String?
+  deliveredAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  lead         Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  connection   CrmConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, connectionId])
+  @@index([status, createdAt])
+  @@index([leadId])
 }

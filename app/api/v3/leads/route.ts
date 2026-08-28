@@ -35,8 +35,9 @@
 // how it learns to stop tripping the detector. A genuine validation failure does
 // answer 400, because the human on the other end needs to know what to fix.
 
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { deliverLead } from "@/app/lib/crm/deliverLead";
 import { isRateLimited } from "@/app/lib/audio/rateLimit";
 import { isOverlaysAllowed } from "@/app/lib/overlays/access";
 import { overlayConfigFromRow } from "@/app/lib/overlays/config";
@@ -56,6 +57,14 @@ import { applySessionCookie, readOrMintSessionId } from "@/app/lib/overlays/sess
 // fail the limiter open on every request — is a build error rather than a
 // discovery.
 export const runtime = "nodejs";
+
+// CRM fan-out runs in after(), AFTER the response has been sent — the same shape
+// as dispatchVideoJob() in app/api/jobs/create/route.ts. The viewer is not made
+// to wait on somebody else's CRM, but the invocation is still live while the
+// deliveries run, so it needs a ceiling above the default. runDelivery() bounds
+// itself well inside this (see app/lib/crm/state.ts); the headroom is for an
+// owner with several connections.
+export const maxDuration = 60;
 
 /** Submissions per minute per IP+demo. A person fills this in once. */
 const LEADS_RATE_LIMIT = 5;
@@ -198,12 +207,13 @@ export async function POST(req: NextRequest) {
   );
   const consentAt = new Date();
 
+  let leadId: string;
   try {
     // Upsert on @@unique([demoId, email]): a viewer who re-watches and fills the
     // form again updates their row instead of creating a second one. `createdAt`
     // is left alone, so "when did this lead first arrive" survives a re-watch,
     // while the consent snapshot is refreshed to the one they just agreed to.
-    await prisma.lead.upsert({
+    const stored = await prisma.lead.upsert({
       where: { demoId_email: { demoId: demo.id, email } },
       create: {
         demoId: demo.id,
@@ -223,7 +233,9 @@ export async function POST(req: NextRequest) {
         consentText,
         consentAt,
       },
+      select: { id: true },
     });
+    leadId = stored.id;
   } catch (error) {
     // A CODE, never a message: Prisma's validation errors quote the arguments
     // they were given, and those arguments are this viewer's name and address.
@@ -257,6 +269,16 @@ export async function POST(req: NextRequest) {
       typeof error === "object" && error && "code" in error ? String(error.code) : "none";
     console.error(`[ovl-leads] event insert failed demo=${demo.id} code=${code}`);
   }
+
+  // PR 4 — the OUTBOUND half of #302 §2.1. after() so the viewer's form closes
+  // on our latency, not HubSpot's: the lead is already committed above, and a
+  // CRM being down leaves a FAILED LeadDelivery row for the retry endpoint
+  // rather than an error the viewer sees.
+  //
+  // deliverLead() checks isOverlaysCrmEnabled() itself, so with the flag off
+  // this is a database read that finds nothing and writes nothing — leads are
+  // still captured, they are simply not forwarded. It never throws.
+  after(() => deliverLead(leadId));
 
   console.log(`[ovl-leads] captured demo=${demo.id}`);
   return ok();
