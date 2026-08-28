@@ -37,8 +37,18 @@ function fullConfig() {
     branching: {
       enabled: true,
       leadSeconds: 8,
-      a: { label: "A", description: "da", target: { kind: "demo", demoId: "abc-123" } },
-      b: { label: "B", description: "db", target: { kind: "url", href: "https://example.com/b" } },
+      a: {
+        label: "A",
+        description: "da",
+        thumbnailUrl: "https://cdn.example.com/a.png",
+        target: { kind: "demo", demoId: "abc-123" },
+      },
+      b: {
+        label: "B",
+        description: "db",
+        thumbnailUrl: "",
+        target: { kind: "url", href: "https://example.com/b" },
+      },
     },
     scheduling: {
       enabled: true,
@@ -266,6 +276,12 @@ describe("sanitizeBranchTarget — exactly two variants", () => {
     expect(sanitizeBranchTarget({ kind: "url", href: "https://a@b.example/" })).toBeUndefined();
   });
 
+  it("rejects an http href", () => {
+    // https only, same rule the resolver re-applies on read: a branch card is a
+    // link clicked from a page that is itself https.
+    expect(sanitizeBranchTarget({ kind: "url", href: "http://example.com/next" })).toBeUndefined();
+  });
+
   it("rejects junk without throwing", () => {
     for (const junk of [undefined, null, 42, "url", [], {}]) {
       expect(() => sanitizeBranchTarget(junk)).not.toThrow();
@@ -275,6 +291,18 @@ describe("sanitizeBranchTarget — exactly two variants", () => {
 });
 
 describe("sanitizeOverlayConfig — branching section", () => {
+  it("keeps an https thumbnail and drops anything else", () => {
+    const input = fullConfig();
+    expect(sanitizeOverlayConfig(input).branching.a.thumbnailUrl).toBe(
+      "https://cdn.example.com/a.png"
+    );
+    input.branching.a.thumbnailUrl = "javascript:alert(1)";
+    // An unusable image costs the card polish; it must not cost it the click.
+    const config = sanitizeOverlayConfig(input);
+    expect(config.branching.a.thumbnailUrl).toBe("");
+    expect(config.branching.enabled).toBe(true);
+  });
+
   it("forces the section off when either target is unusable", () => {
     const input = fullConfig();
     input.branching.b.target = { kind: "url", href: "javascript:alert(1)" } as never;

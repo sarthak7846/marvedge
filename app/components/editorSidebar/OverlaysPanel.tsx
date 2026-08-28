@@ -2,12 +2,12 @@
 
 // The "Overlays" sidebar panel (#302).
 //
-// PR 3 fills it with the LEAD GATE section: enable, hard/soft, when it appears,
+// PR 3 filled it with the LEAD GATE section: enable, hard/soft, when it appears,
 // which fields it asks for, whether a free-mail address is accepted, and every
-// word of copy including the consent sentence. PR 5 adds a Branching section
-// below it and PR 6 a Scheduling one — both already exist in the config type and
-// are round-tripped untouched by this panel, so neither has to change anything
-// here beyond adding its own block.
+// word of copy including the consent sentence. PR 5 adds the BRANCHING section
+// below it; PR 6 adds a Scheduling one, which already exists in the config type
+// and is round-tripped untouched by this panel, so it has to change nothing here
+// beyond adding its own block.
 //
 // IT SAVES THE WHOLE CONFIG, NOT A PATCH. PUT /api/demos/[id]/overlays runs
 // sanitizeOverlayConfig() over the body and writes all three sections, so
@@ -28,9 +28,22 @@ import React, { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 
 import { useEditorStore } from "@/app/store/editor/editorStore";
-import { defaultOverlayConfig, MAX_TRIGGER_SEC } from "@/app/lib/overlays/config";
+import {
+  defaultOverlayConfig,
+  MAX_LEAD_SECONDS,
+  MAX_TRIGGER_SEC,
+  MIN_LEAD_SECONDS,
+  sanitizeBranchTarget,
+} from "@/app/lib/overlays/config";
 import { COMPANY_SIZE_BUCKETS, renderConsentText } from "@/app/lib/overlays/leadGate";
-import type { LeadGateConfig, LeadGateTrigger, OverlayConfig } from "@/app/lib/overlays/types";
+import type {
+  BranchCard,
+  BranchTarget,
+  BranchingConfig,
+  LeadGateConfig,
+  LeadGateTrigger,
+  OverlayConfig,
+} from "@/app/lib/overlays/types";
 
 const inputClass =
   "w-full border border-[#ede7fa] bg-[#F6F3FF] rounded-lg px-3 py-2 text-sm text-[#7C5CFC] placeholder:text-[#B0A5D3] focus:outline-none focus:ring-2 focus:ring-[#A594F9]";
@@ -46,6 +59,16 @@ function triggerChoice(trigger: LeadGateTrigger): TriggerChoice {
 
 function triggerSeconds(trigger: LeadGateTrigger): number {
   return typeof trigger === "object" ? trigger.sec : 0;
+}
+
+/**
+ * The stored form of a typed URL, or "" — run through the SAME sanitiser the PUT
+ * route enforces with, so what the panel accepts and what the server stores can
+ * never disagree.
+ */
+function sanitizeUrlTarget(raw: string): string {
+  const target = sanitizeBranchTarget({ kind: "url", href: raw });
+  return target && target.kind === "url" ? target.href : "";
 }
 
 const Toggle: React.FC<{
@@ -72,11 +95,128 @@ const Toggle: React.FC<{
   </label>
 );
 
+/** What the demo picker needs from GET .../overlays/branch-targets. */
+type BranchTargetOption = { id: string; title: string; publicLink: string | null };
+
+/**
+ * One card's editor: label, supporting line, artwork, and where it goes.
+ *
+ * IT VALIDATES THROUGH sanitizeBranchTarget() — THE SAME FUNCTION THE PUT ROUTE
+ * ENFORCES WITH. A URL that would be dropped on save is refused here, in front
+ * of the owner, rather than quietly disabling their cards the next time a viewer
+ * loads the page. The two choices offered are exactly the two variants in the
+ * type: another demo of their own, or an https link. There is no third.
+ */
+const BranchCardEditor: React.FC<{
+  title: string;
+  card: BranchCard;
+  options: BranchTargetOption[];
+  onChange: (patch: Partial<BranchCard>) => void;
+}> = ({ title, card, options, onChange }) => {
+  const kind = card.target.kind;
+  const [urlDraft, setUrlDraft] = useState(kind === "url" ? card.target.href : "");
+
+  const setKind = (next: BranchTarget["kind"]) => {
+    onChange({
+      target:
+        next === "demo"
+          ? { kind: "demo", demoId: "" }
+          : { kind: "url", href: sanitizeUrlTarget(urlDraft) },
+    });
+  };
+
+  const commitUrl = (raw: string) => {
+    setUrlDraft(raw);
+    // The unusable value is kept OUT of the config rather than stored and
+    // dropped later: sanitizeBranching() forces the whole section off when a
+    // target does not survive, so a half-typed URL would otherwise switch the
+    // cards off under the owner while they were still typing the rest of it.
+    onChange({ target: { kind: "url", href: sanitizeUrlTarget(raw) } });
+  };
+
+  const urlRejected = kind === "url" && urlDraft.trim().length > 0 && !sanitizeUrlTarget(urlDraft);
+
+  return (
+    <div className="space-y-2 rounded-md border border-[#ede7fa] bg-white p-2.5">
+      <span className="text-[11px] font-bold uppercase tracking-wide text-[#A594F9]">{title}</span>
+
+      <input
+        type="text"
+        value={card.label}
+        onChange={(e) => onChange({ label: e.target.value })}
+        placeholder="Card title"
+        className={inputClass}
+      />
+      <input
+        type="text"
+        value={card.description}
+        onChange={(e) => onChange({ description: e.target.value })}
+        placeholder="Supporting line (optional)"
+        className={inputClass}
+      />
+      <input
+        type="url"
+        value={card.thumbnailUrl}
+        onChange={(e) => onChange({ thumbnailUrl: e.target.value })}
+        placeholder="https://…/thumbnail.png (optional)"
+        className={inputClass}
+      />
+
+      <select
+        value={kind}
+        onChange={(e) => setKind(e.target.value === "demo" ? "demo" : "url")}
+        className={inputClass}
+      >
+        <option value="demo">Send them to another demo</option>
+        <option value="url">Send them to a link</option>
+      </select>
+
+      {kind === "demo" ? (
+        options.length > 0 ? (
+          <select
+            value={card.target.kind === "demo" ? card.target.demoId : ""}
+            onChange={(e) => onChange({ target: { kind: "demo", demoId: e.target.value } })}
+            className={inputClass}
+          >
+            <option value="">Choose a demo…</option>
+            {options.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.title || "Untitled demo"}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p className="text-[11px] text-gray-400">
+            You have no other public demos yet. Share a second demo publicly and it will show up
+            here.
+          </p>
+        )
+      ) : (
+        <>
+          <input
+            type="url"
+            value={urlDraft}
+            onChange={(e) => commitUrl(e.target.value)}
+            placeholder="https://yoursite.com/pricing"
+            className={inputClass}
+          />
+          {urlRejected && (
+            <p className="text-[11px] text-red-600">
+              That has to be an https link, with no username or password in it.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 const OverlaysPanel: React.FC = () => {
   const savedDemoId = useEditorStore((s) => s.savedDemoId);
 
   const [config, setConfig] = useState<OverlayConfig | null>(null);
   const [leadGateAllowed, setLeadGateAllowed] = useState(true);
+  const [branchTargets, setBranchTargets] = useState<BranchTargetOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +260,31 @@ const OverlaysPanel: React.FC = () => {
     };
   }, [savedDemoId]);
 
+  // The picker's options, fetched separately so a failure here leaves the rest of
+  // the panel working — an owner with no list can still set a URL target.
+  useEffect(() => {
+    if (!savedDemoId) {
+      setBranchTargets([]);
+      return;
+    }
+    let cancelled = false;
+    axios
+      .get(`/api/demos/${savedDemoId}/overlays/branch-targets`)
+      .then((res) => {
+        if (!cancelled) {
+          setBranchTargets(res.data?.demos ?? []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBranchTargets([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [savedDemoId]);
+
   /** Patch the lead gate without disturbing the other two sections. */
   const patchGate = useCallback((patch: Partial<LeadGateConfig>) => {
     setSavedAt(null);
@@ -134,6 +299,23 @@ const OverlaysPanel: React.FC = () => {
       return { ...prev, leadGate: { ...prev.leadGate, copy: { ...prev.leadGate.copy, ...patch } } };
     });
     setSavedAt(null);
+  }, []);
+
+  const patchBranching = useCallback((patch: Partial<BranchingConfig>) => {
+    setSavedAt(null);
+    setConfig((prev) => (prev ? { ...prev, branching: { ...prev.branching, ...patch } } : prev));
+  }, []);
+
+  const patchBranchCard = useCallback((slot: "a" | "b", patch: Partial<BranchCard>) => {
+    setSavedAt(null);
+    setConfig((prev) =>
+      prev
+        ? {
+            ...prev,
+            branching: { ...prev.branching, [slot]: { ...prev.branching[slot], ...patch } },
+          }
+        : prev
+    );
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -183,6 +365,12 @@ const OverlaysPanel: React.FC = () => {
 
   const gate = config.leadGate;
   const choice = triggerChoice(gate.triggerAt);
+  const branching = config.branching;
+  // Mirrors sanitizeBranching()'s all-or-nothing rule, so the reason the section
+  // refuses to switch itself on is visible here rather than only after a save.
+  const bothTargetsSet =
+    sanitizeBranchTarget(branching.a.target) !== undefined &&
+    sanitizeBranchTarget(branching.b.target) !== undefined;
 
   return (
     <div className="space-y-6">
@@ -386,6 +574,64 @@ const OverlaysPanel: React.FC = () => {
                 className={inputClass}
               />
             </div>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3 rounded-lg border border-[#ede7fa] bg-[#F6F3FF] p-3">
+        <h3 className="text-sm font-semibold text-[#7C5CFC]">Branching cards</h3>
+        <p className="text-[11px] text-gray-500">
+          Two choices in the final seconds, staying up after the video ends. Free on every plan.
+          Clicks count as CTA clicks on your analytics page.
+        </p>
+
+        <Toggle
+          checked={branching.enabled}
+          onChange={(enabled) => patchBranching({ enabled })}
+          label="Offer two choices near the end"
+        />
+
+        {branching.enabled && (
+          <div className="space-y-3 border-t border-[#ede7fa] pt-3">
+            <div>
+              <label className={labelClass} htmlFor="ovl-lead-seconds">
+                Seconds before the end
+              </label>
+              <input
+                id="ovl-lead-seconds"
+                type="number"
+                min={MIN_LEAD_SECONDS}
+                max={MAX_LEAD_SECONDS}
+                value={branching.leadSeconds}
+                onChange={(e) =>
+                  patchBranching({ leadSeconds: Number(e.target.value) || MIN_LEAD_SECONDS })
+                }
+                className={inputClass}
+              />
+              <p className="mt-1 text-[11px] text-gray-400">
+                On a video shorter than this, the cards wait until it ends rather than covering it
+                from the first frame.
+              </p>
+            </div>
+
+            <BranchCardEditor
+              title="Card A"
+              card={branching.a}
+              options={branchTargets}
+              onChange={(patch) => patchBranchCard("a", patch)}
+            />
+            <BranchCardEditor
+              title="Card B"
+              card={branching.b}
+              options={branchTargets}
+              onChange={(patch) => patchBranchCard("b", patch)}
+            />
+
+            {!bothTargetsSet && (
+              <p className="text-[11px] text-amber-700">
+                Both cards need a destination before either will show. One choice is not a choice.
+              </p>
+            )}
           </div>
         )}
       </div>

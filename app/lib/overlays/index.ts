@@ -35,6 +35,19 @@ export {
 } from "./config";
 
 export {
+  BRANCH_PLACEMENTS,
+  BRANCH_SLOTS,
+  branchCardsShouldOpen,
+  branchThresholdSec,
+  resolveBranchCards,
+  resolveBranchHref,
+  type BranchPlacement,
+  type BranchSlugMap,
+  type BranchTriggerInput,
+  type ResolvedBranchCard,
+} from "./branch";
+
+export {
   MAX_EVENTS_PER_BATCH,
   MAX_META_BYTES,
   PLAYER_EVENT_NAMES,

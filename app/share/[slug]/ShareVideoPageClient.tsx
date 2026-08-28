@@ -3,9 +3,11 @@
 import { useSession } from "next-auth/react";
 import type { CSSProperties } from "react";
 
+import BranchingCardsOverlay from "@/app/components/player/BranchingCardsOverlay";
 import LeadGateOverlay from "@/app/components/player/LeadGateOverlay";
 import MarvedgePlayer from "@/app/components/player/MarvedgePlayer";
 import ShareQrCode from "@/app/components/qr/ShareQrCode";
+import type { ResolvedBranchCard } from "@/app/lib/overlays/branch";
 import { isOverlaysPanelEnabled } from "@/app/lib/overlays/flags";
 import type { OverlayConfig } from "@/app/lib/overlays/types";
 
@@ -58,6 +60,12 @@ type ShareVideoPageClientProps = {
   ownerName?: string | null;
   /** This browser has already given this demo a lead; do not gate it again. */
   leadCaptured?: boolean;
+  /**
+   * The branching pair, hrefs already resolved against the request host by
+   * resolveShareOverlays(). Empty or absent means no cards — including when one
+   * of the two targets no longer resolves, since half a choice is not one.
+   */
+  branchCards?: ResolvedBranchCard[];
 };
 
 /**
@@ -100,6 +108,7 @@ export default function ShareVideoPageClient({
   overlays,
   ownerName,
   leadCaptured = false,
+  branchCards = [],
 }: ShareVideoPageClientProps) {
   // Keeps POSTing /api/views on mount and heartbeating duration every 5s, and
   // still owns the ref the <video> uses — on BOTH paths below. It is what feeds
@@ -124,6 +133,14 @@ export default function ShareVideoPageClient({
   const leadGate =
     overlaysEnabled && demoId && overlays?.enabled && overlays.leadGate.enabled
       ? overlays.leadGate
+      : null;
+
+  // Same two flags. No demoId requirement: the cards' hrefs were resolved on the
+  // server, so they work anywhere the pair was resolved — and the pair is only
+  // ever resolved for a demo. A missing ctaId costs the CtaClick row, not the card.
+  const branching =
+    overlaysEnabled && overlays?.enabled && overlays.branching.enabled && branchCards.length > 0
+      ? overlays.branching
       : null;
 
   return (
@@ -165,6 +182,14 @@ export default function ShareVideoPageClient({
                     ownerName={ownerName}
                     accentColor={accentColor}
                     alreadyCaptured={leadCaptured}
+                  />
+                ) : null}
+                {branching ? (
+                  <BranchingCardsOverlay
+                    cards={branchCards}
+                    leadSeconds={branching.leadSeconds}
+                    demoId={demoId}
+                    accentColor={accentColor}
                   />
                 ) : null}
               </MarvedgePlayer>
