@@ -12,9 +12,19 @@
 //      into the gap after it, or merging it with the next cue when there is no
 //      room — never producing an overlap.
 //
-// It also exposes a word-level view (`cuesToWords`) and a WebVTT serializer
-// (`cuesToVtt`). Everything here is free of DOM/network side effects so it can be
-// unit-tested directly; the browser download lives in the AVS panel hook.
+// It also exposes a word-level view (`cuesToWords`) and a WebVTT writer
+// (`cuesToVtt`) that clusters before delegating to the shared serializer in
+// app/lib/subtitles/formats.ts. Everything here is free of DOM/network side
+// effects so it can be unit-tested directly; the browser download lives in the
+// AVS panel hook.
+
+// Relative, not "@/app/lib/subtitles/formats": vitest runs without the tsconfig
+// path alias, and karaoke.test.ts imports this module directly.
+import { cuesToVtt as serializeCuesToVtt, formatVttTimestamp } from "../subtitles/formats";
+
+// Re-exported so app/components/editorSidebar/avs/useCaptions.ts and this
+// module's own tests keep importing it from here.
+export { formatVttTimestamp };
 
 /** A single caption: `text` shown from `start` to `end` (both in seconds). */
 export interface Cue {
@@ -174,27 +184,15 @@ export function cuesToWords(cues: Cue[]): Word[] {
   return words;
 }
 
-/** Format `seconds` as a WebVTT timestamp: `HH:MM:SS.mmm`. */
-export function formatVttTimestamp(seconds: number): string {
-  const total = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
-  const ms = Math.round(total * 1000);
-  const hh = Math.floor(ms / 3_600_000);
-  const mm = Math.floor((ms % 3_600_000) / 60_000);
-  const ss = Math.floor((ms % 60_000) / 1000);
-  const millis = ms % 1000;
-  const pad = (n: number, width = 2) => String(n).padStart(width, "0");
-  return `${pad(hh)}:${pad(mm)}:${pad(ss)}.${pad(millis, 3)}`;
-}
-
 /**
  * Serialize cues to a valid WebVTT string. Cues are clustered first so the
  * output is ordered and non-overlapping regardless of input order.
+ *
+ * The serializer itself now lives in app/lib/subtitles/formats.ts — there is one
+ * VTT writer for the whole app, shared with the subtitle feature's SRT/VTT/TXT
+ * export. What stays here is the AVS-specific part: clustering the cues before
+ * they are written, which the captions editor relies on.
  */
 export function cuesToVtt(cues: Cue[]): string {
-  const ordered = clusterCues(cues);
-  const blocks = ordered.map(
-    (cue, i) =>
-      `${i + 1}\n${formatVttTimestamp(cue.start)} --> ${formatVttTimestamp(cue.end)}\n${cue.text}`
-  );
-  return `WEBVTT\n\n${blocks.join("\n\n")}\n`;
+  return serializeCuesToVtt(clusterCues(cues));
 }

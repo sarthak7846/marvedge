@@ -65,6 +65,8 @@ export default function EditorPage() {
     segments,
     zoomSegments: zoom.zoomSegments,
     subtitleCues: subtitles.subtitleCues,
+    subtitleStyle: subtitles.subtitleStyle,
+    subtitleLanguage: subtitles.subtitleLanguage,
     textOverlays: text.textOverlays,
     playbackSpeed,
   });
@@ -74,6 +76,8 @@ export default function EditorPage() {
     segments,
     zoomSegments: zoom.zoomSegments,
     subtitleCues: subtitles.subtitleCues,
+    subtitleStyle: subtitles.subtitleStyle,
+    subtitleLanguage: subtitles.subtitleLanguage,
     textOverlays: text.textOverlays,
   });
 
@@ -83,6 +87,8 @@ export default function EditorPage() {
     setSegments,
     setZoomSegments: zoom.setZoomSegments,
     setSubtitleCues: subtitles.setSubtitleCues,
+    setSubtitleStyle: subtitles.setSubtitleStyle,
+    setSubtitleLanguage: subtitles.setSubtitleLanguage,
     setTextOverlays: text.setTextOverlays,
   });
 
@@ -93,6 +99,8 @@ export default function EditorPage() {
     segments,
     zoomSegments: zoom.zoomSegments,
     subtitleCues: subtitles.subtitleCues,
+    subtitleStyle: subtitles.subtitleStyle,
+    subtitleLanguage: subtitles.subtitleLanguage,
     textOverlays: text.textOverlays,
   });
 
@@ -154,6 +162,7 @@ export default function EditorPage() {
           subtitles={subtitles}
           exportFlow={exportFlow}
           thumbnailUrl={thumbnailUrl}
+          playerRef={editorState.playerRef}
         />
 
         <EditorPreviewRegion

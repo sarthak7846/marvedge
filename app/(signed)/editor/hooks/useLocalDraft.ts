@@ -101,7 +101,7 @@ function useDraftRestore({
   restoredRef,
 }: DraftEffectProps) {
   const { setZoomSegments } = zoom;
-  const { setSubtitleCues } = subtitles;
+  const { setSubtitleCues, setSubtitleStyle, setSubtitleLanguage } = subtitles;
   const { setTextOverlays } = text;
   const {
     savedDemoId,
@@ -146,6 +146,8 @@ function useDraftRestore({
       setCurrentSegments,
       setZoomSegments,
       setSubtitleCues,
+      setSubtitleStyle,
+      setSubtitleLanguage,
       setTextOverlays,
       setSelectedBackground,
       setBackgroundType,
@@ -166,6 +168,8 @@ function useDraftRestore({
     setCurrentSegments,
     setZoomSegments,
     setSubtitleCues,
+    setSubtitleStyle,
+    setSubtitleLanguage,
     setTextOverlays,
     setSelectedBackground,
     setBackgroundType,
@@ -190,7 +194,7 @@ function useDraftPersist({
   restoredRef,
 }: DraftEffectProps) {
   const { zoomSegments } = zoom;
-  const { subtitleCues } = subtitles;
+  const { subtitleCues, subtitleStyle, subtitleLanguage } = subtitles;
   const { textOverlays } = text;
   const {
     savedDemoId,
@@ -228,6 +232,8 @@ function useDraftPersist({
         selectedBackground,
         backgroundType,
         subtitleCues,
+        subtitleStyle,
+        subtitleLanguage,
         textOverlays,
         aspectRatio,
         browserFrameMode,
@@ -256,6 +262,8 @@ function useDraftPersist({
     segments,
     zoomSegments,
     subtitleCues,
+    subtitleStyle,
+    subtitleLanguage,
     textOverlays,
     selectedBackground,
     backgroundType,

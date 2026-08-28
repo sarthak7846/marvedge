@@ -131,20 +131,78 @@ async function downloadFromUrl({ url, destinationPath }) {
   await fs.writeFile(destinationPath, bytes);
 }
 
+/**
+ * Pull the last few meaningful lines out of an ffmpeg stderr dump.
+ *
+ * ffmpeg writes its banner, every build flag and every stream's metadata to
+ * stderr before it says what actually went wrong, and execFile puts the whole
+ * thing in `err.message`. Surfacing that verbatim to a user is the same as
+ * surfacing nothing. The real diagnosis is in the last line or two.
+ */
+function ffmpegErrorDetail(err) {
+  const raw = String((err && err.stderr) || (err && err.message) || "");
+  const lines = raw
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(
+      (l) =>
+        l.length > 0 &&
+        !l.startsWith("ffmpeg version") &&
+        !l.startsWith("built with") &&
+        !l.startsWith("configuration:") &&
+        !/^lib(av|sw|post)\w*\s+\d/.test(l),
+    );
+  return (
+    lines
+      .slice(-2)
+      .join(" — ")
+      // The detail is shown to the user, so strip the container's own scratch
+      // paths: they mean nothing to them and expose our internals for no gain.
+      .replace(/\/tmp\/\S+/g, "the file")
+      .slice(0, 300)
+  );
+}
+
 async function extractAudioWav16kMono(inputPath, wavPath) {
-  await execFileAsync("/usr/bin/ffmpeg", [
-    "-y",
-    "-i",
-    inputPath,
-    "-vn",
-    "-ac",
-    "1",
-    "-ar",
-    "16000",
-    "-c:a",
-    "pcm_s16le",
-    wavPath,
-  ]);
+  try {
+    await execFileAsync("/usr/bin/ffmpeg", [
+      "-y",
+      "-i",
+      inputPath,
+      "-vn",
+      "-ac",
+      "1",
+      "-ar",
+      "16000",
+      "-c:a",
+      "pcm_s16le",
+      wavPath,
+    ]);
+  } catch (err) {
+    // PRD §13, corrupted / incomplete uploads. This is the FIRST thing that
+    // touches the actual bytes, so a truncated recording, a zero-length upload
+    // or a container ffmpeg cannot demux all land here — and used to reach the
+    // user as a wall of ffmpeg banner text, or as a bare "Internal Server
+    // Error" once something upstream flattened it.
+    const detail = ffmpegErrorDetail(err);
+    console.error(`[subtitles] ffmpeg audio extract failed: ${detail}`);
+
+    // A file with no audio stream at all is not a broken file — it is a silent
+    // screen recording, which is an ordinary thing to have. Distinguished from a
+    // corrupted file because the fix is completely different: "re-upload it"
+    // is useless advice for a video that simply has no sound. (This is NOT the
+    // same case as a video whose audio contains no speech — that one reaches
+    // Deepgram, returns no cues, and surfaces as "No speech detected".)
+    if (/does not contain any stream|Output file (#\d+ )?does not contain/i.test(detail)) {
+      throw new Error(
+        "This video has no audio track, so there is nothing to transcribe.",
+      );
+    }
+
+    throw new Error(
+      `This video could not be read — it may be corrupted or the upload may be incomplete. Try re-uploading it. (${detail || "ffmpeg could not decode the file"})`,
+    );
+  }
 }
 
 function cuesFromDeepgramWords(words) {
@@ -189,6 +247,38 @@ function cuesFromDeepgramWords(words) {
   return cues.filter((c) => c.text.length > 0 && c.end - c.start > 0.01);
 }
 
+// SUB PR 5: not every language is on the same Deepgram model.
+//
+// nova-2 — what this worker has always sent, and still the default for every
+// language that has always worked. Its request is unchanged.
+//
+// nova-3 — used ONLY for languages nova-2 does not cover. Arabic is the one such
+// language among the seven the product offers: it is absent from nova-2's
+// language list, and nova-3 added it as its first right-to-left language across
+// 17 regional variants.
+//
+// This mirrors `sttModelFor()` in app/lib/subtitles/languages.ts, which is the
+// source of truth and carries the full reasoning; that module cannot be imported
+// here (this worker is a standalone package). Keep the two in step — the table
+// there is pinned by app/lib/subtitles/languages.test.ts.
+const DEEPGRAM_DEFAULT_MODEL = "nova-2";
+const DEEPGRAM_MODEL_BY_LANGUAGE = {
+  ar: "nova-3",
+};
+
+function deepgramModelFor(language) {
+  const code = String(language || "")
+    .trim()
+    .toLowerCase();
+  if (!code || code === "multi") {
+    return DEEPGRAM_DEFAULT_MODEL;
+  }
+  // Match the base language so a regional variant (ar-EG) lands on the same
+  // model as its base (ar).
+  const base = code.split("-")[0];
+  return DEEPGRAM_MODEL_BY_LANGUAGE[base] || DEEPGRAM_DEFAULT_MODEL;
+}
+
 async function transcribeWithDeepgram(wavPath, language = "multi") {
   const apiKey = (process.env.DEEPGRAM_API_KEY || "").trim();
   if (!apiKey) {
@@ -196,13 +286,14 @@ async function transcribeWithDeepgram(wavPath, language = "multi") {
   }
 
   const params = new URLSearchParams({
-    model: "nova-2",
+    model: deepgramModelFor(language),
     punctuate: "true",
     smart_format: "true",
   });
   if (language && language !== "multi") {
     params.set("language", language);
   } else {
+    // Auto-detect stays on nova-2 with detect_language, exactly as before.
     params.set("detect_language", "true");
   }
 
@@ -271,8 +362,30 @@ async function processSubtitlesJob({ videoUrl, language }) {
     );
     const deepgramMs = Date.now() - dgStart;
 
+    // PRD §7 sets the target PER UNIT OF VIDEO ("< 60s for a 10-minute video"),
+    // so the elapsed times alone cannot be checked against it — you need to know
+    // how long the input was. Derived from the WAV rather than probed: the
+    // extract above pins the format at 16 kHz mono PCM s16le, so the byte count
+    // divided by 32000 IS the duration, exactly, for the cost of one stat.
+    let durationS = 0;
+    let sourceBytes = 0;
+    try {
+      const [wavStat, srcStat] = await Promise.all([
+        fs.stat(wavPath),
+        fs.stat(inputPath),
+      ]);
+      durationS = Math.max(0, (wavStat.size - 44) / 32000);
+      sourceBytes = srcStat.size;
+    } catch {
+      // Instrumentation must never fail a job that has already produced cues.
+    }
+    const totalMs = Date.now() - startedAt;
+    // `ratio` is the number to compare against the target: seconds of wall clock
+    // per second of video. The PRD's "10 minutes in under 60s" is ratio < 0.1.
+    const ratio = durationS > 0 ? (totalMs / 1000 / durationS).toFixed(3) : "n/a";
+
     console.log(
-      `[subtitles] Timing download_ms=${dlMs} extract_ms=${extractMs} deepgram_ms=${deepgramMs} total_ms=${Date.now() - startedAt} cues=${cues.length}`,
+      `[subtitles] Timing download_ms=${dlMs} extract_ms=${extractMs} deepgram_ms=${deepgramMs} total_ms=${totalMs} cues=${cues.length} duration_s=${durationS.toFixed(1)} source_bytes=${sourceBytes} ratio=${ratio}`,
     );
     return cues;
   } finally {

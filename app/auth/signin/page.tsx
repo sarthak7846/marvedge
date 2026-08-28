@@ -110,7 +110,12 @@ const SignIn = () => {
           <div className="flex justify-center">
             <button
               type="button"
-              onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+              onClick={() => {
+                const params = new URLSearchParams(window.location.search);
+                signIn("google", {
+                  callbackUrl: params.get("callbackUrl") ?? "/dashboard",
+                });
+              }}
               className="h-10 sm:h-[45px] w-[100px] sm:w-[120px] rounded-md border border-[#D5C9FF] dark:border-[#2f2f44] bg-[#F1ECFF] dark:bg-[#070710] shadow-md hover:shadow-lg transition-all duration-300 active:scale-95 hover:scale-105 flex items-center justify-center cursor-pointer"
               title="Sign in with Google"
             >
