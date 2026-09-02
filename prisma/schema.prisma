@@ -82,6 +82,34 @@ model PasswordReset {
   createdAt DateTime @default(now())
 }
 
+// ---------------------------------------------------------------------------
+// ACCOUNT DELETION AND THE CASCADE CHAIN (OVL PR 7)
+// ---------------------------------------------------------------------------
+// `Demo.user`, `ExportedVideo.user`, `VideoJob.user`, `Review.user` and
+// `CtaClick.demo` carry an EXPLICIT `onDelete: Cascade` that they did not have
+// before. Prisma defaults a REQUIRED relation to `Restrict`, not to anything
+// intuitive, so every one of them was an `ON DELETE RESTRICT` foreign key in
+// the database (see migrations 20250818150238_init, 20260310135638,
+// 20260310163000 and 20260703000000_reconcile_schema_drift).
+//
+// That made `app/api/user/delete/route.ts` broken for any user who owned a
+// demo: it deletes sessions and accounts by hand and then calls
+// `prisma.user.delete()`, which raised a foreign-key violation and returned a
+// 500. Nothing downstream ran. With the OVL models added in PRs 3-4 that stops
+// being merely a broken button and becomes a privacy failure — a viewer's Lead
+// row (name, email, company size, consent record) OUTLIVING the deletion of the
+// account it was collected under is the worst bug this feature can ship.
+//
+// The overlay models themselves were never the problem: VideoOverlayConfig,
+// Lead, PlayerEvent, LeadDelivery and CrmConnection all cascade correctly. The
+// chain broke one link ABOVE them, which is exactly why PR 7 requires this to be
+// verified by a test rather than by reading the file — see
+// app/lib/overlays/cascade.ts and cascade.test.ts, which parse THIS file and
+// fail if any edge below regresses.
+//
+// `View.demoId` / `View.exportedVideoId` stay SetNull, unchanged: a View row is
+// an anonymous counter with no PII, and orphaning it preserves historical
+// totals for the same reason PlayerEventDaily has no foreign key at all.
 model Demo {
   id            String              @id @default(uuid())
   title         String
@@ -99,7 +127,7 @@ model Demo {
   subtitles     Json?
   exportedUrl   String?
   duration      Float?
-  user          User                @relation(fields: [userId], references: [id])
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   tags          String[]            @default([])
   integrations  String[]            @default([])
   userRoles     String[]            @default([])
@@ -161,7 +189,7 @@ model VideoJob {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   demo        Demo?    @relation(fields: [demoId], references: [id])
-  user        User     @relation(fields: [userId], references: [id])
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ExportedVideo {
@@ -178,7 +206,7 @@ model ExportedVideo {
   demoId         String?  @unique
   shareCount     Int      @default(1)
   demo           Demo?    @relation(fields: [demoId], references: [id])
-  user           User     @relation(fields: [userId], references: [id])
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   views          View[]
 
   @@index([userId, createdAt])
@@ -190,7 +218,7 @@ model Review {
   rating    Int
   content   String
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Cta {
@@ -219,7 +247,7 @@ model CtaClick {
   referrer  String?
   timestamp DateTime @default(now())
   cta       Cta?     @relation(fields: [ctaId], references: [id], onDelete: SetNull)
-  demo      Demo     @relation(fields: [demoId], references: [id])
+  demo      Demo     @relation(fields: [demoId], references: [id], onDelete: Cascade)
 
   @@index([demoId, timestamp])
   @@index([ctaId])

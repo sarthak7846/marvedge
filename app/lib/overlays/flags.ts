@@ -23,6 +23,12 @@
 // NEXT_PUBLIC_OVERLAYS_ENABLED unset, all three share routes must render exactly
 // what they render today.
 
+import {
+  DEFAULT_EVENT_RETENTION_DAYS,
+  DEFAULT_LEAD_RETENTION_DAYS,
+  parseRetentionDays,
+} from "./rollup";
+
 const truthy = (value: string | undefined): boolean => value === "true" || value === "1";
 
 /**
@@ -51,4 +57,56 @@ export function isOverlaysPanelEnabled(): boolean {
  */
 export function isOverlaysCrmEnabled(): boolean {
   return truthy(process.env.OVERLAYS_CRM_ENABLED);
+}
+
+// --- Retention and the rollup endpoint (PR 7) ------------------------------
+//
+// These are env READS, not flags, and they live here for the reason the module
+// header gives: `process.env` is touched in this file and nowhere else under
+// app/lib/overlays, so the rest of the library stays isomorphic. The parsing and
+// the defaults themselves are pure and tested in ./rollup.ts.
+
+/**
+ * How long raw PlayerEvent rows are kept, in days. Default 90 (locked decision
+ * 15), overridable with OVERLAYS_EVENT_RETENTION_DAYS.
+ *
+ * Raw events are the expensive, high-volume, per-viewer half of the telemetry.
+ * The rollup they feed is kept indefinitely — deleting an event never deletes a
+ * counted funnel step, see app/api/v3/events/rollup/route.ts for the ordering
+ * that guarantees it.
+ */
+export function eventRetentionDays(): number {
+  return parseRetentionDays(
+    process.env.OVERLAYS_EVENT_RETENTION_DAYS,
+    DEFAULT_EVENT_RETENTION_DAYS
+  );
+}
+
+/**
+ * How long a captured Lead is kept, in days. Default 730 — 24 months (locked
+ * decision 15) — overridable with OVERLAYS_LEAD_RETENTION_DAYS.
+ *
+ * This one is a commitment to a viewer, not a cost control: someone handed over
+ * their name and email under a consent string, and "we keep it forever" is not
+ * what that string says. Deleting a Lead cascades to its LeadDelivery rows.
+ */
+export function leadRetentionDays(): number {
+  return parseRetentionDays(process.env.OVERLAYS_LEAD_RETENTION_DAYS, DEFAULT_LEAD_RETENTION_DAYS);
+}
+
+/**
+ * The shared secret guarding POST /api/v3/events/rollup, or null when unset.
+ *
+ * NULL MEANS THE ENDPOINT IS CLOSED, not open: the route answers 503 rather than
+ * running unauthenticated. An unset secret is a deployment that has not been
+ * configured for the rollup yet, and a maintenance endpoint that deletes rows
+ * must fail shut when nobody has said who may call it.
+ *
+ * Server-only, and never returned in a response body. It is compared with a
+ * timing-safe equality in the route — see app/lib/crm/signature.ts for the same
+ * pattern on the webhook side.
+ */
+export function rollupSecret(): string | null {
+  const raw = process.env.OVERLAYS_ROLLUP_SECRET;
+  return typeof raw === "string" && raw.length > 0 ? raw : null;
 }

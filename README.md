@@ -384,6 +384,109 @@ environment without a rebuild would turn the iframe on while leaving the header
 that bounds it silently absent. Every directive was checked against what the share
 page loads today, so it is a no-op for a flag-off page.
 
+## Overlay Analytics, Lead Inbox and Retention (OVL)
+
+Part of Interactive Video Overlays (issue #302). Three things the person paying
+for the feature actually looks at: the conversion funnel, the leads themselves,
+and the retention that keeps both sustainable.
+
+### The funnel reads the rollup, never raw events
+
+`PlayerEvent` is append-only and high-volume — a `video_start`, a `gate_shown`, a
+`cta_click` and a `video_completed` for a single viewing. The analytics page
+never touches it. It reads **`PlayerEventDaily`**, one row per
+`(demoId, name, date)`, so the page costs the same on day 1000 as on day 1.
+
+The funnel stages are `video_start -> gate_shown -> lead_submitted -> cta_click
+-> video_completed`, shown in aggregate and per demo over a 30-day window.
+
+**Stages are counted independently and are not a strict subset chain.** A demo
+with no lead gate records starts and CTA clicks but no gate views; clicking a
+branching card navigates the viewer away before the video completes. So a later
+stage can exceed an earlier one, conversion is clamped to 0-100%, and a stage
+whose predecessor had no events shows a dash rather than a fabricated ratio.
+
+**Days are UTC.** A row's day is the UTC calendar day of its timestamp, never the
+server's local day and never the viewer's — dating by the reader's timezone would
+mean the same event rolls up to different days for different readers, and a
+timezone change would silently rewrite history. The panel says "UTC" on screen.
+
+### Running the rollup
+
+There is **no scheduler in this repo** (locked decision 10 — no queue, no cron
+service). The rollup is an endpoint; point whatever the deployment already uses
+at it — Vercel Cron, Cloud Scheduler, a GitHub Action, or a shell:
+
+```bash
+curl -X POST https://<host>/api/v3/events/rollup      -H "x-marvedge-rollup-secret: $OVERLAYS_ROLLUP_SECRET"      -H "content-type: application/json"      -d '{"date":"2026-09-01"}'
+```
+
+- `date` is optional and defaults to **yesterday** (UTC), the last day that is
+  certainly complete. Rolling up today is legal and gives a partial count that
+  the next run overwrites.
+- `{"skipRetention": true}` runs the rollup alone. Use it when backfilling a
+  month of days one at a time, so the sweep does not run thirty times.
+- The secret travels in a **header, never a query parameter** — query strings
+  land in access logs, proxy logs and `Referer` headers, and this secret
+  authorises row deletion. It is compared with `timingSafeEqual`.
+- With `OVERLAYS_ROLLUP_SECRET` unset the endpoint answers **503, not 200**: a
+  maintenance route that deletes rows fails shut when nobody has configured who
+  may call it.
+- **Idempotent.** Every write is an upsert that _sets_ the count rather than
+  incrementing it, so a retried cron or two overlapping schedulers land exactly
+  the same numbers. Re-running a day after a bug fix is safe.
+
+### Retention
+
+Both windows run from the same endpoint, **after** the rollup for that date has
+committed. The ordering is load-bearing: `PlayerEventDaily` is the only durable
+record of a funnel step, so deleting a raw event that has not been rolled up yet
+does not lose a row, it loses a _number_, permanently and with nothing to report
+it. The windows do not currently overlap — one edit to the env var is all it
+would take, which is exactly why the order is enforced in code rather than
+assumed.
+
+| Variable                        | Default       | Deletes                                                |
+| :------------------------------ | :------------ | :----------------------------------------------------- |
+| `OVERLAYS_EVENT_RETENTION_DAYS` | `90`          | Raw `PlayerEvent` rows. The rollup they fed is kept.   |
+| `OVERLAYS_LEAD_RETENTION_DAYS`  | `730` (24 mo) | `Lead` rows, and their `LeadDelivery` rows by cascade. |
+
+A non-numeric or non-positive value falls back to the default rather than
+resolving to `0`, which would delete everything older than this morning.
+
+### Lead inbox
+
+`/leads` (behind `NEXT_PUBLIC_OVERLAYS_ENABLED` in the sidebar,
+`OVERLAYS_ENABLED` on the page) lists leads for the signed-in user's demos with
+their per-connection CRM delivery status, paginated and filterable by demo.
+
+- **CSV export** streams from `/api/leads/export` rather than buffering the
+  table, so an export of a successful customer's leads does not become a
+  timeout. Cells are RFC 4180 quoted _and_ formula-neutralised — a value starting
+  `=`, `+`, `-`, `@`, TAB or CR gets a leading apostrophe, so a name field
+  containing `=HYPERLINK(...)` is text in the spreadsheet rather than a live
+  exfiltration link. A UTF-8 BOM is emitted so Excel does not mangle non-ASCII
+  names.
+- **Per-lead delete** for subject-access requests. It is a real delete, not a
+  soft one, and takes the `LeadDelivery` rows with it. It cannot reach a CRM the
+  lead was already forwarded to, and the UI says so.
+- Lead fields are returned to their owner and **never logged**, including from
+  inside the export stream.
+
+### Account deletion
+
+`app/api/user/delete/route.ts` deletes sessions and accounts by hand and relies
+on cascade for the rest. That chain was **broken**: Prisma defaults a required
+relation with no `onDelete` to `Restrict`, so `Demo.userId`,
+`ExportedVideo.userId`, `VideoJob.userId`, `Review.userId` and `CtaClick.demoId`
+were all `ON DELETE RESTRICT`. `prisma.user.delete()` raised a foreign-key
+violation for any user who owned a demo, the route returned a 500, and nothing
+was deleted — including the leads.
+
+Migration `20260902000000_cascade_delete_chain` repairs it, and
+`app/lib/overlays/cascade.test.ts` parses the real `prisma/schema.prisma` and
+fails if any edge regresses.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
