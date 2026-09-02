@@ -110,6 +110,20 @@ export interface LeadGateOverlayProps {
   accentColor?: string;
   /** Server-side mv_sid lookup said this browser has already converted. */
   alreadyCaptured?: boolean;
+  /**
+   * Called once, with WHAT THE VIEWER ACTUALLY TYPED, after a successful submit.
+   *
+   * It exists for PR 6's scheduling prefill and is deliberately narrow: fields
+   * this gate did not ask for are not included, and nothing is remembered across
+   * a page load. A returning viewer recognised by cookie alone reaches the
+   * booking widget with an empty form, which is the correct outcome — consent was
+   * given for us to contact them, and handing their details to a third party is a
+   * fresh disclosure that only this session's own submit authorises.
+   *
+   * The caller must treat the argument as PII: it may not be logged, stored in
+   * localStorage, or put in a URL other than the consented provider prefill.
+   */
+  onCaptured?: (lead: { name?: string; email: string }) => void;
 }
 
 export default function LeadGateOverlay({
@@ -118,6 +132,7 @@ export default function LeadGateOverlay({
   ownerName,
   accentColor = DEFAULT_ACCENT,
   alreadyCaptured = false,
+  onCaptured,
 }: LeadGateOverlayProps) {
   const { playback, telemetry } = usePlayerOverlays();
   const { currentTime, duration, paused } = playback.state;
@@ -225,11 +240,17 @@ export default function LeadGateOverlay({
   const finish = useCallback(() => {
     setCaptured(true);
     writeCaptured(demoId);
+    // Only the fields the gate actually rendered, so a config with no name input
+    // cannot hand a stale one to whoever is listening.
+    onCaptured?.({
+      ...(config.fields.name && name.trim() ? { name: name.trim() } : {}),
+      email: email.trim(),
+    });
     // Closing the slot is all it takes: the host re-resolves the layer on the
     // same pass and releases the video, unless the viewer had paused it
     // themselves or something else is waiting to take the layer.
     setResolved(true);
-  }, [demoId]);
+  }, [config.fields.name, demoId, email, name, onCaptured]);
 
   const onSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {

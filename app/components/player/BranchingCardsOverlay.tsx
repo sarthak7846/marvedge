@@ -64,6 +64,17 @@ export interface BranchingCardsOverlayProps {
   accentColor?: string;
   /** Heading above the pair. Owner copy is not configurable for v1. */
   heading?: string;
+  /**
+   * PR 6's scheduling overlay, offered as a THIRD ACTION BESIDE the two cards
+   * when the owner enabled it there. Absent means the row is not rendered.
+   *
+   * Deliberately not a card: BranchTarget has exactly two variants and a card
+   * that opened an overlay instead of navigating would be a third kind of
+   * destination in everything but name. This is a separate affordance under the
+   * pair, and the pair is untouched by it.
+   */
+  onSchedule?: () => void;
+  scheduleLabel?: string;
 }
 
 export default function BranchingCardsOverlay({
@@ -72,6 +83,8 @@ export default function BranchingCardsOverlay({
   demoId,
   accentColor = DEFAULT_ACCENT,
   heading = "What would you like to see next?",
+  onSchedule,
+  scheduleLabel = "Book a meeting",
 }: BranchingCardsOverlayProps) {
   const { playback, telemetry } = usePlayerOverlays();
   const { currentTime, duration, ended } = playback.state;
@@ -213,6 +226,21 @@ export default function BranchingCardsOverlay({
             </a>
           ))}
         </div>
+
+        {onSchedule ? (
+          <button
+            type="button"
+            onClick={onSchedule}
+            className={[
+              "mt-2.5 w-full rounded-2xl border border-dashed border-[#DCD3F7] px-3 py-2",
+              "text-[12px] font-semibold transition hover:bg-[#F6F3FF]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+            ].join(" ")}
+            style={{ color: accentColor, ["--tw-ring-color" as string]: accentColor }}
+          >
+            {scheduleLabel}
+          </button>
+        ) : null}
       </div>
     </PlayerOverlay>
   );

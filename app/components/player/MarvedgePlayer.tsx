@@ -110,7 +110,7 @@ export default function MarvedgePlayer({
   });
 
   const registry = useOverlayRegistry({ state, actions }, telemetry);
-  const { active, controlsLocked, setLayerEl, context } = registry;
+  const { active, controlsLocked, setLayerEl, setTriggerLayerEl, context } = registry;
   const layer = overlayLayerStyle(active);
 
   /**
@@ -347,6 +347,17 @@ export default function MarvedgePlayer({
 
         {/* THE OVERLAY SLOT. One layer, owned here; overlays portal into it. */}
         <div ref={setLayerEl} className={layer.className} style={layer.style} />
+
+        {/* THE TRIGGER SLOT — see rule 5 in PlayerOverlayHost.tsx. A strip in the
+            top-right corner for standing affordances that must stay reachable
+            while the video plays. It sits BELOW the overlay layer's z-index and
+            passes pointer events through everywhere except the buttons in it, so
+            an empty strip costs the viewer nothing: clicking the video through it
+            still toggles playback. */}
+        <div
+          ref={setTriggerLayerEl}
+          className="pointer-events-none absolute right-3 top-3 z-10 flex flex-col items-end gap-2"
+        />
 
         {children}
       </div>

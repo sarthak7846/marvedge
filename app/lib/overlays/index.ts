@@ -16,10 +16,10 @@ export {
   DEFAULT_CONSENT_TEXT,
   DEFAULT_LEAD_SECONDS,
   DEFAULT_OVERLAY_CONFIG,
+  DEFAULT_SCHEDULING_LABEL,
   MAX_LEAD_SECONDS,
   MAX_TRIGGER_SEC,
   MIN_LEAD_SECONDS,
-  SCHEDULING_HOSTS,
   clamp,
   defaultOverlayConfig,
   overlayConfigFromRow,
@@ -29,10 +29,26 @@ export {
   sanitizeLeadGate,
   sanitizeOverlayConfig,
   sanitizeScheduling,
-  sanitizeSchedulingUrl,
   toHttpUrl,
   type OverlayConfigRow,
 } from "./config";
+
+// The scheduling allow-list and everything derived from it. Exported from its own
+// module rather than through ./config so the CSP builder in next.config.ts can
+// import the host list without pulling the whole sanitiser into the build config.
+export {
+  SCHEDULING_FRAME_SRC,
+  SCHEDULING_HOSTS,
+  SCHEDULING_HOST_SUMMARY,
+  buildSchedulingEmbedUrl,
+  isAllowedSchedulingHost,
+  isSchedulingBookedMessage,
+  sanitizeSchedulingUrl,
+  schedulingEmbedOrigin,
+  splitPrefillName,
+  type SchedulingEmbedOptions,
+  type SchedulingPrefill,
+} from "./schedulingHosts";
 
 export {
   BRANCH_PLACEMENTS,
@@ -149,5 +165,6 @@ export type {
   LeadGateTrigger,
   OverlayConfig,
   SchedulingConfig,
+  SchedulingOpenFrom,
   SchedulingProvider,
 } from "./types";

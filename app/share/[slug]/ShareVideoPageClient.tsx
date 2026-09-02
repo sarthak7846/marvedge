@@ -1,11 +1,13 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import type { CSSProperties } from "react";
+import { useCallback, useState, type CSSProperties } from "react";
 
 import BranchingCardsOverlay from "@/app/components/player/BranchingCardsOverlay";
 import LeadGateOverlay from "@/app/components/player/LeadGateOverlay";
 import MarvedgePlayer from "@/app/components/player/MarvedgePlayer";
+import SchedulingOverlay from "@/app/components/player/SchedulingOverlay";
+import type { SchedulingPrefill } from "@/app/lib/overlays/schedulingHosts";
 import ShareQrCode from "@/app/components/qr/ShareQrCode";
 import type { ResolvedBranchCard } from "@/app/lib/overlays/branch";
 import { isOverlaysPanelEnabled } from "@/app/lib/overlays/flags";
@@ -143,6 +145,45 @@ export default function ShareVideoPageClient({
       ? overlays.branching
       : null;
 
+  // Same two flags again. No demoId requirement and no plan check: scheduling is
+  // free on every plan (decision 14), and the overlay renders nothing by itself
+  // if the stored URL does not survive the host allow-list at render.
+  const scheduling =
+    overlaysEnabled && overlays?.enabled && overlays.scheduling.enabled
+      ? overlays.scheduling
+      : null;
+
+  /**
+   * THE COMPOSITION ROOT FOR "one overlay asks for another".
+   *
+   * The three overlays are siblings inside the player and none of them may reach
+   * into another, so the two facts they share are held here: what the gate
+   * captured (for the booking prefill) and how many times something has asked for
+   * the booking surface. A counter rather than a boolean, so a second request
+   * after the viewer closed the panel re-opens it.
+   *
+   * THE LEAD NEVER LEAVES THIS COMPONENT'S MEMORY. It is not written to
+   * localStorage, not put in a query string except the consented provider
+   * prefill, and gone on reload — see SchedulingPrefill for why that is the
+   * intended lifetime rather than a shortcoming.
+   */
+  const [prefill, setPrefill] = useState<SchedulingPrefill | null>(null);
+  const [scheduleSignal, setScheduleSignal] = useState(0);
+  const requestScheduling = useCallback(() => setScheduleSignal((count) => count + 1), []);
+
+  const onLeadCaptured = useCallback(
+    (lead: { name?: string; email: string }) => {
+      // consented: true is a statement of fact, not a default — POST /api/v3/leads
+      // takes z.literal(true) for consent, so a lead that reaches this callback
+      // cannot have been submitted without the box ticked.
+      setPrefill({ name: lead.name, email: lead.email, consented: true });
+      if (scheduling?.openFrom.gate) {
+        requestScheduling();
+      }
+    },
+    [requestScheduling, scheduling?.openFrom.gate]
+  );
+
   return (
     <main className="min-h-screen bg-[#F2EDFF]">
       <ShareHeader isLoggedIn={isLoggedIn} />
@@ -182,6 +223,7 @@ export default function ShareVideoPageClient({
                     ownerName={ownerName}
                     accentColor={accentColor}
                     alreadyCaptured={leadCaptured}
+                    onCaptured={onLeadCaptured}
                   />
                 ) : null}
                 {branching ? (
@@ -189,6 +231,16 @@ export default function ShareVideoPageClient({
                     cards={branchCards}
                     leadSeconds={branching.leadSeconds}
                     demoId={demoId}
+                    accentColor={accentColor}
+                    onSchedule={scheduling?.openFrom.branch ? requestScheduling : undefined}
+                    scheduleLabel={scheduling?.buttonLabel}
+                  />
+                ) : null}
+                {scheduling ? (
+                  <SchedulingOverlay
+                    config={scheduling}
+                    prefill={prefill}
+                    openSignal={scheduleSignal}
                     accentColor={accentColor}
                   />
                 ) : null}

@@ -19,6 +19,7 @@ import { isOverlaysAllowed } from "@/app/lib/overlays/access";
 import { BRANCH_SLOTS } from "@/app/lib/overlays/branch";
 import { overlayConfigFromRow, sanitizeOverlayConfig } from "@/app/lib/overlays/config";
 import { isOverlaysEnabled } from "@/app/lib/overlays/flags";
+import { SCHEDULING_HOST_SUMMARY, sanitizeSchedulingUrl } from "@/app/lib/overlays/schedulingHosts";
 import type { BranchingConfig } from "@/app/lib/overlays/types";
 
 export const runtime = "nodejs";
@@ -175,6 +176,39 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   // function for its preview, but that copy is a convenience — this is the
   // enforcement point, and it must never trust the client's version of it.
   const config = sanitizeOverlayConfig(parsed.data);
+
+  // THE SCHEDULING ALLOW-LIST, ANSWERED OUT LOUD.
+  //
+  // sanitizeOverlayConfig() has already dropped an off-list URL and forced the
+  // section off, which is the right behaviour for READING a bad row — a public
+  // page must degrade rather than fail. It is the wrong behaviour for a SAVE: an
+  // owner who pastes their Zoom link and gets back a switch that silently turned
+  // itself off has been told nothing, and will paste it again.
+  //
+  // So the rejection is explicit and names the hosts, and it fires only when the
+  // owner was actually trying to turn scheduling on with a URL — a cleared field
+  // is not an error.
+  const requestedScheduling = parsed.data.scheduling;
+  const requestedUrl =
+    typeof requestedScheduling === "object" &&
+    requestedScheduling !== null &&
+    !Array.isArray(requestedScheduling)
+      ? (requestedScheduling as { url?: unknown }).url
+      : undefined;
+  if (
+    typeof requestedUrl === "string" &&
+    requestedUrl.trim().length > 0 &&
+    sanitizeSchedulingUrl(requestedUrl, config.scheduling.provider) === undefined
+  ) {
+    return NextResponse.json(
+      {
+        error: `That scheduling link is not accepted. Use an https link on ${
+          SCHEDULING_HOST_SUMMARY[config.scheduling.provider]
+        } (a subdomain is fine).`,
+      },
+      { status: 400 }
+    );
+  }
 
   // The lead gate is PRO/ENTERPRISE (decision 14). Branching and scheduling are
   // free on every plan and are not checked here. Answering 403 rather than
