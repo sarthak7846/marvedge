@@ -16,12 +16,14 @@
 // from app/lib/qr/sanitize.ts's toQrTargetUrl() rather than imported from it:
 // that module transitively pulls in app/lib/qr/mark.ts, a ~9 KB base64 logo,
 // and this file is loaded by the public player where first-frame time is the
-// whole point. The host-matching discipline is lifted from
-// app/lib/share/qrTarget.ts (which cannot be imported here at all — it reads
-// process.env): match a full hostname by equality or a DOT-ANCHORED suffix,
-// never includes(), never a bare endsWith(root), both of which wave through the
-// look-alike `calendly.com.evil.example`.
+// whole point.
+//
+// THE SCHEDULING HOST ALLOW-LIST IS NOT HERE. It lives in ./schedulingHosts
+// alongside the CSP sources, the postMessage origin and the embed-URL builder
+// that are all derived from it, and is re-exported below for existing callers.
+// That module is where the host-matching discipline is written down.
 
+import { sanitizeSchedulingUrl } from "./schedulingHosts";
 import type {
   BranchCard,
   BranchTarget,
@@ -31,6 +33,7 @@ import type {
   LeadGateTrigger,
   OverlayConfig,
   SchedulingConfig,
+  SchedulingOpenFrom,
   SchedulingProvider,
 } from "./types";
 
@@ -63,14 +66,16 @@ const MAX = {
 } as const;
 
 /**
- * Scheduling hosts that may be framed. Deliberately tiny and deliberately not
- * owner-editable: this is the one place in the feature that puts a third party's
- * document inside our page, and PR 6's CSP `frame-src` is derived from it.
+ * The scheduling allow-list now lives in ./schedulingHosts, which also derives
+ * the CSP `frame-src`, the postMessage origin and the embed-URL builder from the
+ * same constant. Re-exported here so the many existing importers of this module
+ * — and its test suite — keep working unchanged.
+ *
+ * IT MOVED BECAUSE IT GREW A SECOND AND THIRD ENFORCEMENT POINT. Framing a third
+ * party's document is the one thing in this feature that is not just our own
+ * markup, and the rules for it deserve a file rather than a paragraph.
  */
-export const SCHEDULING_HOSTS: Record<SchedulingProvider, readonly string[]> = {
-  calendly: ["calendly.com"],
-  hubspot: ["meetings.hubspot.com"],
-};
+export { SCHEDULING_HOSTS, sanitizeSchedulingUrl } from "./schedulingHosts";
 
 const SCHEDULING_PROVIDERS: readonly SchedulingProvider[] = ["calendly", "hubspot"];
 
@@ -118,8 +123,28 @@ function defaultBranching(): BranchingConfig {
   };
 }
 
+/**
+ * The standing button's label, and the heading over the booking surface. Owner
+ * copy, so it is bounded like every other owner string.
+ */
+export const DEFAULT_SCHEDULING_LABEL = "Book a meeting";
+
+function defaultSchedulingOpenFrom(): SchedulingOpenFrom {
+  // Button only. The other two attach the offer to another overlay resolving,
+  // which is a stronger moment but also a surprise if an owner did not ask for
+  // it — so they are opt-in and this is the one that always works on its own.
+  return { button: true, gate: false, branch: false };
+}
+
 function defaultScheduling(): SchedulingConfig {
-  return { enabled: false, provider: "calendly", url: "", prefill: true };
+  return {
+    enabled: false,
+    provider: "calendly",
+    url: "",
+    prefill: true,
+    openFrom: defaultSchedulingOpenFrom(),
+    buttonLabel: DEFAULT_SCHEDULING_LABEL,
+  };
 }
 
 /**
@@ -203,43 +228,6 @@ export function toHttpUrl(raw: unknown, { httpsOnly = false } = {}): string | un
   // Re-serialize from the parsed URL so what is stored is exactly what a browser
   // will resolve — no stray whitespace, no ambiguous escaping.
   return parsed.toString();
-}
-
-/**
- * Whether `hostname` is `root` or a subdomain of it.
- *
- * Full-hostname equality or a dot-anchored suffix, never a substring test.
- */
-function isHostOrSubdomainOf(hostname: string, root: string): boolean {
-  return hostname === root || hostname.endsWith(`.${root}`);
-}
-
-/**
- * A scheduling URL on one of `provider`'s allow-listed hosts, or undefined.
- *
- * https only: this URL goes into an <iframe> on a page that may itself be a
- * customer's https domain, and a http frame is blocked as mixed content anyway.
- * Exported because PR 6 validates on render as well as on save — an allow-list
- * enforced only at the write boundary stops being one the moment a row is
- * edited by hand.
- */
-export function sanitizeSchedulingUrl(
-  raw: unknown,
-  provider: SchedulingProvider
-): string | undefined {
-  const normalized = toHttpUrl(raw, { httpsOnly: true });
-  if (!normalized) {
-    return undefined;
-  }
-  let parsed: URL;
-  try {
-    parsed = new URL(normalized);
-  } catch {
-    return undefined;
-  }
-  const hostname = parsed.hostname.toLowerCase();
-  const allowed = SCHEDULING_HOSTS[provider];
-  return allowed.some((root) => isHostOrSubdomainOf(hostname, root)) ? normalized : undefined;
 }
 
 /**
@@ -356,6 +344,24 @@ export function sanitizeBranching(raw: unknown): BranchingConfig {
   };
 }
 
+/**
+ * Where the booking surface may be opened from.
+ *
+ * A config with all three off would enable a section nothing can reach, so an
+ * empty selection falls back to the standing button rather than to nothing —
+ * the same "degrade to something coherent" rule the rest of this file follows.
+ */
+function sanitizeSchedulingOpenFrom(raw: unknown): SchedulingOpenFrom {
+  const defaults = defaultSchedulingOpenFrom();
+  const source = isRecord(raw) ? raw : {};
+  const openFrom: SchedulingOpenFrom = {
+    button: readBoolean(source.button, defaults.button),
+    gate: readBoolean(source.gate, defaults.gate),
+    branch: readBoolean(source.branch, defaults.branch),
+  };
+  return openFrom.button || openFrom.gate || openFrom.branch ? openFrom : defaults;
+}
+
 export function sanitizeScheduling(raw: unknown): SchedulingConfig {
   const defaults = defaultScheduling();
   if (!isRecord(raw)) {
@@ -364,6 +370,10 @@ export function sanitizeScheduling(raw: unknown): SchedulingConfig {
   const provider = SCHEDULING_PROVIDERS.includes(raw.provider as SchedulingProvider)
     ? (raw.provider as SchedulingProvider)
     : defaults.provider;
+  // THE ALLOW-LIST, at the write boundary. It is deliberately not the only place
+  // it is applied — buildSchedulingEmbedUrl() runs it again at render, because a
+  // row that never passed through here (hand-edited, restored from a backup) must
+  // still not reach an iframe src.
   const url = sanitizeSchedulingUrl(raw.url, provider);
   return {
     // Same rule as branching: an off-allow-list URL disables the section rather
@@ -372,6 +382,8 @@ export function sanitizeScheduling(raw: unknown): SchedulingConfig {
     provider,
     url: url ?? defaults.url,
     prefill: readBoolean(raw.prefill, defaults.prefill),
+    openFrom: sanitizeSchedulingOpenFrom(raw.openFrom),
+    buttonLabel: readString(raw.buttonLabel, defaults.buttonLabel, MAX.buttonLabel),
   };
 }
 

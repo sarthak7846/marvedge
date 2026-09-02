@@ -4,10 +4,12 @@
 //
 // PR 3 filled it with the LEAD GATE section: enable, hard/soft, when it appears,
 // which fields it asks for, whether a free-mail address is accepted, and every
-// word of copy including the consent sentence. PR 5 adds the BRANCHING section
-// below it; PR 6 adds a Scheduling one, which already exists in the config type
-// and is round-tripped untouched by this panel, so it has to change nothing here
-// beyond adding its own block.
+// word of copy including the consent sentence. PR 5 added the BRANCHING section
+// below it. PR 6 adds the SCHEDULING one, whose URL field validates against the
+// host allow-list HERE, in front of the owner, with the same function the PUT
+// route enforces with — an owner who pastes a Zoom link finds out while they are
+// looking at the field, not by noticing later that the section switched itself
+// off.
 //
 // IT SAVES THE WHOLE CONFIG, NOT A PATCH. PUT /api/demos/[id]/overlays runs
 // sanitizeOverlayConfig() over the body and writes all three sections, so
@@ -35,6 +37,7 @@ import {
   MIN_LEAD_SECONDS,
   sanitizeBranchTarget,
 } from "@/app/lib/overlays/config";
+import { SCHEDULING_HOST_SUMMARY, sanitizeSchedulingUrl } from "@/app/lib/overlays/schedulingHosts";
 import { COMPANY_SIZE_BUCKETS, renderConsentText } from "@/app/lib/overlays/leadGate";
 import type {
   BranchCard,
@@ -43,6 +46,9 @@ import type {
   LeadGateConfig,
   LeadGateTrigger,
   OverlayConfig,
+  SchedulingConfig,
+  SchedulingOpenFrom,
+  SchedulingProvider,
 } from "@/app/lib/overlays/types";
 
 const inputClass =
@@ -318,6 +324,26 @@ const OverlaysPanel: React.FC = () => {
     );
   }, []);
 
+  const patchScheduling = useCallback((patch: Partial<SchedulingConfig>) => {
+    setSavedAt(null);
+    setConfig((prev) => (prev ? { ...prev, scheduling: { ...prev.scheduling, ...patch } } : prev));
+  }, []);
+
+  const patchSchedulingOpenFrom = useCallback((patch: Partial<SchedulingOpenFrom>) => {
+    setSavedAt(null);
+    setConfig((prev) =>
+      prev
+        ? {
+            ...prev,
+            scheduling: {
+              ...prev.scheduling,
+              openFrom: { ...prev.scheduling.openFrom, ...patch },
+            },
+          }
+        : prev
+    );
+  }, []);
+
   const handleSave = useCallback(async () => {
     if (!savedDemoId || !config || saving) {
       return;
@@ -335,10 +361,17 @@ const OverlaysPanel: React.FC = () => {
       setSavedAt(Date.now());
     } catch (err) {
       const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      // The route's 400 for an off-allow-list scheduling link already names the
+      // hosts, so it is shown as-is rather than flattened into "could not save".
+      const message = axios.isAxiosError(err)
+        ? (err.response?.data as { error?: string } | undefined)?.error
+        : undefined;
       setError(
         status === 403
           ? "The lead capture gate is available on the Pro and Enterprise plans."
-          : "Could not save overlay settings."
+          : status === 400 && message
+            ? message
+            : "Could not save overlay settings."
       );
     } finally {
       setSaving(false);
@@ -371,6 +404,14 @@ const OverlaysPanel: React.FC = () => {
   const bothTargetsSet =
     sanitizeBranchTarget(branching.a.target) !== undefined &&
     sanitizeBranchTarget(branching.b.target) !== undefined;
+
+  const scheduling = config.scheduling;
+  // THE ALLOW-LIST, IN THE PANEL — the same function the PUT route refuses with,
+  // so what the owner is told here and what the server does on save cannot
+  // disagree. An empty field is "not set yet", not "rejected".
+  const schedulingUrlValid =
+    scheduling.url.trim().length === 0 ||
+    sanitizeSchedulingUrl(scheduling.url, scheduling.provider) !== undefined;
 
   return (
     <div className="space-y-6">
@@ -632,6 +673,125 @@ const OverlaysPanel: React.FC = () => {
                 Both cards need a destination before either will show. One choice is not a choice.
               </p>
             )}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3 rounded-lg border border-[#ede7fa] bg-[#F6F3FF] p-3">
+        <h3 className="text-sm font-semibold text-[#7C5CFC]">Scheduling</h3>
+        <p className="text-[11px] text-gray-500">
+          Let viewers book a meeting without leaving the video. Free on every plan.
+        </p>
+
+        <Toggle
+          checked={scheduling.enabled}
+          onChange={(enabled) => patchScheduling({ enabled })}
+          label="Offer a booking calendar"
+        />
+
+        {scheduling.enabled && (
+          <div className="space-y-3 border-t border-[#ede7fa] pt-3">
+            <div>
+              <label className={labelClass} htmlFor="ovl-sched-provider">
+                Provider
+              </label>
+              <select
+                id="ovl-sched-provider"
+                value={scheduling.provider}
+                onChange={(e) =>
+                  patchScheduling({ provider: e.target.value as SchedulingProvider })
+                }
+                className={inputClass}
+              >
+                <option value="calendly">Calendly</option>
+                <option value="hubspot">HubSpot Meetings</option>
+              </select>
+            </div>
+
+            <div>
+              <label className={labelClass} htmlFor="ovl-sched-url">
+                Booking link
+              </label>
+              <input
+                id="ovl-sched-url"
+                type="url"
+                value={scheduling.url}
+                onChange={(e) => patchScheduling({ url: e.target.value })}
+                placeholder={
+                  scheduling.provider === "calendly"
+                    ? "https://calendly.com/you/30min"
+                    : "https://meetings.hubspot.com/you"
+                }
+                aria-invalid={!schedulingUrlValid}
+                className={inputClass}
+              />
+              {schedulingUrlValid ? (
+                <p className="mt-1 text-[11px] text-gray-400">
+                  Only {SCHEDULING_HOST_SUMMARY[scheduling.provider]} links can be opened inside the
+                  player. A subdomain is fine.
+                </p>
+              ) : (
+                /* NAMES THE ALLOWED HOSTS. "Invalid URL" tells an owner nothing
+                   they can act on; this tells them exactly what to paste. */
+                <p className="mt-1 text-[11px] text-red-600">
+                  That link cannot be embedded. Use an https link on{" "}
+                  {SCHEDULING_HOST_SUMMARY[scheduling.provider]} (a subdomain is fine) — other hosts
+                  are not allowed inside the video.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className={labelClass} htmlFor="ovl-sched-label">
+                Button label
+              </label>
+              <input
+                id="ovl-sched-label"
+                type="text"
+                value={scheduling.buttonLabel}
+                onChange={(e) => patchScheduling({ buttonLabel: e.target.value })}
+                placeholder="Book a meeting"
+                className={inputClass}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <span className={labelClass}>Where it opens from</span>
+              <Toggle
+                checked={scheduling.openFrom.button}
+                onChange={(button) => patchSchedulingOpenFrom({ button })}
+                label="A button on the video"
+                hint="Always visible while the video plays."
+              />
+              <Toggle
+                checked={scheduling.openFrom.gate}
+                onChange={(gate) => patchSchedulingOpenFrom({ gate })}
+                label="Right after the lead form is submitted"
+                hint="Only fires when the lead capture gate is on."
+              />
+              <Toggle
+                checked={scheduling.openFrom.branch}
+                onChange={(branch) => patchSchedulingOpenFrom({ branch })}
+                label="Beside the branching cards"
+                hint="Only fires when branching cards are on."
+              />
+              {!scheduling.openFrom.button &&
+                !scheduling.openFrom.gate &&
+                !scheduling.openFrom.branch && (
+                  <p className="text-[11px] text-amber-700">
+                    With all three off nothing can open the calendar, so the button is used.
+                  </p>
+                )}
+            </div>
+
+            <div className="border-t border-[#ede7fa] pt-3">
+              <Toggle
+                checked={scheduling.prefill}
+                onChange={(prefill) => patchScheduling({ prefill })}
+                label="Prefill name and email"
+                hint="Only for viewers who filled in the lead form on this visit and ticked the consent box. Nothing else is ever sent."
+              />
+            </div>
           </div>
         )}
       </div>

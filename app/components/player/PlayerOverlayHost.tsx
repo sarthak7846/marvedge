@@ -37,6 +37,18 @@
 //    a bottom sheet on a phone is automatic rather than something each PR
 //    remembers to do.
 //
+//    Two knobs, and deliberately only two. `size` picks between the centred card
+//    and the full-bleed panel a third-party booking widget needs; there is no
+//    className passthrough, because that is how "the host owns the chrome" turns
+//    into three overlays that each own a bit of it.
+//
+// 5. A STANDING BUTTON GOES IN THE TRIGGER SLOT, NOT IN THE OVERLAY LAYER.
+//    <PlayerOverlayTrigger> portals into a small strip in the canvas corner that
+//    is live WHILE THE VIDEO PLAYS. The overlay layer cannot host one: it renders
+//    only the winning overlay, so a button inside it could never be the thing
+//    that opens an overlay. The scheduler's "Book a meeting" is the only user
+//    today. The strip is empty and inert unless something portals into it.
+//
 // ============================================================================
 // TRANSITION TABLE
 // ============================================================================
@@ -62,6 +74,8 @@
 // | overlay, then closes it                |                                                               |
 // | An overlay unmounts while active       | Identical to closing: unregistered, layer re-resolves,         |
 // |                                        | playback released. No overlay can strand a paused video.       |
+// | Any overlay is up                      | The trigger strip renders nothing, so a standing button never   |
+// |                                        | peeks out from behind a panel or offers a way past a hard gate. |
 //
 // ============================================================================
 // AUTOPLAY POLICY — DECIDED, DO NOT CHANGE CASUALLY
@@ -129,6 +143,18 @@ export interface PlayerOverlayContextValue {
   telemetry: TelemetryEmitter;
   /** The DOM node overlays portal into; null until the player has mounted. */
   layer: HTMLElement | null;
+  /**
+   * A second, much smaller portal target for the standing affordances that have
+   * to be reachable WHILE THE VIDEO PLAYS — the scheduler's "Book a meeting"
+   * button is the only one today.
+   *
+   * It exists because the overlay layer is the wrong place for one: that layer
+   * renders only the single winning overlay, so a button living in it could not
+   * be the thing that opens an overlay. Giving the host this slot too keeps rule
+   * 4 intact — an overlay still supplies content only, and the corner it sits in
+   * is still positioned here rather than in three separate files.
+   */
+  triggerLayer: HTMLElement | null;
   activeOverlayId: string | null;
   register(slot: OverlaySlot): void;
   unregister(id: string): void;
@@ -154,6 +180,8 @@ export interface OverlayRegistry {
   controlsLocked: boolean;
   /** Attach to the layer element in the player's DOM. */
   setLayerEl: (el: HTMLDivElement | null) => void;
+  /** Attach to the trigger strip in the player's DOM. */
+  setTriggerLayerEl: (el: HTMLDivElement | null) => void;
   context: PlayerOverlayContextValue;
 }
 
@@ -169,6 +197,7 @@ export function useOverlayRegistry(
 ): OverlayRegistry {
   const [slots, setSlots] = useState<OverlaySlot[]>([]);
   const [layer, setLayer] = useState<HTMLElement | null>(null);
+  const [triggerLayer, setTriggerLayer] = useState<HTMLElement | null>(null);
 
   const register = useCallback((slot: OverlaySlot) => {
     setSlots((prev) => {
@@ -226,17 +255,19 @@ export function useOverlayRegistry(
       playback,
       telemetry,
       layer,
+      triggerLayer,
       activeOverlayId: activeId,
       register,
       unregister,
     }),
-    [activeId, layer, playback, register, telemetry, unregister]
+    [activeId, layer, playback, register, telemetry, triggerLayer, unregister]
   );
 
   return {
     active,
     controlsLocked: areControlsLocked(active),
     setLayerEl: setLayer,
+    setTriggerLayerEl: setTriggerLayer,
     context,
   };
 }
@@ -274,6 +305,20 @@ export function overlayLayerStyle(active: OverlaySlot | null): {
       };
 }
 
+/**
+ * How much of the canvas the panel is allowed to take.
+ *
+ * `card`  — a centred card, at most 28rem. The lead form and the branch pair.
+ * `wide`  — as wide and as tall as the layer allows. THE SCHEDULING IFRAME NEEDS
+ *           THIS: a Calendly inline widget renders a month grid beside a time
+ *           column and simply does not lay out inside 28rem, so shrinking it to
+ *           card width produces a working embed nobody can book from.
+ *
+ * A size rather than a free-form className, so the two shapes stay the two
+ * shapes and rule 4 keeps meaning something.
+ */
+export type PlayerOverlaySize = "card" | "wide";
+
 export interface PlayerOverlayProps {
   kind: OverlayKind;
   /** See rule 3. A hard lead gate is the only blocking overlay today. */
@@ -282,6 +327,7 @@ export interface PlayerOverlayProps {
   open: boolean;
   /** Accessible name for the dialog. Required — this is a modal surface. */
   label: string;
+  size?: PlayerOverlaySize;
   children: ReactNode;
 }
 
@@ -295,7 +341,14 @@ export interface PlayerOverlayProps {
  * Content only: no positioning, no backdrop, no z-index. A max-height and
  * scrolling are already applied, so a long form works on a short phone.
  */
-export function PlayerOverlay({ kind, blocking, open, label, children }: PlayerOverlayProps) {
+export function PlayerOverlay({
+  kind,
+  blocking,
+  open,
+  label,
+  size = "card",
+  children,
+}: PlayerOverlayProps) {
   const { layer, activeOverlayId, register, unregister } = usePlayerOverlays();
   const id = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -341,11 +394,19 @@ export function PlayerOverlay({ kind, blocking, open, label, children }: PlayerO
     >
       <div
         className={[
-          "pointer-events-auto max-h-full w-full overflow-y-auto",
+          "pointer-events-auto max-h-full w-full",
           // Bottom sheet under 640px, centred card above it. A centred card on a
           // phone ends up under the thumb-unreachable middle of the screen and,
           // with the keyboard open for a lead form, half off-screen.
-          "rounded-t-[22px] sm:w-auto sm:max-w-md sm:rounded-[22px]",
+          "rounded-t-[22px] sm:rounded-[22px]",
+          size === "wide"
+            ? // FULL-HEIGHT SHEET ON A PHONE, and the whole layer on a desktop.
+              // A booking widget is a fixed-size document from someone else, so
+              // it gets everything there is rather than a share of it; `flex`
+              // (not overflow-y-auto) because the iframe inside does its own
+              // scrolling and a second scroll container around it traps the page.
+              "flex h-full flex-col overflow-hidden sm:w-full sm:max-w-3xl"
+            : "overflow-y-auto sm:w-auto sm:max-w-md",
           "bg-white text-[#2D1F61] shadow-[0_18px_50px_rgba(22,16,54,0.45)]",
           blocking ? "" : "sm:mb-2",
         ].join(" ")}
@@ -357,4 +418,26 @@ export function PlayerOverlay({ kind, blocking, open, label, children }: PlayerO
     </div>,
     layer
   );
+}
+
+/**
+ * A standing affordance in the corner of the canvas, over the playing video.
+ *
+ * SAME DEAL AS <PlayerOverlay>: content only. The corner, the stacking and the
+ * pointer-events dance belong to the host, so a second trigger added later
+ * queues up under the first instead of landing on top of it.
+ *
+ * It renders NOTHING while a blocking overlay is up. A hard gate means "the
+ * viewer cannot proceed", and a live button floating over the dim would be a way
+ * around it — a small one, but the gate has enough honest caveats already.
+ */
+export function PlayerOverlayTrigger({ children }: { children: ReactNode }) {
+  const { triggerLayer, activeOverlayId } = usePlayerOverlays();
+  // Hidden while ANY overlay is up, not just a blocking one: the layer already
+  // covers the canvas, and a button peeking out from behind a panel reads as a
+  // rendering bug rather than as an option.
+  if (!triggerLayer || activeOverlayId !== null) {
+    return null;
+  }
+  return createPortal(children, triggerLayer);
 }

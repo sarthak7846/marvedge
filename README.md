@@ -57,13 +57,13 @@ also has its own editor in the panel for fine-tuning before or after a full run.
 AVS keys are **server-side only** — never expose them with a `NEXT_PUBLIC_`
 prefix.
 
-| Variable | Where | Purpose |
-| :-- | :-- | :-- |
-| `AVS_ENABLED` | Next app (server) | Master switch for the AVS server routes. Set to `true` to enable. |
-| `NEXT_PUBLIC_AVS_ENABLED` | Next app (client) | Shows the "AI Voice" sidebar panel. Set to `true` to enable. |
-| `OPENAI_API_KEY` | Next app (server) | OpenAI script tone rewrite (`/api/avs/script`). |
-| `GCP_VIDEO_WORKER_URL` | Next app (server) | Reaches the Cloud Run worker for Aura TTS, subtitles, and alignment. |
-| `DEEPGRAM_API_KEY` | **Cloud Run worker only** | Deepgram transcription + Aura TTS. The Next app never holds this key. |
+| Variable                  | Where                     | Purpose                                                               |
+| :------------------------ | :------------------------ | :-------------------------------------------------------------------- |
+| `AVS_ENABLED`             | Next app (server)         | Master switch for the AVS server routes. Set to `true` to enable.     |
+| `NEXT_PUBLIC_AVS_ENABLED` | Next app (client)         | Shows the "AI Voice" sidebar panel. Set to `true` to enable.          |
+| `OPENAI_API_KEY`          | Next app (server)         | OpenAI script tone rewrite (`/api/avs/script`).                       |
+| `GCP_VIDEO_WORKER_URL`    | Next app (server)         | Reaches the Cloud Run worker for Aura TTS, subtitles, and alignment.  |
+| `DEEPGRAM_API_KEY`        | **Cloud Run worker only** | Deepgram transcription + Aura TTS. The Next app never holds this key. |
 
 To enable AVS for a staging/QA environment, set both `AVS_ENABLED=true` and
 `NEXT_PUBLIC_AVS_ENABLED=true` there (plus `OPENAI_API_KEY` and
@@ -80,10 +80,10 @@ watermark, so existing exports are unchanged until enablement.
 
 ### Plan behavior
 
-| | FREE / anonymous | PRO / ENTERPRISE |
-| :-- | :-- | :-- |
-| Watermark | Forced Marvedge badge (bottom-right, 55% opacity). Cannot be customized or removed. | Custom PNG, adjustable opacity + corner, or switched off entirely. |
-| Camera bubble | Recorded and configurable, but not composited into the export. | Composited into the export. |
+|               | FREE / anonymous                                                                    | PRO / ENTERPRISE                                                   |
+| :------------ | :---------------------------------------------------------------------------------- | :----------------------------------------------------------------- |
+| Watermark     | Forced Marvedge badge (bottom-right, 55% opacity). Cannot be customized or removed. | Custom PNG, adjustable opacity + corner, or switched off entirely. |
+| Camera bubble | Recorded and configurable, but not composited into the export.                      | Composited into the export.                                        |
 
 Recording the camera is free for everyone — creation features are not gated. The
 gate sits at export: `app/api/jobs/create/route.ts` re-resolves the watermark
@@ -116,13 +116,13 @@ normal autosave — there is no DB migration.
 
 ### Environment variables
 
-| Variable | Where | Purpose |
-| :-- | :-- | :-- |
-| `WTM_ENABLED` | Next app (server) | Master switch for the watermark render/plan logic and the composite route. Set to `true` to enable. |
-| `NEXT_PUBLIC_WTM_ENABLED` | Next app (client) | Shows the "Branding" sidebar panel and the preview overlays. Set to `true` to enable. |
-| `GCP_VIDEO_WORKER_URL` | Next app (server) | Reaches the Cloud Run worker for the compositing pre-pass. |
-| `WTM_COMPOSITE_FPS` | **Cloud Run worker only** | Frame rate both inputs are normalized to. Optional, defaults to `30`. |
-| `WTM_COMPOSITE_PREFIX` | **Cloud Run worker only** | GCS prefix for composited sources. Optional, defaults to `wtm-composite/`. |
+| Variable                  | Where                     | Purpose                                                                                             |
+| :------------------------ | :------------------------ | :-------------------------------------------------------------------------------------------------- |
+| `WTM_ENABLED`             | Next app (server)         | Master switch for the watermark render/plan logic and the composite route. Set to `true` to enable. |
+| `NEXT_PUBLIC_WTM_ENABLED` | Next app (client)         | Shows the "Branding" sidebar panel and the preview overlays. Set to `true` to enable.               |
+| `GCP_VIDEO_WORKER_URL`    | Next app (server)         | Reaches the Cloud Run worker for the compositing pre-pass.                                          |
+| `WTM_COMPOSITE_FPS`       | **Cloud Run worker only** | Frame rate both inputs are normalized to. Optional, defaults to `30`.                               |
+| `WTM_COMPOSITE_PREFIX`    | **Cloud Run worker only** | GCS prefix for composited sources. Optional, defaults to `wtm-composite/`.                          |
 
 WTM needs no new vendor or API key — it is pure ffmpeg on the existing GCS /
 Cloud Run worker. Both flags are enabled on staging/QA; leave them blank in
@@ -284,6 +284,105 @@ and `/api/qr` returns 404. Note the value is inlined into the client bundle at
 build time: flipping it needs a rebuild for the client, only a restart for the
 server.
 
+## In-Player Scheduling (OVL)
+
+Part of Interactive Video Overlays (issue #302 §2.3). A viewer can book a meeting
+from a Calendly or HubSpot Meetings calendar **inside the video canvas**, without
+leaving the share page. Configured per demo from the editor's **Overlays** panel;
+free on every plan.
+
+Behind `OVERLAYS_ENABLED` + `NEXT_PUBLIC_OVERLAYS_ENABLED`, both default off.
+
+### The allow-list is the feature
+
+This is the only place in the app that puts a third party's document inside our
+page, so the host allow-list — `app/lib/overlays/schedulingHosts.ts` — is the
+deliverable, not plumbing. `calendly.com` and `meetings.hubspot.com`, plus their
+subdomains, **https only**, and it is enforced in three independent places:
+
+1. **On save.** `PUT /api/demos/[id]/overlays` refuses an off-list host with a 400
+   that names the allowed ones, so a bad URL never reaches the database.
+2. **On render.** `buildSchedulingEmbedUrl()` re-runs the check before producing an
+   `iframe` src, so a row that never passed through the save path — hand-edited,
+   restored from a backup — still cannot be framed.
+3. **In the CSP.** `frame-src` is derived from the same constant (see below).
+
+The matching is by full hostname: exact equality or a **dot-anchored** suffix,
+never `includes()` and never a bare `endsWith()`, both of which wave through
+`calendly.com.evil.example`. The parser also infers nothing — an input must
+already say `https://`, which is what rejects a bare host and a protocol-relative
+`//calendly.com/x`. The hostile-input suite is in `schedulingHosts.test.ts`.
+
+The allow-list is deliberately **not owner-editable**. An owner who could add a
+host could frame a credential-harvesting page inside a video carrying their own
+customer's branding.
+
+### The CSP
+
+`next.config.ts` sets the app's first `Content-Security-Policy`, **scoped to
+`/share/:path*` and `/hub/:path*` only**. It is not global: `/video-editor` runs
+ffmpeg.wasm and inline workers, and a blanket policy breaks it on first load.
+
+Both path families are listed because of the customer-domain case — a viewer on
+`demos.acme.com` requests `/share/<slug>` and `middleware.ts` rewrites it to
+`/hub/<domainKey>/share/<slug>`, so matching only one spelling would leave the
+branded route unprotected. `/api` matches neither source and is untouched.
+
+Two honest caveats:
+
+- **It is not XSS protection.** `script-src` carries `'unsafe-inline'` because
+  Next's App Router inlines its bootstrap and flight-data scripts; removing it
+  needs per-request nonces threaded through middleware.
+- **`frame-ancestors` is absent.** Customers embed share links in their own pages
+  today and there is no allow-list of their domains, so adding a restrictive one
+  would silently break existing embeds.
+
+Neither provider needs a `script-src` entry: both are embedded as a **bare iframe
+URL**, never their widget script, so the share page still loads zero third-party
+JavaScript.
+
+### Prefill and consent
+
+When the PR 3 lead gate captured a name and email **in this page session**, they
+are passed to the provider's prefill params — `name`/`email` for Calendly,
+`firstName`/`lastName`/`email` for HubSpot.
+
+Only after consent, and only fields the viewer actually typed. A returning viewer
+recognised by their `mv_sid` cookie but who has typed nothing today reaches the
+widget with an empty form, and that is correct rather than a limitation: consent
+was given for _us_ to make contact, and handing those details to a third party is
+a fresh disclosure that only this session's own submit authorises. The lead never
+leaves the page component's memory — not `localStorage`, not any URL but the
+consented prefill.
+
+### `meeting_booked` is best-effort, and HubSpot is the gap
+
+**Calendly works.** The embed posts a documented `calendly.event_scheduled`
+message, checked against the embed URL's exact origin, and a `meeting_booked`
+`PlayerEvent` is emitted once per mount. Nothing from the message body goes into
+the event's `meta` — a Calendly payload carries the invitee's name and email.
+
+**HubSpot is not reliable.** There is no supported success message for the bare
+meetings iframe. The code matches an observed shape (`meetingBookSucceeded`),
+which HubSpot may change without notice, so **a HubSpot booking may produce no
+`meeting_booked` event at all**. Nothing downstream — the PR 7 funnel included —
+may read the absence of this event as evidence that no meeting was booked. Closing
+this properly needs the HubSpot API rather than a postMessage, which is out of
+scope here.
+
+### Environment variables
+
+| Variable                       | Where             | Purpose                                                                                                         |
+| :----------------------------- | :---------------- | :-------------------------------------------------------------------------------------------------------------- |
+| `OVERLAYS_ENABLED`             | Next app (server) | Master switch: resolves overlay config on the share routes and mounts the overlay API. Set to `true` to enable. |
+| `NEXT_PUBLIC_OVERLAYS_ENABLED` | Next app (client) | Renders the player's overlay layer and the "Overlays" sidebar panel. Set to `true` to enable.                   |
+
+The CSP is **not** behind either flag, deliberately. Next evaluates `headers()` at
+build time and bakes the result into `routes-manifest.json`, so a flag-gated policy
+would really be a build-time gate — and flipping `OVERLAYS_ENABLED` in a deployed
+environment without a rebuild would turn the iframe on while leaving the header
+that bounds it silently absent. Every directive was checked against what the share
+page loads today, so it is a no-op for a flag-off page.
 
 ## Learn More
 

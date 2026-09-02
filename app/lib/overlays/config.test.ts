@@ -242,6 +242,54 @@ describe("sanitizeOverlayConfig — scheduling section", () => {
     expect(config.scheduling.provider).toBe("calendly");
     expect(config.scheduling.enabled).toBe(true);
   });
+
+  it("reads the three open sources independently", () => {
+    const config = sanitizeOverlayConfig({
+      scheduling: {
+        enabled: true,
+        provider: "calendly",
+        url: "https://calendly.com/x",
+        openFrom: { button: false, gate: true, branch: true },
+      },
+    });
+    expect(config.scheduling.openFrom).toEqual({ button: false, gate: true, branch: true });
+  });
+
+  it("falls back to the button when nothing can open the calendar", () => {
+    // All three off would enable a section no viewer can reach.
+    const config = sanitizeOverlayConfig({
+      scheduling: {
+        enabled: true,
+        provider: "calendly",
+        url: "https://calendly.com/x",
+        openFrom: { button: false, gate: false, branch: false },
+      },
+    });
+    expect(config.scheduling.openFrom.button).toBe(true);
+  });
+
+  it("survives a row written before openFrom existed", () => {
+    // Every stored scheduling section on the base branch looks like this.
+    const config = sanitizeOverlayConfig({
+      scheduling: { enabled: true, provider: "calendly", url: "https://calendly.com/x" },
+    });
+    expect(config.scheduling.openFrom).toEqual({ button: true, gate: false, branch: false });
+    expect(config.scheduling.buttonLabel).toBe("Book a meeting");
+  });
+
+  it("bounds the button label and drops junk", () => {
+    const config = sanitizeOverlayConfig({
+      scheduling: {
+        enabled: true,
+        provider: "calendly",
+        url: "https://calendly.com/x",
+        buttonLabel: "L".repeat(200),
+        openFrom: "yes",
+      },
+    });
+    expect(config.scheduling.buttonLabel.length).toBe(60);
+    expect(config.scheduling.openFrom).toEqual({ button: true, gate: false, branch: false });
+  });
 });
 
 describe("sanitizeBranchTarget — exactly two variants", () => {

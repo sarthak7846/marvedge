@@ -99,13 +99,34 @@ export interface BranchingConfig {
 
 export type SchedulingProvider = "calendly" | "hubspot";
 
+/**
+ * Which affordances may open the booking surface. All three can be on at once —
+ * they are places the offer appears, not modes.
+ *
+ * `branch` is an EXTRA ACTION BESIDE the two branch cards, not a third
+ * BranchTarget variant. The target union stays at exactly two by design (see
+ * BranchTarget above); a card that opened an overlay instead of navigating would
+ * be a third kind of destination in everything but name.
+ */
+export interface SchedulingOpenFrom {
+  /** A standing button in the corner of the canvas, available the whole time. */
+  button: boolean;
+  /** Straight after a lead gate is submitted, while the intent is still warm. */
+  gate: boolean;
+  /** Alongside the end-of-video branch cards. */
+  branch: boolean;
+}
+
 export interface SchedulingConfig {
   enabled: boolean;
   provider: SchedulingProvider;
-  /** Must be on the provider's allow-listed host; see config.ts. */
+  /** Must be on the provider's allow-listed host; see ./schedulingHosts. */
   url: string;
   /** Pass a captured lead's name/email into the booking widget's prefill. */
   prefill: boolean;
+  openFrom: SchedulingOpenFrom;
+  /** Label on the standing button and the heading over the booking surface. */
+  buttonLabel: string;
 }
 
 export interface OverlayConfig {
