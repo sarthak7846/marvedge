@@ -111,36 +111,37 @@ model PasswordReset {
 // an anonymous counter with no PII, and orphaning it preserves historical
 // totals for the same reason PlayerEventDaily has no foreign key at all.
 model Demo {
-  id            String              @id @default(uuid())
-  title         String
-  description   String?
-  videoUrl      String
-  startTime     String?
-  endTime       String?
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
-  editing       Json?
-  userId        String
-  isPublic      Boolean             @default(false)
-  publicLink    String?             @unique
-  shareCount    Int                 @default(0)
-  subtitles     Json?
-  exportedUrl   String?
-  duration      Float?
-  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tags          String[]            @default([])
-  integrations  String[]            @default([])
-  userRoles     String[]            @default([])
-  featured      Boolean             @default(false)
-  exportedVideo ExportedVideo?
-  videoJobs     VideoJob[]
-  views         View[]
-  ctas          Cta[]
-  ctaClicks     CtaClick[]
-  audioClips    AudioClip[]
-  overlayConfig VideoOverlayConfig?
-  leads         Lead[]
-  playerEvents  PlayerEvent[]
+  id             String              @id @default(uuid())
+  title          String
+  description    String?
+  videoUrl       String
+  startTime      String?
+  endTime        String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  editing        Json?
+  userId         String
+  isPublic       Boolean             @default(false)
+  publicLink     String?             @unique
+  shareCount     Int                 @default(0)
+  subtitles      Json?
+  exportedUrl    String?
+  duration       Float?
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tags           String[]            @default([])
+  integrations   String[]            @default([])
+  userRoles      String[]            @default([])
+  featured       Boolean             @default(false)
+  exportedVideo  ExportedVideo?
+  videoJobs      VideoJob[]
+  views          View[]
+  ctas           Cta[]
+  ctaClicks      CtaClick[]
+  subtitleTracks SubtitleTrack[]
+  audioClips     AudioClip[]
+  overlayConfig  VideoOverlayConfig?
+  leads          Lead[]
+  playerEvents   PlayerEvent[]
 }
 
 model Tutorial {
@@ -285,6 +286,27 @@ model HubSettings {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// One subtitle track per (demo, language), holding the whole cue array as JSON.
+///
+/// Deliberately NOT the PRD's per-segment SubtitleSegment table: cues are always
+/// read and written as a whole array, so per-segment rows would mean thousands of
+/// inserts and a join on every render for no query benefit. See
+/// Subtitle-Implementation-Plan.md section 3, decision 5.
+model SubtitleTrack {
+  id        String   @id @default(uuid())
+  demoId    String
+  language  String
+  status    String   @default("READY")
+  source    String   @default("stt") // stt | translation | manual
+  cues      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  demo      Demo     @relation(fields: [demoId], references: [id], onDelete: Cascade)
+
+  @@unique([demoId, language])
+  @@index([demoId])
 }
 
 model AudioClip {

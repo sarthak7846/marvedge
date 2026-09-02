@@ -42,6 +42,102 @@ interface EditorPreviewRegionProps {
   isDraggingTimelineRef: React.RefObject<boolean>;
 }
 
+type PreviewLayout = ReturnType<typeof computePreviewLayout>;
+
+// The export-framed video card. Dark mode paints a gradient border; light mode
+// uses the configured browser-frame border/shadow.
+function buildVideoCardStyle(layout: PreviewLayout, isDark: boolean): React.CSSProperties {
+  const { previewFrameAspectRatio, stageHeight, stageMaxWidth, hasCanvasBackground } = layout;
+  const { browserFrameBorder, browserFrameShadow } = layout;
+
+  return {
+    width: "auto",
+    aspectRatio: previewFrameAspectRatio,
+    height: stageHeight,
+    maxWidth: stageMaxWidth,
+    margin: "0 auto",
+    position: "relative",
+    display: "flex",
+    flexDirection: "column",
+    borderRadius: "1.25rem",
+    overflow: "hidden",
+    background: isDark
+      ? `${hasCanvasBackground ? "linear-gradient(#F6F3FF, #F6F3FF)" : "linear-gradient(#000000, #000000)"} padding-box, linear-gradient(135deg, #6c4cff, #8b73ff) border-box`
+      : hasCanvasBackground
+        ? "#F6F3FF"
+        : "#000000",
+    border: isDark ? "1px solid transparent" : browserFrameBorder,
+    boxShadow: isDark
+      ? "0 0 30px rgba(62, 47, 217, 0.25), 0 10px 40px rgba(0, 0, 0, 0.7)"
+      : browserFrameShadow,
+    transition: "width 0.3s ease, height 0.3s ease",
+  };
+}
+
+// Prompts the user to turn recorded click events into zoom effects. Renders
+// nothing once there are no suggestions left, or after they have been applied.
+function AutoZoomSuggestionBanner({ zoom }: { zoom: ZoomEditorApi }) {
+  if (!zoom.extensionEvents || zoom.extensionEvents.length === 0 || zoom.hasAppliedAutoZoom) {
+    return null;
+  }
+
+  return (
+    <div className="w-full max-w-[1120px] mx-auto mb-4 p-4 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 border border-purple-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in">
+      <div className="flex items-center gap-3">
+        <span className="text-xl">🔍</span>
+        <div>
+          <h4 className="text-sm font-semibold text-purple-950">
+            Auto-Zoom suggestions available!
+          </h4>
+          <p className="text-xs text-purple-800">
+            We detected {zoom.extensionEvents.length} click event(s) in your recording. Apply them
+            to automatically zoom in on your clicks.
+          </p>
+        </div>
+      </div>
+      <div className="flex gap-2 shrink-0">
+        <button
+          onClick={zoom.applyAutoZoomSuggestions}
+          className="px-4 py-2 bg-[#8A76FC] hover:bg-[#7c66f5] text-white text-xs font-semibold rounded-lg shadow-sm transition-all duration-200 cursor-pointer"
+        >
+          Apply Zoom Highlights
+        </button>
+        <button
+          onClick={() => zoom.setExtensionEvents([])}
+          className="px-3 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-all cursor-pointer"
+        >
+          Dismiss
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Every editor-store value the preview region reads, in a single shallow subscription.
+function usePreviewStoreState() {
+  return useEditorStore(
+    useShallow((s) => ({
+      videoUrl: s.videoUrl,
+      selectedBackground: s.selectedBackground,
+      isFullscreen: s.isFullscreen,
+      tool: s.tool,
+      aspectRatio: s.aspectRatio,
+      browserFrameDrawBorder: s.browserFrameDrawBorder,
+      browserFrameDrawShadow: s.browserFrameDrawShadow,
+      currentTime: s.currentTime,
+      setCurrentTime: s.setCurrentTime,
+      playing: s.playing,
+      setPlaying: s.setPlaying,
+      volume: s.volume,
+      setVolume: s.setVolume,
+      textColor: s.textColor,
+      setTextColor: s.setTextColor,
+      textFont: s.textFont,
+      setTextFont: s.setTextFont,
+    }))
+  );
+}
+
 export default function EditorPreviewRegion(props: EditorPreviewRegionProps) {
   const { text, zoom, subtitles, isDark, processing, nativeAspectRatio } = props;
   const { playerRef, canvasRef, videoContainerRef } = props;
@@ -69,27 +165,7 @@ export default function EditorPreviewRegion(props: EditorPreviewRegionProps) {
     setTextColor,
     textFont,
     setTextFont,
-  } = useEditorStore(
-    useShallow((s) => ({
-      videoUrl: s.videoUrl,
-      selectedBackground: s.selectedBackground,
-      isFullscreen: s.isFullscreen,
-      tool: s.tool,
-      aspectRatio: s.aspectRatio,
-      browserFrameDrawBorder: s.browserFrameDrawBorder,
-      browserFrameDrawShadow: s.browserFrameDrawShadow,
-      currentTime: s.currentTime,
-      setCurrentTime: s.setCurrentTime,
-      playing: s.playing,
-      setPlaying: s.setPlaying,
-      volume: s.volume,
-      setVolume: s.setVolume,
-      textColor: s.textColor,
-      setTextColor: s.setTextColor,
-      textFont: s.textFont,
-      setTextFont: s.setTextFont,
-    }))
-  );
+  } = usePreviewStoreState();
 
   const layout = computePreviewLayout({
     selectedBackground,
@@ -99,43 +175,13 @@ export default function EditorPreviewRegion(props: EditorPreviewRegionProps) {
     browserFrameDrawShadow,
     isFullscreen,
   });
-  const { hasCanvasBackground, previewObjectFit, previewFrameAspectRatio } = layout;
-  const { browserFrameBorder, browserFrameShadow, stageHeight, stageMaxWidth } = layout;
+  const { hasCanvasBackground, previewObjectFit } = layout;
 
   return (
     <div className="flex-1 min-h-0 overflow-hidden">
       <div className="mt-3" />
 
-      {zoom.extensionEvents && zoom.extensionEvents.length > 0 && !zoom.hasAppliedAutoZoom && (
-        <div className="w-full max-w-[1120px] mx-auto mb-4 p-4 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 border border-purple-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in">
-          <div className="flex items-center gap-3">
-            <span className="text-xl">🔍</span>
-            <div>
-              <h4 className="text-sm font-semibold text-purple-950">
-                Auto-Zoom suggestions available!
-              </h4>
-              <p className="text-xs text-purple-800">
-                We detected {zoom.extensionEvents.length} click event(s) in your recording. Apply
-                them to automatically zoom in on your clicks.
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={zoom.applyAutoZoomSuggestions}
-              className="px-4 py-2 bg-[#8A76FC] hover:bg-[#7c66f5] text-white text-xs font-semibold rounded-lg shadow-sm transition-all duration-200 cursor-pointer"
-            >
-              Apply Zoom Highlights
-            </button>
-            <button
-              onClick={() => zoom.setExtensionEvents([])}
-              className="px-3 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-all cursor-pointer"
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
+      <AutoZoomSuggestionBanner zoom={zoom} />
 
       <div className="flex flex-col items-center w-full max-w-[1200px] mx-auto rounded-2xl bg-transparent">
         <div
@@ -151,31 +197,7 @@ export default function EditorPreviewRegion(props: EditorPreviewRegionProps) {
             ...getBackgroundStyle(),
           }}
         >
-          <div
-            className="editor-video-card"
-            style={{
-              width: "auto",
-              aspectRatio: previewFrameAspectRatio,
-              height: stageHeight,
-              maxWidth: stageMaxWidth,
-              margin: "0 auto",
-              position: "relative",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: "1.25rem",
-              overflow: "hidden",
-              background: isDark
-                ? `${hasCanvasBackground ? "linear-gradient(#F6F3FF, #F6F3FF)" : "linear-gradient(#000000, #000000)"} padding-box, linear-gradient(135deg, #6c4cff, #8b73ff) border-box`
-                : hasCanvasBackground
-                  ? "#F6F3FF"
-                  : "#000000",
-              border: isDark ? "1px solid transparent" : browserFrameBorder,
-              boxShadow: isDark
-                ? "0 0 30px rgba(62, 47, 217, 0.25), 0 10px 40px rgba(0, 0, 0, 0.7)"
-                : browserFrameShadow,
-              transition: "width 0.3s ease, height 0.3s ease",
-            }}
-          >
+          <div className="editor-video-card" style={buildVideoCardStyle(layout, isDark)}>
             <EditorVideoStage
               text={text}
               zoom={zoom}

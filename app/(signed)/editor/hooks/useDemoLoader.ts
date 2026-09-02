@@ -3,6 +3,7 @@ import axios from "axios";
 import { toast } from "react-hot-toast";
 
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
+import type { SubtitleStyle } from "@/app/lib/subtitles";
 import { applyDemoEditing } from "../utils/editingDraft";
 import { resolvePlayableVideoUrl } from "./useURLParams";
 import { SubtitleCue, TextOverlayItem } from "../types";
@@ -14,6 +15,8 @@ interface UseDemoLoaderProps {
   setSegments: (segments: { start: number; end: number }[]) => void;
   setZoomSegments: (segments: ZoomEffect[]) => void;
   setSubtitleCues: (cues: SubtitleCue[]) => void;
+  setSubtitleStyle: (style: Partial<SubtitleStyle> | null) => void;
+  setSubtitleLanguage: (code: string) => void;
   setTextOverlays: (overlays: TextOverlayItem[]) => void;
 }
 
@@ -23,6 +26,8 @@ export function useDemoLoader({
   setSegments,
   setZoomSegments,
   setSubtitleCues,
+  setSubtitleStyle,
+  setSubtitleLanguage,
   setTextOverlays,
 }: UseDemoLoaderProps) {
   const {
@@ -113,6 +118,8 @@ export function useDemoLoader({
             setCurrentSegments,
             setZoomSegments,
             setSubtitleCues,
+            setSubtitleStyle,
+            setSubtitleLanguage,
             setTextOverlays,
             setSelectedBackground,
             setBackgroundType,
@@ -153,11 +160,22 @@ export function useDemoLoader({
     setSegments,
     setZoomSegments,
     setSubtitleCues,
+    setSubtitleStyle,
+    setSubtitleLanguage,
     setTextOverlays,
   ]);
 
-  // CTAs live in the Cta table, not in demo.editing, so load them separately.
-  // Degrades gracefully: a missing/empty endpoint just leaves the list empty.
+  useCtaLoader({ savedDemoId, params, setCtas });
+  useSubscribedToast();
+}
+
+// CTAs live in the Cta table, not in demo.editing, so load them separately.
+// Degrades gracefully: a missing/empty endpoint just leaves the list empty.
+function useCtaLoader({
+  savedDemoId,
+  params,
+  setCtas,
+}: Pick<EditorState, "savedDemoId" | "params" | "setCtas">) {
   useEffect(() => {
     const demoId = savedDemoId || params?.get("demoId");
     if (!demoId) {
@@ -191,7 +209,10 @@ export function useDemoLoader({
       isMounted = false;
     };
   }, [savedDemoId, params, setCtas]);
+}
 
+// Acknowledge a successful checkout redirect once, then strip the flag from the URL.
+function useSubscribedToast() {
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     if (searchParams.get("subscribed") === "true") {

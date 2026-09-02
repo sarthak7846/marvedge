@@ -21,6 +21,101 @@ interface SaveDemoModalProps {
   isSaved?: boolean;
 }
 
+const FIELD_CLASS =
+  "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] focus:border-[#7C5CFC] transition-all text-black";
+
+const LABEL_CLASS = "block text-sm font-medium text-gray-700 mb-2";
+
+// The comma-separated metadata fields (tags, integrations, roles) all parse the same way.
+function splitCsv(value: string): string[] {
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function LabeledTextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <label className={LABEL_CLASS}>{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={FIELD_CLASS}
+        disabled={disabled}
+      />
+    </div>
+  );
+}
+
+// The comma-separated metadata, seeded from the demo being edited (or reset for a new one).
+function useDemoMetadata(isOpen: boolean) {
+  const [tags, setTags] = useState("");
+  const [integrations, setIntegrations] = useState("");
+  const [userRoles, setUserRoles] = useState("");
+  const [featured, setFeatured] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    const demoId = new URLSearchParams(window.location.search).get("demoId");
+    if (!demoId) {
+      setTags("");
+      setIntegrations("");
+      setUserRoles("");
+      setFeatured(false);
+      return;
+    }
+    fetch(`/api/demo?id=${demoId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.demo) {
+          setTags((data.demo.tags || []).join(", "));
+          setIntegrations((data.demo.integrations || []).join(", "));
+          setUserRoles((data.demo.userRoles || []).join(", "));
+          setFeatured(!!data.demo.featured);
+        }
+      })
+      .catch((err) => console.error("Error loading demo metadata:", err));
+  }, [isOpen]);
+
+  return {
+    tags,
+    setTags,
+    integrations,
+    setIntegrations,
+    userRoles,
+    setUserRoles,
+    featured,
+    setFeatured,
+  };
+}
+
+// Prevent body scroll while the modal is open.
+function useLockBodyScroll(isOpen: boolean) {
+  useEffect(() => {
+    document.body.style.overflow = isOpen ? "hidden" : "unset";
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isOpen]);
+}
+
 export default function SaveDemoModal({
   isOpen,
   onClose,
@@ -32,10 +127,16 @@ export default function SaveDemoModal({
 }: SaveDemoModalProps) {
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
-  const [tags, setTags] = useState("");
-  const [integrations, setIntegrations] = useState("");
-  const [userRoles, setUserRoles] = useState("");
-  const [featured, setFeatured] = useState(false);
+  const {
+    tags,
+    setTags,
+    integrations,
+    setIntegrations,
+    userRoles,
+    setUserRoles,
+    featured,
+    setFeatured,
+  } = useDemoMetadata(isOpen);
 
   // Update internal state when props change
   useEffect(() => {
@@ -43,63 +144,18 @@ export default function SaveDemoModal({
     setDescription(initialDescription);
   }, [initialTitle, initialDescription]);
 
-  // Load existing metadata if editing an existing demo
-  useEffect(() => {
-    if (isOpen) {
-      const demoId = new URLSearchParams(window.location.search).get("demoId");
-      if (demoId) {
-        fetch(`/api/demo?id=${demoId}`)
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.success && data.demo) {
-              setTags((data.demo.tags || []).join(", "));
-              setIntegrations((data.demo.integrations || []).join(", "));
-              setUserRoles((data.demo.userRoles || []).join(", "));
-              setFeatured(!!data.demo.featured);
-            }
-          })
-          .catch((err) => console.error("Error loading demo metadata:", err));
-      } else {
-        setTags("");
-        setIntegrations("");
-        setUserRoles("");
-        setFeatured(false);
-      }
-    }
-  }, [isOpen]);
+  useLockBodyScroll(isOpen);
 
   const handleSave = () => {
     onSave({
       title,
       description,
-      tags: tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean),
-      integrations: integrations
-        .split(",")
-        .map((i) => i.trim())
-        .filter(Boolean),
-      userRoles: userRoles
-        .split(",")
-        .map((r) => r.trim())
-        .filter(Boolean),
+      tags: splitCsv(tags),
+      integrations: splitCsv(integrations),
+      userRoles: splitCsv(userRoles),
       featured,
     });
   };
-
-  // Prevent body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
-
-    return () => {
-      document.body.style.overflow = "unset";
-    };
-  }, [isOpen]);
 
   if (!isOpen) {
     return null;
@@ -125,74 +181,50 @@ export default function SaveDemoModal({
 
         {/* Form */}
         <div className="space-y-4">
-          {/* Title Input */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Title *</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter demo title..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] focus:border-[#7C5CFC] transition-all text-black"
-              disabled={processing}
-            />
-          </div>
+          <LabeledTextField
+            label="Title *"
+            value={title}
+            onChange={setTitle}
+            placeholder="Enter demo title..."
+            disabled={processing}
+          />
 
           {/* Description Input */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+            <label className={LABEL_CLASS}>Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Enter demo description..."
               rows={3}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] focus:border-[#7C5CFC] transition-all resize-none text-black"
+              className={`${FIELD_CLASS} resize-none`}
               disabled={processing}
             />
           </div>
 
-          {/* Tags Input */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
-            <input
-              type="text"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              placeholder="e.g. analytics, pricing (comma-separated)"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] focus:border-[#7C5CFC] transition-all text-black"
-              disabled={processing}
-            />
-          </div>
+          <LabeledTextField
+            label="Tags"
+            value={tags}
+            onChange={setTags}
+            placeholder="e.g. analytics, pricing (comma-separated)"
+            disabled={processing}
+          />
 
-          {/* Integrations Input */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Target Integrations
-            </label>
-            <input
-              type="text"
-              value={integrations}
-              onChange={(e) => setIntegrations(e.target.value)}
-              placeholder="e.g. Slack, HubSpot, Zoom (comma-separated)"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] focus:border-[#7C5CFC] transition-all text-black"
-              disabled={processing}
-            />
-          </div>
+          <LabeledTextField
+            label="Target Integrations"
+            value={integrations}
+            onChange={setIntegrations}
+            placeholder="e.g. Slack, HubSpot, Zoom (comma-separated)"
+            disabled={processing}
+          />
 
-          {/* User Roles Input */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Target User Roles
-            </label>
-            <input
-              type="text"
-              value={userRoles}
-              onChange={(e) => setUserRoles(e.target.value)}
-              placeholder="e.g. Manager, Developer, Admin (comma-separated)"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7C5CFC] focus:border-[#7C5CFC] transition-all text-black"
-              disabled={processing}
-            />
-          </div>
+          <LabeledTextField
+            label="Target User Roles"
+            value={userRoles}
+            onChange={setUserRoles}
+            placeholder="e.g. Manager, Developer, Admin (comma-separated)"
+            disabled={processing}
+          />
 
           {/* Featured Checkbox */}
           <div className="flex items-center gap-2 pt-2">

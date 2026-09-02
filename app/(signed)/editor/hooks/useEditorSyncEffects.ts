@@ -69,23 +69,28 @@ export function useEditorSyncEffects({
     }
   }, [savedDemoId, setDemoSaved]);
 
+  // Seed the local timeline from loaded demo data once. The empty-length guards
+  // keep these one-shot, so listing every dependency does not re-seed on edits.
   useEffect(() => {
-    if (currentSegments.length > 0 && segments.length === 0) {
-      const numeric = currentSegments
-        .map((s) => ({
-          start: typeof s.start === "string" ? parseFloat(s.start) : Number(s.start),
-          end: typeof s.end === "string" ? parseFloat(s.end) : Number(s.end),
-        }))
-        .filter((s) => !isNaN(s.start) && !isNaN(s.end));
-      if (numeric.length > 0) {
-        setSegments(numeric);
-      }
+    if (currentSegments.length === 0 || segments.length > 0) {
+      return;
     }
+    const numeric = currentSegments
+      .map((s) => ({
+        start: typeof s.start === "string" ? parseFloat(s.start) : Number(s.start),
+        end: typeof s.end === "string" ? parseFloat(s.end) : Number(s.end),
+      }))
+      .filter((s) => !isNaN(s.start) && !isNaN(s.end));
+    if (numeric.length > 0) {
+      setSegments(numeric);
+    }
+  }, [currentSegments, segments.length, setSegments]);
 
+  useEffect(() => {
     if (zoomEffects.length > 0 && zoomSegments.length === 0) {
       setZoomSegments(zoomEffects);
     }
-  }, [currentSegments, zoomEffects]);
+  }, [zoomEffects, zoomSegments.length, setZoomSegments]);
 
   useEffect(() => {
     if (!Number.isFinite(resolvedDuration) || resolvedDuration <= 0) {

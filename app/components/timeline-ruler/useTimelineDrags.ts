@@ -1,5 +1,13 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ZoomEffect } from "../../types/editor/zoom-effect";
+import {
+  DragState,
+  DragSubtitleState,
+  DragZoomState,
+  DragTextState,
+  DragAudioState,
+  TextOverlayItem,
+} from "./types";
 import { AudioClipDto } from "../../types/audio";
 import {
   ClipPlacement,
@@ -7,8 +15,14 @@ import {
   getClipTimelineWindow,
 } from "../../store/audioClipStore";
 import { isProcessingStatus } from "../../lib/audio/status";
-import { DragState, DragZoomState, DragTextState, DragAudioState, TextOverlayItem } from "./types";
 import { TimelineBlock, getAllBlocks } from "./useTimelineRuler";
+import {
+  SUBTITLE_DRAG_THRESHOLD_PX,
+  SUBTITLE_SNAP_PX,
+  resolveCueDrag,
+  snapSecondsForZoom,
+} from "./subtitleTrackLayout";
+import type { SubtitleCue } from "@/app/(signed)/editor/types";
 
 type TrimSegment = { start: number; end: number };
 type NumberSetter = React.Dispatch<React.SetStateAction<number>>;
@@ -732,6 +746,147 @@ export function useTextOverlayDrag({
   ]);
 
   return { dragTextState, setDragTextState };
+}
+
+/**
+ * Drag and resize for the timeline's subtitle track (SUB-6.4).
+ *
+ * The same shape as the three hooks above — a `DragSubtitleState` with `edge`
+ * and `segment` modes, set on mousedown by the block, window listeners that
+ * convert pointer travel into seconds through `zoomedTimelineWidth` — but the
+ * mutation goes somewhere else, and deliberately so.
+ *
+ * `handleBlockDrag` / `handleBlockResize` above resolve collisions by RIPPLING:
+ * a moved block pushes its neighbours along the track, and blocks live on
+ * multiple lanes assigned by `resolveTracks`. Neither is right for cues. Cues
+ * occupy one fixed lane, and their non-overlap invariant belongs to
+ * `normalizeCues` — which the render worker's cue remapping depends on and
+ * which resolves overlaps by truncation, not by rippling, precisely so a drag
+ * cannot silently re-time the rest of a 150-cue transcript. So the arithmetic
+ * is `resolveCueDrag` (pure, tested in subtitleTrackLayout.test.ts) and the
+ * caller applies the result through the subtitle store.
+ *
+ * Every frame is resolved against the cue list as it was at mousedown, which
+ * `getOriginCues` supplies once per gesture. That is what makes a drag
+ * reversible and what lets the whole gesture collapse into one undo step.
+ *
+ * The callbacks and the playhead are held in refs, so the effect's dependencies
+ * are only the gesture and the geometry: with 150 cues, re-registering two
+ * window listeners on every mousemove (each of which changes the cue list) is
+ * the difference between a smooth drag and a stuttering one.
+ */
+export function useSubtitleCueDrag({
+  minValue,
+  maxValue,
+  zoomedTimelineWidth,
+  playheadSeconds,
+  snapPx = SUBTITLE_SNAP_PX,
+  getOriginCues,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+}: {
+  minValue: number;
+  maxValue: number;
+  zoomedTimelineWidth: number;
+  /** Playhead position — a snap target, read fresh on every move. */
+  playheadSeconds: number;
+  /** Snap radius in pixels. Constant on screen at every zoom level. */
+  snapPx?: number;
+  /** The cue list to resolve this gesture against, read once at mousedown. */
+  getOriginCues: () => SubtitleCue[];
+  onDragStart: () => void;
+  onDragMove: (cues: SubtitleCue[]) => void;
+  onDragEnd: () => void;
+}) {
+  const [dragSubtitleState, setDragSubtitleState] = useState<DragSubtitleState | null>(null);
+
+  const getOriginCuesRef = useRef(getOriginCues);
+  const onDragStartRef = useRef(onDragStart);
+  const onDragMoveRef = useRef(onDragMove);
+  const onDragEndRef = useRef(onDragEnd);
+  const playheadRef = useRef(playheadSeconds);
+
+  useEffect(() => {
+    getOriginCuesRef.current = getOriginCues;
+    onDragStartRef.current = onDragStart;
+    onDragMoveRef.current = onDragMove;
+    onDragEndRef.current = onDragEnd;
+    playheadRef.current = playheadSeconds;
+  }, [getOriginCues, onDragStart, onDragMove, onDragEnd, playheadSeconds]);
+
+  useEffect(() => {
+    if (!dragSubtitleState) {
+      return;
+    }
+
+    const pixelsPerUnit = zoomedTimelineWidth / (maxValue - minValue);
+    if (!Number.isFinite(pixelsPerUnit) || pixelsPerUnit <= 0) {
+      return;
+    }
+
+    const origin = getOriginCuesRef.current();
+    onDragStartRef.current();
+
+    // A click is a mousedown and a mouseup with a stray zero-distance move in
+    // between; without a threshold that move would snap the cue onto a
+    // neighbour and selecting a block would silently retime it.
+    let dragging = false;
+    const snapSeconds = snapSecondsForZoom(pixelsPerUnit, snapPx);
+
+    const onMove = (e: MouseEvent) => {
+      const deltaPx = e.clientX - dragSubtitleState.startX;
+      if (!dragging) {
+        if (Math.abs(deltaPx) < SUBTITLE_DRAG_THRESHOLD_PX) {
+          return;
+        }
+        dragging = true;
+      }
+      const deltaSeconds = deltaPx / pixelsPerUnit;
+      const next = resolveCueDrag(
+        origin,
+        dragSubtitleState.mode === "edge"
+          ? {
+              index: dragSubtitleState.index,
+              mode: "edge",
+              side: dragSubtitleState.side,
+              startValue: dragSubtitleState.startValue,
+              deltaSeconds,
+            }
+          : {
+              index: dragSubtitleState.index,
+              mode: "segment",
+              startValue: dragSubtitleState.startValue,
+              endValue: dragSubtitleState.endValue,
+              deltaSeconds,
+            },
+        {
+          minValue,
+          maxValue,
+          snapSeconds,
+          playheadSeconds: playheadRef.current,
+        }
+      );
+      if (next) {
+        onDragMoveRef.current(next);
+      }
+    };
+
+    const onUp = () => {
+      setDragSubtitleState(null);
+      onDragEndRef.current();
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [dragSubtitleState, minValue, maxValue, zoomedTimelineWidth, snapPx]);
+
+  return { dragSubtitleState, setDragSubtitleState };
 }
 
 /**

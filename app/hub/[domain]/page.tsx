@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/app/lib/prisma";
 import HubClient from "./HubClient";
+import { cuesToSearchText } from "@/app/lib/subtitles";
 
 type PageProps = {
   params: Promise<{ domain: string }>;
@@ -61,9 +62,11 @@ export default async function HubPage({ params }: PageProps) {
     userRoles: d.userRoles,
     featured: d.featured,
     viewsCount: d.views.length,
-    subtitlesText: Array.isArray(d.subtitles)
-      ? (d.subtitles as { text?: string }[]).map((cue) => cue.text || "").join(" ")
-      : "",
+    // Tolerates both shapes the column has been written in: the bare cue array
+    // written now, and the legacy `{ provider, language, cues }` wrapper. The
+    // inline `Array.isArray` this replaces was always false against the wrapper,
+    // so hub subtitle search silently matched nothing.
+    subtitlesText: cuesToSearchText(d.subtitles),
   }));
 
   return (

@@ -3,8 +3,10 @@ import Image from "next/image";
 import { MainTab } from "./backgroundOptions";
 import { isAvsPanelEnabled } from "@/app/lib/avs/flags";
 import { isWtmPanelEnabled } from "@/app/lib/wtm/flags";
+import { isSubtitleEditorEnabled } from "@/app/lib/subtitles";
 import { isAudioPanelEnabled } from "@/app/lib/audio/flags";
 import { isOverlaysPanelEnabled } from "@/app/lib/overlays/flags";
+import SidebarTabs from "./SidebarTabs";
 
 interface SidebarHeaderProps {
   title: string;
@@ -27,6 +29,17 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({
   activeTab,
   setActiveTab,
 }) => {
+  const tabs: { id: MainTab; label: string }[] = [
+    { id: "background", label: "Background" },
+    { id: "tools", label: "Tools" },
+    { id: "cta", label: "CTA" },
+    ...(isAvsPanelEnabled() ? [{ id: "avs" as MainTab, label: "AI Voice" }] : []),
+    ...(isSubtitleEditorEnabled() ? [{ id: "subtitles" as MainTab, label: "Subtitles" }] : []),
+    ...(isAudioPanelEnabled() ? [{ id: "audio" as MainTab, label: "Audio" }] : []),
+    ...(isWtmPanelEnabled() ? [{ id: "branding" as MainTab, label: "Branding" }] : []),
+    ...(isOverlaysPanelEnabled() ? [{ id: "overlays" as MainTab, label: "Overlays" }] : []),
+  ];
+
   return (
     <>
       <div className="flex items-center gap-3">
@@ -78,72 +91,7 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({
         {}
       </div>
 
-      <div className="tab-switcher flex justify-between bg-[#F6F3FF] rounded-xl p-1">
-        <button
-          className={`tab-item flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
-            activeTab === "background" ? "active bg-white text-[#7C5CFC] shadow" : "text-gray-600"
-          }`}
-          onClick={() => setActiveTab("background")}
-        >
-          Background
-        </button>
-        <button
-          className={`tab-item flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
-            activeTab === "tools" ? "active bg-white text-[#7C5CFC] shadow" : "text-gray-600"
-          }`}
-          onClick={() => setActiveTab("tools")}
-        >
-          Tools
-        </button>
-        <button
-          className={`tab-item flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
-            activeTab === "cta" ? "active bg-white text-[#7C5CFC] shadow" : "text-gray-600"
-          }`}
-          onClick={() => setActiveTab("cta")}
-        >
-          CTA
-        </button>
-        {isAvsPanelEnabled() && (
-          <button
-            className={`tab-item flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
-              activeTab === "avs" ? "active bg-white text-[#7C5CFC] shadow" : "text-gray-600"
-            }`}
-            onClick={() => setActiveTab("avs")}
-          >
-            AI Voice
-          </button>
-        )}
-        {isAudioPanelEnabled() && (
-          <button
-            className={`tab-item flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
-              activeTab === "audio" ? "active bg-white text-[#7C5CFC] shadow" : "text-gray-600"
-            }`}
-            onClick={() => setActiveTab("audio")}
-          >
-            Audio
-          </button>
-        )}
-        {isWtmPanelEnabled() && (
-          <button
-            className={`tab-item flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
-              activeTab === "branding" ? "active bg-white text-[#7C5CFC] shadow" : "text-gray-600"
-            }`}
-            onClick={() => setActiveTab("branding")}
-          >
-            Branding
-          </button>
-        )}
-        {isOverlaysPanelEnabled() && (
-          <button
-            className={`tab-item flex-1 cursor-pointer py-2 rounded-lg text-sm font-semibold ${
-              activeTab === "overlays" ? "active bg-white text-[#7C5CFC] shadow" : "text-gray-600"
-            }`}
-            onClick={() => setActiveTab("overlays")}
-          >
-            Overlays
-          </button>
-        )}
-      </div>
+      <SidebarTabs tabs={tabs} activeTab={activeTab} setActiveTab={setActiveTab} />
     </>
   );
 };

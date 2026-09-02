@@ -4,6 +4,7 @@ import { Copy } from "lucide-react";
 import toast from "react-hot-toast";
 
 import ShareQrCode from "./qr/ShareQrCode";
+import { SubtitleDownloadCard } from "./subtitles/SubtitleDownloadButtons";
 
 interface ExportResultModalProps {
   isOpen: boolean;
@@ -75,6 +76,12 @@ export default function ExportResultModal({
             />
           </div>
         )}
+
+        {/* SUB PR 6: the caption files, at the moment someone is collecting the
+            artefacts of this export. Renders nothing when the demo has no
+            subtitles, or when the subtitle flag is off. Same radius and border
+            as the QR card above it. */}
+        <SubtitleDownloadCard className="mb-6 rounded-2xl border-[#D9D1FA]" />
 
         <div className="flex gap-3">
           <button

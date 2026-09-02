@@ -163,6 +163,14 @@ export async function invokeGcpWorker(
 export type GcpSubtitlesPayload = {
   videoUrl: string;
   language?: string;
+  /**
+   * Per-call ceiling on the worker round-trip. Omitted, the shared default
+   * applies, so every existing caller is unchanged; the subtitle route scales it
+   * with the source length (see `subtitleWorkerTimeoutMs`), because download,
+   * ffmpeg extract and Deepgram all grow with the input and a fixed 180s turns a
+   * long video into a spurious abort.
+   */
+  timeoutMs?: number;
 };
 
 export async function invokeGcpSubtitles(payload: GcpSubtitlesPayload) {
@@ -172,7 +180,8 @@ export async function invokeGcpSubtitles(payload: GcpSubtitlesPayload) {
       videoUrl: payload.videoUrl,
       recipe: { language: payload.language || "multi" },
     },
-    "/subtitles"
+    "/subtitles",
+    typeof payload.timeoutMs === "number" ? { timeoutMs: payload.timeoutMs } : {}
   );
 
   const cues = (
