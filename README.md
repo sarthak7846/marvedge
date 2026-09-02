@@ -487,6 +487,259 @@ Migration `20260902000000_cascade_delete_chain` repairs it, and
 `app/lib/overlays/cascade.test.ts` parses the real `prisma/schema.prisma` and
 fails if any edge regresses.
 
+## Interactive Video Overlays (OVL)
+
+OVL turns the public share page into an interactive demo: a **lead-capture
+gate**, **branching cards** at the end of the video, an **in-player scheduling
+widget**, **player telemetry** feeding an overlay funnel, and — this section's
+last two pieces — **adaptive-bitrate HLS** and **signed media**. It replaces the
+browser's native `<video controls>` with a player we own, which is what makes all
+five possible.
+
+It ships behind feature flags and is a **complete no-op when they are off**. With
+`NEXT_PUBLIC_OVERLAYS_ENABLED` unset, all three share routes render exactly what
+they rendered before the feature existed: the same markup, the same native
+`<video controls>`, the same `View` and `CtaClick` rows. That is the acceptance
+criterion for the whole feature, not an aspiration.
+
+### The three share routes are one component
+
+`app/share/[slug]/ShareVideoPageClient.tsx` is **the** public player component. It
+is rendered by all three viewer routes:
+
+| Route                            | Served on                                       |
+| :------------------------------- | :---------------------------------------------- |
+| `/share/[slug]`                  | marvedge.com                                    |
+| `/share/video/[id]`              | marvedge.com, for a bare exported video         |
+| `/hub/[domain]/share/[slug]`     | a **customer-owned domain**, via `middleware.ts` |
+
+Anything added there reaches all three at once — and has to be correct on the
+customer's domain too, where the brand colours come from `HubSettings` and must
+not be Marvedge purple. `middleware.ts` rewrites a non-apex host to
+`/hub/<domainKey>/…` but **skips everything under `/api`**, so a player on
+`demos.acme.com` posts same-origin to `/api/v3/…` and lands in this same
+deployment with the same `mv_sid` cookie scope.
+
+### The flow
+
+1. **Configure** — the editor's **Overlays** sidebar panel writes to a
+   `VideoOverlayConfig` row (its own table, *not* `Demo.editing`, which is the
+   editor's autosaved draft and gets wholesale-overwritten).
+2. **Gate** — the player opens the lead form at the configured trigger. `hard`
+   holds the video paused and inerts the control bar; `soft` offers a skip. A
+   submission writes a `Lead` row carrying **the exact consent sentence that was
+   on screen**, and fans out to the owner's CRM connections in `after()`.
+3. **Branch** — in the last few seconds, two cards offer a choice of another demo
+   or an external URL. Branch cards **are** `Cta` rows with placement
+   `branch-a` / `branch-b`, so a click writes a `CtaClick` row *and* emits a
+   `cta_click` event — both, always.
+4. **Schedule** — a Calendly or HubSpot booking widget opens inline, from a
+   standing button, straight after a gate submission, or beside the branch cards.
+   The URL must survive a host allow-list.
+5. **Measure** — the player emits `PlayerEvent` rows; a nightly rollup folds them
+   into `PlayerEventDaily`, which is what the analytics funnel reads. Telemetry is
+   **additive** — every existing `View` and `CtaClick` write is still there.
+6. **Package** — on export completion, the Cloud Run worker encodes an HLS ladder
+   and the share page starts serving the playlist instead of the MP4.
+
+### Plan behaviour
+
+|                         | FREE / anonymous | PRO / ENTERPRISE |
+| :---------------------- | :--------------- | :--------------- |
+| Lead-capture gate       | Not available    | Available        |
+| CRM delivery            | Not available    | Available        |
+| Branching cards         | Available        | Available        |
+| In-player scheduling    | Available        | Available        |
+| Overlay funnel + inbox  | Not available    | Available        |
+
+Branching and scheduling are free **on purpose**: CTAs are free today, and gating
+them would remove functionality that already exists. The gate is re-resolved
+server-side from `User.plan` on every render and again in `POST /api/v3/leads`,
+so an owner who enabled a gate on PRO and then downgraded gets a demo that plays
+normally rather than one that is stuck.
+
+### Adaptive-bitrate HLS
+
+Exports are progressive MP4 and **remain** progressive MP4 — HLS is an addition,
+never a replacement.
+
+1. `POST /api/exported-videos` finishes saving an export and calls
+   `packageDemoHls()` in `after()`, so nobody waits on ffmpeg inside a request.
+2. The Cloud Run worker's `POST /package-hls` decodes the source once, splits it
+   in the filtergraph, and encodes a **1080p / 720p / 480p** ladder — never
+   upscaling above the source — as fMP4 segments plus a master playlist, written
+   to R2 under `hls/<demoId>/`.
+3. The master playlist URI lands in `ExportedVideo.hlsPlaylistUrl`.
+4. `resolveShareOverlays()` resolves it to https and the player attaches it:
+   **native HLS on Safari**, **hls.js everywhere else**, and a **quality menu on
+   desktop** (auto on mobile, where ABR is reacting to something the viewer
+   cannot see).
+
+**Aligned keyframes are the whole game.** A player can only switch rendition at a
+segment boundary, and a segment can only start on a keyframe. If the renditions
+put their keyframes in different places, every quality switch repeats or skips a
+fraction of a second. Four ffmpeg settings enforce alignment and **all four are
+required** — a constant `-r`, a fixed `-g`/`-keyint_min`, `-force_key_frames` on
+the timeline, and `-sc_threshold 0`. The last is the one people forget, and it
+silently undoes the other three.
+
+**Idempotent by demo id + source hash.** The worker records a `manifest.json`
+beside the renditions holding the sha256 of the source it encoded. Re-running on
+an unchanged source skips the encode; passing the stored hash lets it skip the
+*download* too. `POST /api/demos/[id]/hls` forces a repackage, and exists because
+every demo exported before this landed has no renditions and re-exporting to get
+them would re-encode a file identical to the one already there.
+
+**The MP4 fallback is the common path, not the exceptional one.** At merge time
+no demo has renditions, so every viewer takes it. It is also where a demo lands
+when packaging failed, when `OVERLAYS_HLS_ENABLED` is off, when
+`R2_PUBLIC_BASE_URL` is unset, or when the stored URI does not survive
+validation. Losing adaptive bitrate is always preferable to losing playback.
+
+### Signed media, and what the hard gate actually is
+
+`LeadGateOverlay.tsx` says it plainly and this section repeats it: **hard mode is
+client-side by default.** The media URL is in the page source and the object is
+publicly readable, so a viewer with devtools can watch the whole video without
+ever seeing the form. Every control the gate disables is disabled in *our UI*,
+not at the origin.
+
+`OVERLAYS_SIGNED_MEDIA_ENABLED` is what closes that. With it on, a hard-gated
+demo's share page renders **no media URL at all**; the player asks
+`GET /api/v3/media/[demoId]`, which answers **403** until a `Lead` row exists for
+the viewer's `mv_sid` and a short-TTL presigned URL after. `mv_sid` is forgeable
+— it is a non-httpOnly analytics cookie and nothing authorises on it — but
+forging it does not help, because the check is for a **row** keyed on that id and
+producing one means actually submitting the form.
+
+Three limits, stated rather than implied:
+
+- **It signs the MP4, not the playlist.** A presigned URL signs one object; an
+  HLS playlist references its variants and segments by relative URI and none of
+  those carry a signature. Making a signed playlist play means rewriting every
+  playlist per request — a media proxy, not a presigner, and out of scope. So a
+  hard-gated demo with signed media on is served its progressive MP4, signed. It
+  loses adaptive bitrate and keeps its gate; the alternative loses the gate.
+- **Legacy `gs://` media cannot be signed.** Those buckets predate the R2
+  migration, are already public, and we hold no signing credentials for them.
+  Such a demo keeps playing via its public URL, gated or not. Breaking
+  pre-migration demos to enforce a gate that was never enforceable on them would
+  be a regression dressed up as a security fix.
+- **It is still not DRM.** Someone who submits the form once gets a real URL and
+  can pass it on until it expires. What changes is that a viewer who never
+  submitted anything cannot read the media.
+
+Only a **hard** gate withholds media. A soft gate is one the viewer may skip, so
+withholding the media behind it would silently convert it into a hard one.
+
+### How the overlay slot works
+
+Required reading before adding a fourth overlay; the full contract is in
+`app/components/player/PlayerOverlayHost.tsx`.
+
+- **There is one slot.** `MarvedgePlayer` owns a single positioned layer and the
+  overlays portal into it. There is also a small **trigger strip** in the
+  top-right for standing affordances (the scheduling button) that sits below the
+  overlay layer and passes pointer events through, so an empty strip costs the
+  viewer nothing.
+- **Priority order.** The gate outranks branching, which outranks scheduling.
+  One overlay is active at a time; a higher-priority registration displaces a
+  lower one rather than stacking on it.
+- **Only the host pauses the video.** Opening a blocking overlay is what pauses
+  playback. An overlay component must **never** call `pause()` itself — a second
+  caller is exactly how a video ends up resuming underneath a half-filled form.
+- **Blocking vs dismissible** is declared at registration. Blocking sets
+  `controlsLocked`, which inerts the control bar (real `disabled` attributes
+  *and* handlers that refuse), kills the keyboard shortcuts, and hides the bar
+  from the accessibility tree so a screen reader is not offered controls that do
+  nothing.
+- **To register a new overlay**: render it as a child of `<MarvedgePlayer>`, call
+  the registry hook with a priority and a blocking flag, and put the positioning,
+  backdrop, dialog role and focus handling in `<PlayerOverlay>` rather than in
+  your component. Keep any shared decision in `app/lib/overlays/` so the route
+  handler and the editor agree with the player about it.
+
+`app/lib/overlays/` is **isomorphic and pure** — no `fs`, no DOM, no node-only
+API, and no `process.env` outside `flags.ts`. One code path serves a React
+component, a route handler and the editor, which is the only way the three stay
+in agreement. Environment-specific code goes in the component or the route.
+
+### Cloudflare configuration — NOT DONE, needs an operator
+
+HLS playback needs cache and CORS rules on the R2 public host that **cannot be
+set from this repo**. They are written down here because nobody set them:
+
+- **CORS** on the R2 bucket: allow `GET`, `HEAD` and the `Range` request header
+  from the share origins — `https://marvedge.com`, any staging origin, **and
+  every customer custom domain**. This is the step most likely to be missed:
+  playback works from marvedge.com and fails on a customer hub, because that is a
+  different origin fetching the same segments. Verify from an actual customer
+  domain, not only from marvedge.com.
+- **Cache rules** on the public host:
+  - `*.m3u8` — short TTL (30–60s). A playlist can be re-cut by a repackage.
+  - `*.m4s` and `init.mp4` — long TTL (a year), `immutable`. Segment names are
+    stable per package and a repackage overwrites them, so pair this with a purge
+    of the `hls/<demoId>/` prefix on repackage, or accept that a repackaged demo
+    serves stale segments until the TTL lapses.
+- `R2_PUBLIC_BASE_URL` must point at that host. An HLS playlist references its
+  segments **relatively**, so they are fetched from whatever host served the
+  playlist — with this blank the app reports no playlist and falls back to MP4
+  rather than emitting a URL nothing can fetch.
+
+### Environment variables
+
+| Variable                            | Where                     | Purpose                                                                             |
+| :---------------------------------- | :------------------------ | :---------------------------------------------------------------------------------- |
+| `OVERLAYS_ENABLED`                  | Next app (server)         | Master switch for `/api/v3/*` and the owner-facing overlay config routes.            |
+| `NEXT_PUBLIC_OVERLAYS_ENABLED`      | Next app (client)         | Renders the overlay layer on the share player and the "Overlays" editor panel.       |
+| `OVERLAYS_CRM_ENABLED`              | Next app (server)         | Outbound lead delivery. Off = leads are still captured, just not forwarded.          |
+| `OVERLAYS_CRM_SECRET_KEY`           | Next app (server)         | AES-256-GCM key for stored CRM credentials. Absent = creating a connection 503s.     |
+| `OVERLAYS_CRM_SECRET_KEY_PREVIOUS`  | Next app (server)         | Accepted on decrypt only, for key rotation.                                          |
+| `OVERLAYS_ROLLUP_SECRET`            | Next app (server)         | Guards `POST /api/v3/events/rollup`. Blank = the endpoint is **closed** (503).       |
+| `OVERLAYS_EVENT_RETENTION_DAYS`     | Next app (server)         | Raw `PlayerEvent` retention. Default 90.                                             |
+| `OVERLAYS_LEAD_RETENTION_DAYS`      | Next app (server)         | `Lead` retention. Default 730 (24 months).                                           |
+| `OVERLAYS_HLS_ENABLED`              | Next app (server)         | HLS packaging + preferring a playlist over the MP4.                                  |
+| `OVERLAYS_SIGNED_MEDIA_ENABLED`     | Next app (server)         | Withhold a hard-gated demo's media URL until a lead is submitted.                    |
+| `OVERLAYS_SIGNED_MEDIA_TTL_SECONDS` | Next app (server)         | Signed URL lifetime. Default 900, clamped to [60, 21600].                            |
+| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Next app **and** worker | R2 credentials. Required for HLS and for signing.               |
+| `R2_PUBLIC_BASE_URL`                | Next app (server)         | Public https host for R2. **Required for HLS** — segments are fetched relative to it. |
+| `GCP_VIDEO_WORKER_URL`              | Next app (server)         | Reaches the Cloud Run worker for `/package-hls`.                                     |
+| `R2_HLS_BUCKET`                     | **Cloud Run worker only** | Bucket renditions are written to. Falls back to `R2_PROCESSED_BUCKET`.               |
+| `HLS_SEGMENT_SECONDS` / `HLS_FPS`   | **Cloud Run worker only** | Segment/GOP length (4) and the constant frame rate (30). Optional.                    |
+
+All the OVL flags **default off**, unlike the QR kill-switch, which defaults on.
+QR is derived and read-only; these change what an unauthenticated public page
+renders and cause viewer PII to be stored and forwarded to a third party. A flag
+whose default is off cannot turn either of those on by accident in an environment
+nobody remembered to configure. See `.env.example` for the full list.
+
+### Gotchas
+
+- **`app/lib/overlays/` must stay pure.** One `fs` or `next/headers` import in
+  there breaks the editor build, because the same modules are imported by a
+  client component.
+- **Never log lead PII.** Not a name, not an email, not a company size — not in
+  `console.log`, not in an error message, not in a thrown `Error`. That includes
+  not logging a Prisma `error.message`, which can quote the arguments it was
+  given, and those arguments are the lead. `app/api/views/route.ts` set the
+  precedent of logging only literals; hold it.
+- **`mv_sid` is not an auth token.** It is a non-httpOnly analytics cookie the
+  client can read, edit and forge. Nothing may ever authorise on the value
+  itself — only on rows keyed by it.
+- **Telemetry is additive.** If a change stops `View` rows being written, every
+  number on the existing analytics dashboard silently goes to zero with nothing
+  anywhere to say why. `useViewTracking()` owns the `videoRef` on **both** the
+  overlay and the flag-off path for exactly this reason.
+- **Don't put anything in `ExportedVideo.settings`.** `POST /api/exported-videos`
+  writes that field wholesale on every save, so a value parked there is erased by
+  the next export. The HLS columns are narrow columns for this reason — the same
+  trap that kept overlay config out of `Demo.editing`.
+- **Two workers exist.** `cloudrun-worker/server.js` is the HTTP service behind
+  `GCP_VIDEO_WORKER_URL` and is where every video endpoint including
+  `/package-hls` lives. `video-worker/index.ts` is a separate BullMQ consumer
+  that today only serves audio clips. Editing the wrong one is a silent no-op
+  that passes every test.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

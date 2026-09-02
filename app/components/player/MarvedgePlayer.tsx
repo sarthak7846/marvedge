@@ -10,7 +10,11 @@
 //
 // SOURCE-AGNOSTIC BY CONSTRUCTION. Nothing here knows whether it is playing a
 // progressive MP4 or an HLS playlist; resolvePlayerSource() is the only code
-// that asks, and PR 8 changes only that file plus the worker.
+// that asks. PR 8 added HLS packaging without changing that: the one new thing
+// here is a `quality` state that resolvePlayerSource PUSHES a rung list into and
+// this component forwards to the control bar. It stays null for a progressive
+// source, so the bar renders no menu — no branch on source type, just an absent
+// value.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject, VideoHTMLAttributes } from "react";
@@ -21,7 +25,11 @@ import { isHlsUrl } from "@/app/lib/overlays/source";
 
 import PlayerControls from "./PlayerControls";
 import { PlayerOverlayProvider, overlayLayerStyle, useOverlayRegistry } from "./PlayerOverlayHost";
-import { resolvePlayerSource, type DetachSource } from "./resolvePlayerSource";
+import {
+  resolvePlayerSource,
+  type DetachSource,
+  type QualityController,
+} from "./resolvePlayerSource";
 import { usePlaybackMilestones, useTelemetry } from "./useTelemetry";
 import { useVideoElement } from "./useVideoElement";
 
@@ -92,6 +100,16 @@ export default function MarvedgePlayer({
   const [sourceFailed, setSourceFailed] = useState(false);
   const failed = state.failed || sourceFailed;
 
+  /**
+   * The HLS rung list, or null when there is nothing to choose between.
+   *
+   * NULL IS THE DEFAULT AND THE COMMON CASE: resolvePlayerSource() only ever
+   * publishes a controller on the hls.js path, so a progressive MP4 — every
+   * demo before PR 8 packages one — never sets this and the control bar renders
+   * no quality menu at all.
+   */
+  const [quality, setQuality] = useState<QualityController | null>(null);
+
   const telemetry = useTelemetry({
     demoId,
     exportedVideoId,
@@ -137,11 +155,22 @@ export default function MarvedgePlayer({
       return;
     }
     setSourceFailed(false);
+    // A source change invalidates the old ladder. Clearing here rather than
+    // waiting for the new source to publish one stops the menu briefly offering
+    // the previous video's rungs.
+    setQuality(null);
 
     let cancelled = false;
     let detach: DetachSource | null = null;
 
-    resolvePlayerSource(video, src, { onFatalError: () => setSourceFailed(true) })
+    resolvePlayerSource(video, src, {
+      onFatalError: () => setSourceFailed(true),
+      onQualityChange: (controller) => {
+        if (!cancelled) {
+          setQuality(controller);
+        }
+      },
+    })
       .then((teardown) => {
         // The dynamic import on the HLS path means this can land after the
         // component is gone. Tearing down immediately is what stops a leaked
@@ -343,6 +372,7 @@ export default function MarvedgePlayer({
           locked={controlsLocked}
           visible={controlsVisible}
           accentColor={accentColor}
+          quality={quality}
         />
 
         {/* THE OVERLAY SLOT. One layer, owned here; overlays portal into it. */}

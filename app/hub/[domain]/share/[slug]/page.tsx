@@ -4,7 +4,7 @@ import { prisma } from "@/app/lib/prisma";
 import { hubShareUrl } from "@/app/lib/share/qrTarget";
 import ShareVideoPageClient from "@/app/share/[slug]/ShareVideoPageClient";
 import { BRANCH_PLACEMENTS } from "@/app/lib/overlays/branch";
-import { resolveShareOverlays } from "@/app/share/[slug]/overlayContext";
+import { resolveShareOverlays, shareMediaUrl } from "@/app/share/[slug]/overlayContext";
 
 type PageProps = {
   params: Promise<{ domain: string; slug: string }>;
@@ -164,7 +164,7 @@ export default async function BrandedSharePage({ params }: PageProps) {
     <ShareVideoPageClient
       title={demo.title}
       description={demo.description}
-      videoUrl={demo.exportedUrl || demo.videoUrl}
+      videoUrl={shareMediaUrl(demo.exportedUrl || demo.videoUrl, overlayContext)}
       backgroundStyle={backgroundStyleFromEditing(demo.editing, fallbackColor)}
       aspectRatio={
         typeof (demo.editing as Record<string, unknown> | null)?.aspectRatio === "string"
@@ -180,6 +180,7 @@ export default async function BrandedSharePage({ params }: PageProps) {
       overlays={overlayContext?.overlays}
       ownerName={overlayContext?.ownerName}
       leadCaptured={overlayContext?.leadCaptured}
+      mediaGated={overlayContext?.mediaGated}
       branchCards={overlayContext?.branchCards}
     />
   );

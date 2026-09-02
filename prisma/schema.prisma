@@ -209,6 +209,21 @@ model ExportedVideo {
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   views          View[]
 
+  // HLS renditions (OVL PR 8). NARROW COLUMNS, NOT `settings`, deliberately:
+  // `settings` is a client-supplied blob that POST /api/exported-videos writes
+  // wholesale on every save (`settings: settings ?? null`), so a playlist URL
+  // parked in it would be erased by the next export — the same trap that kept
+  // overlay config out of Demo.editing. These are also read by an
+  // unauthenticated share page on every view, where a column is selectable and
+  // indexable and a JSON path is neither.
+  //
+  // hlsPlaylistUrl is an `r2://bucket/object` URI, resolved to https by
+  // app/lib/r2.ts's toHttpsUrl(). hlsSourceHash is what makes re-packaging
+  // idempotent: the worker skips the encode when the source still hashes to it.
+  hlsPlaylistUrl String?
+  hlsSourceHash  String?
+  hlsUpdatedAt   DateTime?
+
   @@index([userId, createdAt])
 }
 

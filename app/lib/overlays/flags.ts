@@ -2,8 +2,8 @@
 //
 // Follows the exact pattern used by AVS (`app/lib/avs/flags.ts`), WTM
 // (`app/lib/wtm/flags.ts`) and AUDIO (`app/lib/audio/flags.ts`): the feature
-// ships behind a flag and must be a complete no-op when the flag is off. Three
-// flags, because three things need to be toggled independently:
+// ships behind a flag and must be a complete no-op when the flag is off. Five
+// flags, because five things need to be toggled independently:
 //   - OVERLAYS_ENABLED             — server-only master switch (new API routes).
 //   - NEXT_PUBLIC_OVERLAYS_ENABLED — client-safe switch, gates the player
 //                                    overlay layer AND the editor panel.
@@ -11,8 +11,13 @@
 //                                    separately from lead capture (PR 4), so a
 //                                    misbehaving CRM can be cut off without
 //                                    taking the gate down with it.
+//   - OVERLAYS_HLS_ENABLED         — server-only, gates HLS packaging and
+//                                    whether a packaged playlist is preferred
+//                                    over the MP4 (PR 8).
+//   - OVERLAYS_SIGNED_MEDIA_ENABLED — server-only, gates withholding the media
+//                                    URL behind a hard gate (PR 8).
 //
-// ALL THREE DEFAULT OFF, and unlike the QR kill-switch in `app/lib/qr/flags.ts`
+// ALL FIVE DEFAULT OFF, and unlike the QR kill-switch in `app/lib/qr/flags.ts`
 // they are not "default on, flip to disable". QR is derived and read-only — it
 // renders a URL that already exists and writes nothing. These two change what an
 // unauthenticated public page renders and cause viewer PII to be stored and
@@ -23,6 +28,7 @@
 // NEXT_PUBLIC_OVERLAYS_ENABLED unset, all three share routes must render exactly
 // what they render today.
 
+import { parseSignedMediaTtl } from "./mediaAccess";
 import {
   DEFAULT_EVENT_RETENTION_DAYS,
   DEFAULT_LEAD_RETENTION_DAYS,
@@ -109,4 +115,59 @@ export function leadRetentionDays(): number {
 export function rollupSecret(): string | null {
   const raw = process.env.OVERLAYS_ROLLUP_SECRET;
   return typeof raw === "string" && raw.length > 0 ? raw : null;
+}
+
+// --- HLS and signed media (PR 8) -------------------------------------------
+//
+// TWO SUB-FLAGS, NOT ONE, and neither is implied by OVERLAYS_ENABLED. They gate
+// two independent things that happen to have landed in the same PR: producing
+// adaptive renditions, and refusing to hand out the media URL until a lead has
+// been submitted. Signing media without HLS is a sensible configuration (it is
+// the fix for the honest gap in the hard gate, and it works on the progressive
+// MP4 every demo already has); so is packaging HLS without signing anything.
+// Wiring them to one switch would mean an incident in either taking down both.
+
+/**
+ * Server-side switch for HLS: the packaging trigger, the manual "Generate HLS"
+ * action, and whether a packaged playlist is preferred over the MP4 on the share
+ * page. Default off.
+ *
+ * Off is NOT the same as "no renditions exist" — an already-packaged demo simply
+ * goes back to being served its progressive MP4, which is the fallback path the
+ * player takes for every demo today. That is what makes this flag safe to pull
+ * during an incident: it costs adaptive bitrate, not playback.
+ */
+export function isHlsEnabled(): boolean {
+  return truthy(process.env.OVERLAYS_HLS_ENABLED);
+}
+
+/**
+ * Server-side switch for signed media. Default off.
+ *
+ * When on, a demo with a HARD lead gate no longer has its media URL rendered
+ * into the public page at all: the player asks GET /api/v3/media/[demoId] for a
+ * short-TTL presigned URL, and that endpoint answers 403 until a Lead row exists
+ * for the viewer's mv_sid. This is the enforcement the hard gate has been
+ * missing since PR 3 — see the header of app/components/player/LeadGateOverlay.tsx.
+ *
+ * IT IS STILL NOT DRM, and the honest description in that header is only partly
+ * retired by this flag: a viewer who submits the form once gets a real URL and
+ * can share it until the TTL expires. What changes is that the media is no
+ * longer readable by someone who never submitted anything.
+ */
+export function isSignedMediaEnabled(): boolean {
+  return truthy(process.env.OVERLAYS_SIGNED_MEDIA_ENABLED);
+}
+
+/**
+ * TTL for a signed media URL, in seconds. Default 900 (15 minutes),
+ * overridable with OVERLAYS_SIGNED_MEDIA_TTL_SECONDS.
+ *
+ * Short enough that a leaked URL stops working while the person who leaked it is
+ * still in the room; long enough that a viewer who pauses for a coffee does not
+ * come back to a dead element. The parsing and the clamp are pure and tested in
+ * ./mediaAccess.ts.
+ */
+export function signedMediaTtlSeconds(): number {
+  return parseSignedMediaTtl(process.env.OVERLAYS_SIGNED_MEDIA_TTL_SECONDS);
 }

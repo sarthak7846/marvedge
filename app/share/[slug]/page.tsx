@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/app/lib/prisma";
 import ShareVideoPageClient from "./ShareVideoPageClient";
 import { BRANCH_PLACEMENTS } from "@/app/lib/overlays/branch";
-import { resolveShareOverlays } from "./overlayContext";
+import { resolveShareOverlays, shareMediaUrl } from "./overlayContext";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -144,7 +144,7 @@ export default async function SharePage({ params }: PageProps) {
     <ShareVideoPageClient
       title={demo.title}
       description={demo.description}
-      videoUrl={demo.exportedUrl || demo.videoUrl}
+      videoUrl={shareMediaUrl(demo.exportedUrl || demo.videoUrl, overlayContext)}
       backgroundStyle={backgroundStyleFromEditing(demo.editing)}
       aspectRatio={
         typeof (demo.editing as Record<string, unknown> | null)?.aspectRatio === "string"
@@ -156,6 +156,7 @@ export default async function SharePage({ params }: PageProps) {
       overlays={overlayContext?.overlays}
       ownerName={overlayContext?.ownerName}
       leadCaptured={overlayContext?.leadCaptured}
+      mediaGated={overlayContext?.mediaGated}
       branchCards={overlayContext?.branchCards}
     />
   );

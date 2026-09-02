@@ -11,15 +11,27 @@
 // half-filled form.
 //
 // ============================================================================
-// HARD MODE IS CLIENT-SIDE AND BYPASSABLE. SAY SO.
+// HARD MODE IS CLIENT-SIDE BY DEFAULT. SAY SO.
 // ============================================================================
-// The media URL is in the page source and the file is publicly readable, so a
-// viewer who opens devtools can watch the whole video without ever seeing this
-// form. Every control the gate disables is disabled in OUR UI, not at the
-// origin. That is a deliberate v1 trade — the alternative is signed media URLs
-// and a token-checking delivery path, which is PR 8 behind its own sub-flag —
-// and it must be described honestly to anyone who asks, because the first thing
-// a customer evaluating a "hard" gate does is test it.
+// With OVERLAYS_SIGNED_MEDIA_ENABLED unset — which is the default — the media
+// URL is in the page source and the file is publicly readable, so a viewer who
+// opens devtools can watch the whole video without ever seeing this form. Every
+// control the gate disables is disabled in OUR UI, not at the origin. It must be
+// described honestly to anyone who asks, because the first thing a customer
+// evaluating a "hard" gate does is test it.
+//
+// PR 8 SHIPPED THE ENFORCEMENT, behind its own sub-flag. With signed media on, a
+// hard-gated demo's page renders NO media URL at all and the player asks
+// GET /api/v3/media/[demoId], which answers 403 until a Lead row exists for this
+// browser's mv_sid. Nothing in THIS component changes either way: it still never
+// touches the source, and the withheld-URL path is handled where the src is
+// resolved (app/share/[slug]/ShareVideoPageClient.tsx).
+//
+// Even then it is not DRM. Someone who submits the form once receives a real URL
+// and can pass it on until it expires; what stops is watching without ever
+// giving us anything. See the README's OVL section for the two other limits
+// (an HLS playlist cannot be presigned as one object, and legacy gs:// media
+// cannot be signed at all).
 //
 // What hard mode DOES do, and does properly: the video is held paused, the
 // control bar is inert (disabled attributes AND handlers that refuse — see
