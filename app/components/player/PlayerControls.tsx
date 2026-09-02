@@ -15,9 +15,19 @@
 // a mouse. Hence the real slider roles, the labels, the visible focus ring, and
 // arrow-key handling on the scrubber itself.
 
-import { useCallback, useRef, useState } from "react";
-import { Maximize, Minimize, Pause, Play, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Maximize,
+  Minimize,
+  Pause,
+  Play,
+  RotateCcw,
+  Settings,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 
+import { AUTO_LEVEL, hasQualityChoice, qualityLabel } from "@/app/lib/overlays/hls";
 import {
   bufferedEndAt,
   formatClock,
@@ -26,6 +36,7 @@ import {
 } from "@/app/lib/overlays/playback";
 
 import { CONTROLS_HEIGHT_PX } from "./PlayerOverlayHost";
+import type { QualityController } from "./resolvePlayerSource";
 import type { VideoElementActions, VideoElementState } from "./useVideoElement";
 
 export interface PlayerControlsProps {
@@ -41,6 +52,14 @@ export interface PlayerControlsProps {
    * player on someone else's domain must not be purple because we are.
    */
   accentColor: string;
+  /**
+   * The HLS rung list and setter, or null for "no menu".
+   *
+   * NULL IS THE COMMON CASE: a progressive MP4 has no ladder, and Safari's
+   * native HLS owns its own ABR and exposes no level list. Only the hls.js path
+   * with more than one rendition renders anything.
+   */
+  quality?: QualityController | null;
 }
 
 /** 44px is the smallest reliably tappable target; below `sm` everything meets it. */
@@ -54,12 +73,115 @@ const BUTTON_BASE = [
   "disabled:cursor-not-allowed disabled:opacity-40",
 ].join(" ");
 
+/**
+ * The quality menu.
+ *
+ * DESKTOP ONLY, and that is a CSS breakpoint (`hidden sm:block`) rather than a
+ * JS media query, for the same reason the volume slider below it is: a
+ * matchMedia read differs between server and client and produces a hydration
+ * mismatch on a server-rendered public page. On a phone the menu is simply not
+ * rendered and hls.js stays on auto — the right default there anyway, since ABR
+ * on a cellular connection is reacting to something a viewer cannot see.
+ *
+ * A plain details/summary rather than a popover: it is keyboard operable, closes
+ * on Escape, and is exposed to a screen reader without any of that being written
+ * here, which makes the whole control ~30 lines instead of a focus trap.
+ */
+function QualityMenu({
+  quality,
+  locked,
+  accentColor,
+}: {
+  quality: QualityController;
+  locked: boolean;
+  accentColor: string;
+}) {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+
+  // A menu left open while a blocking overlay comes up would sit over the video
+  // with no way to close it: the bar stops taking pointer events when locked.
+  useEffect(() => {
+    if (locked && detailsRef.current) {
+      detailsRef.current.open = false;
+    }
+  }, [locked]);
+
+  const activeHeight =
+    quality.currentLevel === AUTO_LEVEL
+      ? 0
+      : (quality.levels.find((level) => level.index === quality.currentLevel)?.height ?? 0);
+  // qualityLabel(0) is "Auto", which is exactly what an unresolved level means.
+  const activeLabel = qualityLabel(activeHeight);
+
+  const choose = (index: number) => {
+    quality.setLevel(index);
+    if (detailsRef.current) {
+      detailsRef.current.open = false;
+    }
+  };
+
+  // AUTO_LEVEL first: it is the default and the one most viewers should stay on.
+  const options = [{ index: AUTO_LEVEL, height: 0 }, ...quality.levels];
+
+  return (
+    <details ref={detailsRef} className="relative hidden sm:block">
+      <summary
+        aria-label={`Quality: ${activeLabel}`}
+        className={[
+          BUTTON_BASE,
+          TOUCH_BUTTON,
+          // Kills the disclosure triangle in every engine.
+          "list-none [&::-webkit-details-marker]:hidden",
+          locked ? "pointer-events-none opacity-40" : "cursor-pointer",
+        ].join(" ")}
+      >
+        <Settings className="h-5 w-5" aria-hidden="true" />
+      </summary>
+      <div
+        role="group"
+        aria-label="Video quality"
+        className={[
+          "absolute bottom-full right-0 z-20 mb-2 min-w-[7rem] overflow-hidden rounded-xl",
+          "border border-white/15 bg-[#1A1338]/95 py-1 backdrop-blur-sm",
+          "shadow-[0_12px_32px_rgba(15,10,36,0.6)]",
+        ].join(" ")}
+      >
+        {options.map((level) => {
+          const selected = level.index === quality.currentLevel;
+          return (
+            <button
+              key={level.index}
+              type="button"
+              onClick={() => choose(level.index)}
+              aria-pressed={selected}
+              className={[
+                "flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-white/90",
+                "hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none",
+              ].join(" ")}
+            >
+              {/* The tick is the accent dot, so it is the brand colour on a
+                  customer hub rather than Marvedge purple. */}
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: selected ? accentColor : "transparent" }}
+              />
+              {qualityLabel(level.height)}
+            </button>
+          );
+        })}
+      </div>
+    </details>
+  );
+}
+
 export default function PlayerControls({
   state,
   actions,
   locked,
   visible,
   accentColor,
+  quality,
 }: PlayerControlsProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [scrubbing, setScrubbing] = useState(false);
@@ -248,6 +370,13 @@ export default function PlayerControls({
             style={{ accentColor }}
           />
         </div>
+
+        {/* One rendition is not a choice, and Safari's native player reports
+            none at all — hasQualityChoice() is what keeps a dead menu off the
+            bar for every demo without renditions, which today is all of them. */}
+        {quality && hasQualityChoice(quality.levels) && (
+          <QualityMenu quality={quality} locked={locked} accentColor={accentColor} />
+        )}
 
         <button
           type="button"

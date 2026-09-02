@@ -1,8 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
 import { prisma } from "@/app/lib/prisma";
 import { deleteCloudinaryVideoByUrl } from "@/app/lib/cloudinary-utils";
+import { packageDemoHls } from "@/app/lib/hls/package";
+
+// HLS packaging runs in after(), so the invocation stays alive after the
+// response is sent and needs a ceiling above the default. 300s is the platform
+// maximum, and it is honestly not always enough: a long demo's three-rung ladder
+// can outlast it, in which case the after() is cut off, no playlist URI is
+// recorded, and the demo keeps playing its MP4. The manual "Generate HLS" action
+// (POST /api/demos/[id]/hls) exists partly for that case — it resumes from the
+// worker's idempotency marker rather than starting over.
+export const maxDuration = 300;
 
 type SessionUser = {
   id?: string;
@@ -176,6 +186,16 @@ export async function POST(req: NextRequest) {
       if (previous?.exportedUrl && previous.exportedUrl !== exportedUrl) {
         await deleteCloudinaryVideoByUrl(previous.exportedUrl);
       }
+
+      // OVL PR 8 — package HLS renditions for the export that just landed.
+      // AFTER THE RESPONSE, never in it: a three-rung ladder takes minutes and
+      // the editor is waiting on this call to tell the user their export saved.
+      // Same shape as dispatchVideoJob() in app/api/jobs/create/route.ts.
+      // packageDemoHls() is a no-op when OVERLAYS_HLS_ENABLED is unset, is
+      // idempotent when the source has not changed, and never throws — a
+      // packaging failure leaves the demo playing its progressive MP4, which is
+      // what it would have done anyway.
+      after(() => packageDemoHls(demoId));
 
       return NextResponse.json({ success: true, exportedVideo });
     }

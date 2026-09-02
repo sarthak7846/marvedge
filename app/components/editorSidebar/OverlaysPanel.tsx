@@ -476,9 +476,16 @@ const OverlaysPanel: React.FC = () => {
                 // Said here rather than only in the PR description, because the
                 // person who turns this on is the person who will be asked
                 // whether it can be got around.
+                //
+                // Still hedged after PR 8 shipped signed media, and deliberately:
+                // that is a SERVER-only flag with no NEXT_PUBLIC_ twin, so this
+                // panel genuinely cannot know whether this deployment enforces
+                // the gate at the origin. Promising enforcement it cannot verify
+                // would be worse than under-promising.
                 <p className="mt-1 text-[11px] text-gray-400">
-                  A hard gate stops the player, but the video file itself stays publicly reachable —
-                  a determined viewer can still find it in the page source.
+                  A hard gate stops the player. Unless signed media is enabled for this deployment,
+                  the video file itself stays publicly reachable — a determined viewer can still
+                  find it in the page source.
                 </p>
               )}
             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useCallback, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
 import BranchingCardsOverlay from "@/app/components/player/BranchingCardsOverlay";
 import LeadGateOverlay from "@/app/components/player/LeadGateOverlay";
@@ -68,6 +68,18 @@ type ShareVideoPageClientProps = {
    * of the two targets no longer resolves, since half a choice is not one.
    */
   branchCards?: ResolvedBranchCard[];
+  /**
+   * `videoUrl` was deliberately withheld: this demo has a HARD gate and
+   * OVERLAYS_SIGNED_MEDIA_ENABLED is on, so the media URL is not in the page
+   * source at all and the player asks GET /api/v3/media/[demoId] for a
+   * short-TTL signed one — which that endpoint refuses with 403 until a Lead
+   * row exists for this browser's mv_sid.
+   *
+   * FALSE ON EVERY PATH THAT EXISTS TODAY, including every soft gate and every
+   * demo with the sub-flag off; `videoUrl` then carries the media as it always
+   * has and none of the code below runs.
+   */
+  mediaGated?: boolean;
 };
 
 /**
@@ -111,6 +123,7 @@ export default function ShareVideoPageClient({
   ownerName,
   leadCaptured = false,
   branchCards = [],
+  mediaGated = false,
 }: ShareVideoPageClientProps) {
   // Keeps POSTing /api/views on mount and heartbeating duration every 5s, and
   // still owns the ref the <video> uses — on BOTH paths below. It is what feeds
@@ -171,6 +184,63 @@ export default function ShareVideoPageClient({
   const [scheduleSignal, setScheduleSignal] = useState(0);
   const requestScheduling = useCallback(() => setScheduleSignal((count) => count + 1), []);
 
+  /**
+   * SIGNED MEDIA (PR 8). Empty until the endpoint hands us a URL.
+   *
+   * `signedUrl` is only ever consulted on the gated path, so a demo that is not
+   * gated — every demo today — renders `videoUrl` exactly as before and this
+   * state is never read.
+   */
+  const [signedUrl, setSignedUrl] = useState("");
+  /** Bumped after a capture, to ask again for a URL we were previously refused. */
+  const [mediaAttempt, setMediaAttempt] = useState(0);
+
+  /**
+   * Fetch a short-TTL signed media URL for a gated demo.
+   *
+   * RUNS ON MOUNT TOO, not only after a capture: a returning viewer who already
+   * submitted the form has a Lead row and should get their video without filling
+   * anything in twice. The endpoint answers 403 when they have not, which is the
+   * expected answer and not an error to show — the gate is already on screen
+   * saying what to do about it.
+   */
+  useEffect(() => {
+    if (!mediaGated || !demoId) {
+      return;
+    }
+    const controller = new AbortController();
+    fetch(`/api/v3/media/${encodeURIComponent(demoId)}`, {
+      signal: controller.signal,
+      // Same-origin on all three share routes, including a customer domain:
+      // middleware.ts skips /api, so the player posts to its own origin and
+      // reaches this deployment with the same mv_sid cookie scope.
+      credentials: "same-origin",
+      cache: "no-store",
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { url?: string } | null) => {
+        if (typeof body?.url === "string" && body.url.length > 0) {
+          setSignedUrl(body.url);
+        }
+      })
+      .catch(() => {
+        // Including the AbortError from the cleanup below. There is nothing
+        // useful to say to a viewer here: either the gate is up and explains
+        // itself, or the player shows its own "could not be played" state.
+      });
+    return () => controller.abort();
+  }, [demoId, mediaGated, mediaAttempt]);
+
+  /**
+   * What the player is actually pointed at.
+   *
+   * On the ungated path this IS `videoUrl` and nothing changes. On the gated
+   * path `videoUrl` arrived empty by design, and "" is what resolvePlayerSource()
+   * treats as "attach nothing" — so the element sits with no source until the
+   * signed URL lands, rather than trying to load the page's own HTML as media.
+   */
+  const playerSrc = mediaGated ? signedUrl : videoUrl;
+
   const onLeadCaptured = useCallback(
     (lead: { name?: string; email: string }) => {
       // consented: true is a statement of fact, not a default — POST /api/v3/leads
@@ -180,8 +250,13 @@ export default function ShareVideoPageClient({
       if (scheduling?.openFrom.gate) {
         requestScheduling();
       }
+      // The 403 from before the submission is now a 200. Asking again is the
+      // whole mechanism: this is the moment the media becomes available.
+      if (mediaGated) {
+        setMediaAttempt((attempt) => attempt + 1);
+      }
     },
-    [requestScheduling, scheduling?.openFrom.gate]
+    [mediaGated, requestScheduling, scheduling?.openFrom.gate]
   );
 
   return (
@@ -209,7 +284,7 @@ export default function ShareVideoPageClient({
               style={stageFrameStyle(previewFrameAspectRatio, previewRatioValue)}
             >
               <MarvedgePlayer
-                src={videoUrl}
+                src={playerSrc}
                 title={title}
                 videoRef={videoRef}
                 demoId={demoId}

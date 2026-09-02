@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/app/lib/prisma";
 import ShareVideoPageClient from "../../[slug]/ShareVideoPageClient";
-import { resolveShareOverlays } from "../../[slug]/overlayContext";
+import { resolveShareOverlays, shareMediaUrl } from "../../[slug]/overlayContext";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -32,7 +32,7 @@ export default async function SharedExportedVideoPage({ params }: PageProps) {
     <ShareVideoPageClient
       title={video.title}
       description={video.description}
-      videoUrl={video.exportedUrl || ""}
+      videoUrl={shareMediaUrl(video.exportedUrl || "", overlayContext)}
       backgroundStyle={{}}
       aspectRatio="native"
       videoId={id}
@@ -40,6 +40,7 @@ export default async function SharedExportedVideoPage({ params }: PageProps) {
       overlays={overlayContext?.overlays}
       ownerName={overlayContext?.ownerName}
       leadCaptured={overlayContext?.leadCaptured}
+      mediaGated={overlayContext?.mediaGated}
       branchCards={overlayContext?.branchCards}
     />
   );
