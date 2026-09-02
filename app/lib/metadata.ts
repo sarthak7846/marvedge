@@ -47,6 +47,14 @@ const pageMetadata: Record<string, { title: string; navbar: NavbarConfig }> = {
       iconALT: "",
     },
   },
+  leads: {
+    title: "Leads",
+    navbar: {
+      titleText: "Leads",
+      iconSRC: "/majesticons_analytics.png",
+      iconALT: "leads_icon",
+    },
+  },
   recorder: {
     title: "Recorder",
     navbar: {

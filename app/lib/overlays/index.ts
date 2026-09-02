@@ -139,7 +139,56 @@ export {
 
 export { classifySource, isHlsUrl, type PlayerSourceKind } from "./source";
 
-export { isOverlaysCrmEnabled, isOverlaysEnabled, isOverlaysPanelEnabled } from "./flags";
+export {
+  DEFAULT_EVENT_RETENTION_DAYS,
+  DEFAULT_LEAD_RETENTION_DAYS,
+  parseRetentionDays,
+  retentionCutoff,
+  rollupPlayerEvents,
+  utcDateKey,
+  utcDayEnd,
+  utcDayStart,
+  type RollupResult,
+  type RollupRow,
+  type RollupSourceEvent,
+} from "./rollup";
+
+export {
+  FUNNEL_STAGES,
+  FUNNEL_STAGE_LABELS,
+  deriveDemoFunnels,
+  deriveFunnel,
+  percent,
+  type DemoEventTotal,
+  type DemoFunnel,
+  type EventCounts,
+  type Funnel,
+  type FunnelStage,
+  type FunnelStep,
+} from "./funnel";
+
+export {
+  LEAD_CSV_COLUMNS,
+  csvCell,
+  csvRow,
+  leadCsvHeader,
+  leadCsvRow,
+  summarizeDeliveries,
+  type LeadCsvRecord,
+} from "./csv";
+
+// ./cascade is deliberately NOT re-exported. It is a schema-analysis helper used
+// by one test, not part of the runtime surface, and putting it here would invite
+// application code to depend on parsing prisma/schema.prisma at runtime.
+
+export {
+  eventRetentionDays,
+  isOverlaysCrmEnabled,
+  isOverlaysEnabled,
+  isOverlaysPanelEnabled,
+  leadRetentionDays,
+  rollupSecret,
+} from "./flags";
 
 export { isOverlaysAllowed } from "./access";
 

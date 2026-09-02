@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import AnalyticsStatCards from "./analytics/AnalyticsStatCards";
 import ViewsOverTimePanel from "./analytics/ViewsOverTimePanel";
 import TopDemosPanel from "./analytics/TopDemosPanel";
+import OverlayFunnelPanel, { type OverlayFunnelPanelProps } from "./analytics/OverlayFunnelPanel";
 
 type AnalyticsMainProps = {
   totalViews?: number;
@@ -16,6 +17,8 @@ type AnalyticsMainProps = {
   uniqueCtaClicks?: number;
   ctaClickRate?: string;
   topCtas?: { label: string; clicks: number }[];
+  /** Null or absent when OVERLAYS_ENABLED is off. */
+  overlayFunnel?: OverlayFunnelPanelProps | null;
 };
 
 const AnalyticsMain = ({
@@ -25,6 +28,7 @@ const AnalyticsMain = ({
   topDemos = [],
   viewsOverTime = [],
   ctaClickRate = "0%",
+  overlayFunnel = null,
 }: AnalyticsMainProps) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -49,10 +53,28 @@ const AnalyticsMain = ({
         isVisible={isVisible}
       />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* `flex-1` makes the two panels fill a clipped viewport. With the funnel
+          below them that would squeeze both to nothing, so the grid falls back
+          to its own min-height and the page scrolls. Unchanged when overlays
+          are off. */}
+      <div
+        className={
+          overlayFunnel
+            ? "grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-2"
+            : "grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2"
+        }
+      >
         <ViewsOverTimePanel viewsOverTime={viewsOverTime} />
         <TopDemosPanel topDemos={topDemos} />
       </div>
+
+      {overlayFunnel ? (
+        <OverlayFunnelPanel
+          overall={overlayFunnel.overall}
+          perDemo={overlayFunnel.perDemo}
+          windowDays={overlayFunnel.windowDays}
+        />
+      ) : null}
     </div>
   );
 };
