@@ -165,8 +165,17 @@ export function useDemoLoader({
     setTextOverlays,
   ]);
 
-  // CTAs live in the Cta table, not in demo.editing, so load them separately.
-  // Degrades gracefully: a missing/empty endpoint just leaves the list empty.
+  useCtaLoader({ savedDemoId, params, setCtas });
+  useSubscribedToast();
+}
+
+// CTAs live in the Cta table, not in demo.editing, so load them separately.
+// Degrades gracefully: a missing/empty endpoint just leaves the list empty.
+function useCtaLoader({
+  savedDemoId,
+  params,
+  setCtas,
+}: Pick<EditorState, "savedDemoId" | "params" | "setCtas">) {
   useEffect(() => {
     const demoId = savedDemoId || params?.get("demoId");
     if (!demoId) {
@@ -200,7 +209,10 @@ export function useDemoLoader({
       isMounted = false;
     };
   }, [savedDemoId, params, setCtas]);
+}
 
+// Acknowledge a successful checkout redirect once, then strip the flag from the URL.
+function useSubscribedToast() {
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     if (searchParams.get("subscribed") === "true") {

@@ -1,3 +1,7 @@
+import axios from "axios";
+
+import { ExportSettings } from "@/app/components/ExportSettingsModal";
+
 interface ExportBackgroundParams {
   selectedBackground: string | null;
   imageMap: Record<string, string>;
@@ -44,4 +48,33 @@ export function buildExportSpeed(playbackSpeed: number): string {
           : String(playbackSpeed) === "1.75"
             ? "1.75"
             : "2";
+}
+
+interface SaveExportedVideoParams {
+  title?: string | null;
+  description?: string | null;
+  exportedUrl: string;
+  sourceVideoUrl: string;
+  settings: ExportSettings;
+  demoId?: string | null;
+}
+
+export async function saveExportedVideoRecord({
+  title,
+  description,
+  exportedUrl,
+  sourceVideoUrl,
+  settings,
+  demoId,
+}: SaveExportedVideoParams): Promise<string | undefined> {
+  const res = await axios.post("/api/exported-videos", {
+    title: title?.trim() || "Untitled Export",
+    description: description?.trim() || "",
+    exportedUrl,
+    sourceVideoUrl,
+    settings,
+    demoId: demoId || null,
+    upsertByDemo: Boolean(demoId),
+  });
+  return res.data?.exportedVideo?.id;
 }

@@ -25,7 +25,9 @@ export function useTimelineDeleteKey({
         activeElement?.tagName === "INPUT" ||
         activeElement?.tagName === "TEXTAREA" ||
         activeElement?.isContentEditable;
-      if (isTyping) return;
+      if (isTyping) {
+        return;
+      }
 
       if (event.key === "Delete" || event.key === "Backspace") {
         if (activeZoomIdx >= 0) {
