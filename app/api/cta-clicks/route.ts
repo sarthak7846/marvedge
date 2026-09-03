@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth/options";
+import { applySessionCookie, readOrMintSessionId } from "@/app/lib/overlays/session";
 
-// Anonymous identity cookie: a random session-id VALUE (not a presence flag).
-const SID_COOKIE = "mv_sid";
-const SID_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
+// The mv_sid anonymous identity cookie this route introduced now lives in
+// app/lib/overlays/session.ts, so /api/v3/events mints the SAME id with the same
+// options rather than a second one that would split the funnel. Behaviour here is
+// unchanged: read it, mint one only when absent, set the cookie only when minted.
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,11 +18,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Read the anonymous session id; generate one if this browser doesn't have it yet.
-    let sessionId = req.cookies.get(SID_COOKIE)?.value;
-    const isNewSession = !sessionId;
-    if (!sessionId) {
-      sessionId = crypto.randomUUID();
-    }
+    const viewer = readOrMintSessionId(req);
 
     // Logged-in viewers also get their userId stored alongside the anon session id.
     const session = await getServerSession(authOptions);
@@ -32,7 +30,7 @@ export async function POST(req: NextRequest) {
         demoId,
         label,
         pageType: "demo",
-        sessionId,
+        sessionId: viewer.sessionId,
         userId,
         referrer: referrer || req.headers.get("referer") || null,
       },
@@ -40,14 +38,8 @@ export async function POST(req: NextRequest) {
 
     const response = NextResponse.json({ success: true });
 
-    // Only set the cookie when we generated a fresh id so repeated calls reuse mv_sid.
-    if (isNewSession) {
-      response.cookies.set(SID_COOKIE, sessionId, {
-        maxAge: SID_MAX_AGE,
-        path: "/",
-        httpOnly: false,
-      });
-    }
+    // Only sets the cookie when we generated a fresh id, so repeated calls reuse mv_sid.
+    applySessionCookie(response, viewer);
 
     return response;
   } catch (error) {
