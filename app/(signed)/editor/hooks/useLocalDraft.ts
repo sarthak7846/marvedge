@@ -86,30 +86,25 @@ function addFlushListeners(flush: () => void): () => void {
   };
 }
 
-export function useLocalDraft({
+interface DraftEffectProps extends UseLocalDraftProps {
+  restoredRef: { current: boolean };
+}
+
+// Restore editing state from localStorage once the draft video is known.
+function useDraftRestore({
   editorState,
   draftId,
-  segments,
   setSegments,
   zoom,
   subtitles,
   text,
-}: UseLocalDraftProps) {
-  const { zoomSegments, setZoomSegments } = zoom;
-  const { subtitleCues, setSubtitleCues } = subtitles;
-  const { textOverlays, setTextOverlays } = text;
+  restoredRef,
+}: DraftEffectProps) {
+  const { setZoomSegments } = zoom;
+  const { setSubtitleCues, setSubtitleStyle, setSubtitleLanguage } = subtitles;
+  const { setTextOverlays } = text;
   const {
     savedDemoId,
-    selectedBackground,
-    backgroundType,
-    aspectRatio,
-    browserFrameMode,
-    browserFrameDrawShadow,
-    browserFrameDrawBorder,
-    avs,
-    wtm,
-    sidebarTitle,
-    sidebarDescription,
     setSidebarTitle,
     setSidebarDescription,
     setCurrentSegments,
@@ -123,20 +118,6 @@ export function useLocalDraft({
     setWtm,
   } = editorState;
 
-  const restoredRef = React.useRef(false);
-  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Holds the draft the debounced timer will write, so it can be flushed early.
-  const pendingDraftRef = React.useRef<StoredDraft | null>(null);
-
-  // Whether this editor session began WITHOUT a demoId (i.e. an unsaved upload),
-  // captured once. Used so that merely opening an existing demo never clears a
-  // separate, unrelated draft that a previous unsaved session left behind.
-  const startedUnsavedRef = React.useRef<boolean | null>(null);
-  if (startedUnsavedRef.current === null) {
-    startedUnsavedRef.current = !getUrlDemoId();
-  }
-
-  // Restore editing state from localStorage once the draft video is known.
   React.useEffect(() => {
     if (restoredRef.current || !draftId) {
       return;
@@ -165,6 +146,8 @@ export function useLocalDraft({
       setCurrentSegments,
       setZoomSegments,
       setSubtitleCues,
+      setSubtitleStyle,
+      setSubtitleLanguage,
       setTextOverlays,
       setSelectedBackground,
       setBackgroundType,
@@ -176,6 +159,7 @@ export function useLocalDraft({
       setWtm,
     });
   }, [
+    restoredRef,
     draftId,
     savedDemoId,
     setSidebarTitle,
@@ -184,6 +168,8 @@ export function useLocalDraft({
     setCurrentSegments,
     setZoomSegments,
     setSubtitleCues,
+    setSubtitleStyle,
+    setSubtitleLanguage,
     setTextOverlays,
     setSelectedBackground,
     setBackgroundType,
@@ -194,8 +180,40 @@ export function useLocalDraft({
     setAvs,
     setWtm,
   ]);
+}
 
-  // Persist editing state to localStorage (debounced) for unsaved sessions only.
+// Persist editing state to localStorage (debounced) for unsaved sessions only,
+// flushing any pending write before the tab is hidden or unloaded.
+function useDraftPersist({
+  editorState,
+  draftId,
+  segments,
+  zoom,
+  subtitles,
+  text,
+  restoredRef,
+}: DraftEffectProps) {
+  const { zoomSegments } = zoom;
+  const { subtitleCues, subtitleStyle, subtitleLanguage } = subtitles;
+  const { textOverlays } = text;
+  const {
+    savedDemoId,
+    selectedBackground,
+    backgroundType,
+    aspectRatio,
+    browserFrameMode,
+    browserFrameDrawShadow,
+    browserFrameDrawBorder,
+    avs,
+    wtm,
+    sidebarTitle,
+    sidebarDescription,
+  } = editorState;
+
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Holds the draft the debounced timer will write, so it can be flushed early.
+  const pendingDraftRef = React.useRef<StoredDraft | null>(null);
+
   React.useEffect(() => {
     if (!draftId || !restoredRef.current) {
       return;
@@ -214,6 +232,8 @@ export function useLocalDraft({
         selectedBackground,
         backgroundType,
         subtitleCues,
+        subtitleStyle,
+        subtitleLanguage,
         textOverlays,
         aspectRatio,
         browserFrameMode,
@@ -236,11 +256,14 @@ export function useLocalDraft({
       }
     };
   }, [
+    restoredRef,
     draftId,
     savedDemoId,
     segments,
     zoomSegments,
     subtitleCues,
+    subtitleStyle,
+    subtitleLanguage,
     textOverlays,
     selectedBackground,
     backgroundType,
@@ -254,11 +277,27 @@ export function useLocalDraft({
     sidebarDescription,
   ]);
 
-  // Flush any pending (debounced) write before the tab is hidden or unloaded so
-  // an abrupt refresh keeps the very last edit.
   React.useEffect(() => {
     return addFlushListeners(() => flushPending(pendingDraftRef));
   }, []);
+}
+
+export function useLocalDraft(props: UseLocalDraftProps) {
+  const { editorState } = props;
+  const { savedDemoId } = editorState;
+
+  const restoredRef = React.useRef(false);
+
+  // Whether this editor session began WITHOUT a demoId (i.e. an unsaved upload),
+  // captured once. Used so that merely opening an existing demo never clears a
+  // separate, unrelated draft that a previous unsaved session left behind.
+  const startedUnsavedRef = React.useRef<boolean | null>(null);
+  if (startedUnsavedRef.current === null) {
+    startedUnsavedRef.current = !getUrlDemoId();
+  }
+
+  useDraftRestore({ ...props, restoredRef });
+  useDraftPersist({ ...props, restoredRef });
 
   // Once THIS unsaved session is saved as a demo, the backend owns both the
   // editing state and the source video (restored on reload via demo.editing /

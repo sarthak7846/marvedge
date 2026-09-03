@@ -1,12 +1,10 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef } from "react";
 import { motion, useInView, easeOut } from "framer-motion";
 import { Check } from "lucide-react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useRouter, usePathname } from "next/navigation";
 import Script from "next/script";
-import { toast } from "react-hot-toast";
 
 const freeFeatures = [
   "Record up to 5 mins",
@@ -34,10 +32,7 @@ const enterpriseFeatures = [
 
 const usePricingCheckout = () => {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { status } = useSession();
   const pathname = usePathname();
-  const [loading, setLoading] = useState(false);
 
   const handleAuthRedirect = async (amount: number, plan: string) => {
     if (plan === "enterprise") {
@@ -59,71 +54,13 @@ const usePricingCheckout = () => {
       return;
     }
 
-    if (status !== "authenticated") {
-      toast.error("Please login first to subscribe.");
-      router.push("/api/auth/signin?callbackUrl=" + encodeURIComponent(window.location.href));
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await fetch("/api/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
-      });
-      const data = await res.json();
-
-      const paymentData = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        order_id: data.id,
-        amount: data.amount,
-        currency: data.currency,
-        name: "Marvedge",
-        description: `Payment for ${plan} plan`,
-        handler: async function (response: {
-          razorpay_payment_id: string;
-          razorpay_order_id: string;
-          razorpay_signature: string;
-        }) {
-          try {
-            const verifyRes = await fetch("/api/verify-payment", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(response),
-            });
-            const verifyData = await verifyRes.json();
-            if (verifyData.success) {
-              toast.success("Payment Successful!");
-              const returnUrl = searchParams?.get("returnUrl");
-              if (returnUrl) {
-                const url = new URL(returnUrl, window.location.origin);
-                url.searchParams.set("subscribed", "true");
-                router.push(url.toString());
-              } else {
-                router.push("/dashboard?subscribed=true");
-              }
-            } else {
-              toast.error("Payment verification failed.");
-            }
-          } catch {
-            toast.error("Error verifying payment.");
-          }
-        },
-      };
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const payment = new (window as any).Razorpay(paymentData);
-      payment.open();
-    } catch (error) {
-      console.error("Payment failed", error);
-      toast.error("Failed to open payment gateway.");
-    } finally {
-      setLoading(false);
-    }
+    // Always route through the dedicated payment-gateway page. If the user
+    // isn't logged in, that page sends them to /auth/signin and brings them
+    // back with the selected plan intact (it does NOT redirect to /dashboard).
+    router.push(`/payment-gateway?amount=${amount}&plan=${plan}`);
   };
 
-  return { handleAuthRedirect, loading };
+  return { handleAuthRedirect, loading: false };
 };
 
 const PricingHeader: React.FC<{ isInView: boolean }> = ({ isInView }) => (

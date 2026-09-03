@@ -1,5 +1,7 @@
 "use client";
 
+import { postBeacon } from "@/app/lib/overlays/beacon";
+
 export type ShareCta = {
   id: string;
   label: string;
@@ -7,32 +9,24 @@ export type ShareCta = {
   order: number;
 };
 
+/**
+ * Fire the click, then let the navigation happen.
+ *
+ * The sendBeacon-then-keepalive-fetch dance this used to spell out inline now
+ * lives in app/lib/overlays/beacon.ts, because the player's telemetry needs the
+ * identical thing and two copies of it would drift. Same endpoint, same payload,
+ * same transports, same order — this is an extraction, not a change.
+ */
 function fireCtaClick(cta: ShareCta, demoId: string) {
-  const payload = JSON.stringify({
-    ctaId: cta.id,
-    demoId,
-    label: cta.label,
-    referrer: document.referrer,
-  });
-
-  try {
-    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-      const blob = new Blob([payload], { type: "application/json" });
-      if (navigator.sendBeacon("/api/cta-clicks", blob)) {
-        return;
-      }
-    }
-  } catch {
-    // fall through to fetch below
-  }
-
-  // Keep the request alive across the navigation triggered by the link click.
-  fetch("/api/cta-clicks", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: payload,
-    keepalive: true,
-  }).catch(() => {});
+  postBeacon(
+    "/api/cta-clicks",
+    JSON.stringify({
+      ctaId: cta.id,
+      demoId,
+      label: cta.label,
+      referrer: document.referrer,
+    })
+  );
 }
 
 export default function ShareCtaButtons({ ctas, demoId }: { ctas: ShareCta[]; demoId?: string }) {

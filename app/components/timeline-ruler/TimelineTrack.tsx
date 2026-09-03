@@ -1,15 +1,26 @@
 import React from "react";
 import Image from "next/image";
-import Linepage from "../Linepage";
+import Linepage, { TIMELINE_RULER_HEIGHT } from "../Linepage";
 import { ZoomEffect } from "../../types/editor/zoom-effect";
-import { DragState, DragZoomState, DragTextState, TextOverlayItem } from "./types";
-import { TrimSegmentBlock, ZoomSegmentBlock, TextOverlayBlock } from "./TimelineBlocks";
+import { DragState, DragZoomState, DragTextState, DragAudioState, TextOverlayItem } from "./types";
+import { AudioClipDto } from "../../types/audio";
+import { ClipPlacement, useAudioClipStore } from "../../store/audioClipStore";
+import {
+  TrimSegmentBlock,
+  ZoomSegmentBlock,
+  TextOverlayBlock,
+  SubtitleCueBlock,
+  SubtitleClusterBlock,
+  AudioClipBlock,
+} from "./TimelineBlocks";
 import {
   useScissorDrag,
   useSegmentDrag,
   useZoomSegmentDrag,
   useTextOverlayDrag,
+  useAudioClipDrag,
 } from "./useTimelineDrags";
+import { useSubtitleTrack, type SubtitleTrackVm } from "./useSubtitleTrack";
 
 type TimelineMode = "main" | "trim" | "zoom" | "text";
 type NumberSetter = React.Dispatch<React.SetStateAction<number>>;
@@ -85,17 +96,39 @@ type TimelineTrackProps = {
   selectedTextOverlayId: string | null;
   setSelectedTextOverlayId: React.Dispatch<React.SetStateAction<string | null>>;
   setTextOverlayInspectorValues: (overlay: TextOverlayItem) => void;
+  audioClips?: AudioClipDto[];
   trackIndices: Record<string, number>;
   setTrackIndices: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  // Both of these already reach this component through the spread in
+  // TimelineRulerView; the subtitle track is the first consumer to need them by
+  // name. `setZoomLevel` drives the zoom-into-a-cluster affordance and
+  // `onValueChange` is the ruler's own seek channel.
+  setZoomLevel: React.Dispatch<React.SetStateAction<number>>;
+  onValueChange?: (value: number) => void;
+  /** Playhead in seconds — `currentPosition` is the same thing in pixels. */
+  localValue: number;
 };
 
 type DragSetters = {
   setDragState: React.Dispatch<React.SetStateAction<DragState | null>>;
   setDragZoomState: React.Dispatch<React.SetStateAction<DragZoomState | null>>;
   setDragTextState: React.Dispatch<React.SetStateAction<DragTextState | null>>;
+  setDragAudioState: React.Dispatch<React.SetStateAction<DragAudioState | null>>;
 };
 
-function RulerLayers(props: TimelineTrackProps & DragSetters) {
+type SubtitleLayer = {
+  subtitleTrack: SubtitleTrackVm;
+  /** Lane the subtitle blocks sit on, just below whatever else is in use. */
+  subtitleTrackIdx: number;
+};
+
+type AudioEditProps = {
+  placements: Record<string, ClipPlacement>;
+  selectedAudioClipId: string | null;
+  onSelectAudioClip: (clipId: string | null) => void;
+};
+
+function RulerLayers(props: TimelineTrackProps & DragSetters & SubtitleLayer & AudioEditProps) {
   const {
     minValue,
     maxValue,
@@ -122,11 +155,35 @@ function RulerLayers(props: TimelineTrackProps & DragSetters) {
     updateCurrentTimeFromMouse,
     setPlaying,
     setDragTextState,
+    audioClips,
     trackIndices,
+    subtitleTrack,
+    subtitleTrackIdx,
+    setDragAudioState,
+    placements,
+    selectedAudioClipId,
+    onSelectAudioClip,
   } = props;
 
+  const usedTrackCount = Object.keys(trackIndices || {}).length;
+  const highestUsedTrackIdx = Object.values(trackIndices || {}).reduce(
+    (max, val) => Math.max(max, val),
+    -1
+  );
   const maxTrackIdx = Object.values(trackIndices || {}).reduce((max, val) => Math.max(max, val), 2);
-  const totalTracks = maxTrackIdx + 2;
+  // Audio clips get dedicated lanes below every editable track, and below the
+  // subtitle lane when it is showing, so the two never land on the same row.
+  const audioLaneCount = audioClips?.length ?? 0;
+  const audioBaseTrackIdx = subtitleTrack.visible
+    ? Math.max(maxTrackIdx + 1, subtitleTrackIdx + 1)
+    : maxTrackIdx + 1;
+  // One separator per occupied lane, whichever kind of block occupies it.
+  const separatorCount =
+    Math.max(
+      usedTrackCount > 0 ? highestUsedTrackIdx : -1,
+      subtitleTrack.visible ? subtitleTrackIdx : -1,
+      audioLaneCount > 0 ? audioBaseTrackIdx + audioLaneCount - 1 : -1
+    ) + 1;
 
   return (
     <>
@@ -141,28 +198,31 @@ function RulerLayers(props: TimelineTrackProps & DragSetters) {
       />
 
       {/* Horizontal separators in background */}
-      {Array.from({ length: totalTracks - 1 }).map((_, i) => (
+      {Array.from({ length: separatorCount }).map((_, i) => (
         <div
           key={`separator-${i}`}
           className="absolute left-0 w-full h-[1px] border-t border-dashed border-[#A594F9]/30 dark:border-[#3e2fd9]/30 pointer-events-none"
-          style={{ top: `${72 + i * 36}px` }}
+          style={{ top: `${TIMELINE_RULER_HEIGHT + 34 + i * 36}px` }}
         />
       ))}
 
+      {/* Zero-width so the arrow and line both anchor to the exact playhead x */}
       <div
-        className="absolute top-0 h-full z-40 pointer-events-none"
+        className="absolute top-0 h-full w-0 z-40 pointer-events-none"
         style={{
           left: `${0 + currentPosition - scrollLeft}px`,
+          width: "18px",
+          marginLeft: "-9px", // center the 18px-wide marker on the exact time position
         }}
       >
         <div
-          className="sticky top-0 left-1/2 -translate-x-1/2 z-50
+          className="sticky top-0 -translate-x-1/2 z-50
                w-0 h-0
                border-l-[9px] border-r-[9px] border-t-[9px]
                border-l-transparent border-r-transparent border-t-green-500"
         />
 
-        <div className="w-0.5 h-full bg-green-500 mx-auto" />
+        <div className="absolute top-0 left-0 h-full w-0.5 bg-green-500 -translate-x-1/2" />
       </div>
 
       {segments.map((segment, idx) => (
@@ -213,28 +273,102 @@ function RulerLayers(props: TimelineTrackProps & DragSetters) {
           trackIdx={trackIndices[`text-${overlay.id}`] ?? 0}
         />
       ))}
+
+      {/* Subtitle track (SUB-6.4). Rendered last so a cue block sits above the
+          lane separators, and only when there are cues and the editor flag is
+          on — otherwise the ruler is exactly what it is today. */}
+      {subtitleTrack.visible &&
+        subtitleTrack.items.map((item) =>
+          item.kind === "cue" ? (
+            <SubtitleCueBlock
+              key={`subtitle-${item.index}`}
+              item={item}
+              isSelected={item.index === subtitleTrack.selectedCueIndex}
+              isDragging={item.index === subtitleTrack.draggingIndex}
+              trackIdx={subtitleTrackIdx}
+              onSelect={subtitleTrack.selectCueAt}
+              setDragSubtitleState={subtitleTrack.setDragSubtitleState}
+            />
+          ) : (
+            <SubtitleClusterBlock
+              key={`subtitle-cluster-${item.fromIndex}`}
+              item={item}
+              trackIdx={subtitleTrackIdx}
+              onFocus={subtitleTrack.focusCluster}
+            />
+          )
+        )}
+
+      {(audioClips ?? []).map((clip, idx) => (
+        <AudioClipBlock
+          key={`audio-${clip.id}`}
+          clip={clip}
+          idx={idx}
+          minValue={minValue}
+          maxValue={maxValue}
+          zoomedTimelineWidth={zoomedTimelineWidth}
+          trackIdx={audioBaseTrackIdx + idx}
+          placements={placements}
+          selected={selectedAudioClipId === clip.id}
+          onSelect={onSelectAudioClip}
+          setDragAudioState={setDragAudioState}
+        />
+      ))}
     </>
   );
 }
 
-export function TimelineTrack(props: TimelineTrackProps) {
-  const {
-    baseTimelineWidth,
-    zoomLevel,
-    zoomedTimelineWidth,
-    setScrollLeft,
-    scrollContainerRef,
-    rulerRef,
-    isDraggingTimelineRef,
-    setPlaying,
-    setDraggingCurrentTime,
-    updateCurrentTimeFromMouse,
-    switchToNonTrimMode,
+/** Placement + selection state for the audio lanes, kept out of TimelineTrack. */
+function useAudioClipEditing({
+  minValue,
+  maxValue,
+  zoomedTimelineWidth,
+  audioClips,
+}: {
+  minValue: number;
+  maxValue: number;
+  zoomedTimelineWidth: number;
+  audioClips?: AudioClipDto[];
+}) {
+  const placements = useAudioClipStore((s) => s.placements);
+  const setClipPlacement = useAudioClipStore((s) => s.setClipPlacement);
+  const selectedAudioClipId = useAudioClipStore((s) => s.selectedTimelineClipId);
+  const selectTimelineClip = useAudioClipStore((s) => s.selectTimelineClip);
+
+  const { setDragAudioState } = useAudioClipDrag({
     minValue,
     maxValue,
-    setActiveSegment,
+    zoomedTimelineWidth,
+    audioClips: audioClips ?? [],
+    placements,
+    setClipPlacement,
+  });
+
+  return {
+    placements,
+    selectedAudioClipId,
+    setSelectedAudioClipId: selectTimelineClip,
+    setDragAudioState,
+  };
+}
+
+/**
+ * The trim / zoom / text drag hooks, which every block on the ruler shares.
+ *
+ * Lifted out of `TimelineTrack` verbatim: four hook calls taking nearly the same
+ * dozen arguments made the component read as plumbing. Subtitles are wired up
+ * separately, in `useSubtitleTrack` — see the note on `useSubtitleCueDrag` for
+ * why they do not go through this machinery.
+ */
+function useBlockDrags(props: TimelineTrackProps) {
+  const {
+    minValue,
+    maxValue,
+    zoomedTimelineWidth,
+    rulerRef,
     segments,
     setSegments,
+    setActiveSegment,
     zoomSegments,
     setZoomSegments,
     textOverlays,
@@ -252,7 +386,7 @@ export function TimelineTrack(props: TimelineTrackProps) {
     setActiveSegment,
   });
 
-  const { setDragState } = useSegmentDrag({
+  const shared = {
     minValue,
     maxValue,
     zoomedTimelineWidth,
@@ -264,42 +398,92 @@ export function TimelineTrack(props: TimelineTrackProps) {
     setZoomSegments,
     setTextOverlays,
     setTrackIndices,
+  };
+
+  const { setDragState } = useSegmentDrag(shared);
+  const { setDragZoomState } = useZoomSegmentDrag(shared);
+  const { setDragTextState } = useTextOverlayDrag(shared);
+
+  return {
+    draggingScissor,
+    setDraggingScissor,
+    setScissorPreview,
+    setDragState,
+    setDragZoomState,
+    setDragTextState,
+  };
+}
+
+export function TimelineTrack(props: TimelineTrackProps) {
+  const {
+    baseTimelineWidth,
+    zoomLevel,
+    zoomedTimelineWidth,
+    setScrollLeft,
+    scrollContainerRef,
+    rulerRef,
+    isDraggingTimelineRef,
+    setPlaying,
+    setDraggingCurrentTime,
+    updateCurrentTimeFromMouse,
+    switchToNonTrimMode,
+    minValue,
+    maxValue,
+    trackIndices,
+    setZoomLevel,
+    scrollLeft,
+    localValue,
+    onValueChange,
+    audioClips,
+  } = props;
+
+  const { draggingScissor, setDraggingScissor, setScissorPreview, ...dragSetters } =
+    useBlockDrags(props);
+
+  const subtitleTrack = useSubtitleTrack({
+    minValue,
+    maxValue,
+    baseTimelineWidth,
+    zoomedTimelineWidth,
+    zoomLevel,
+    setZoomLevel,
+    scrollLeft,
+    setScrollLeft,
+    scrollContainerRef,
+    playheadSeconds: localValue,
+    onValueChange,
   });
 
-  const { setDragZoomState } = useZoomSegmentDrag({
-    minValue,
-    maxValue,
-    zoomedTimelineWidth,
-    segments,
-    zoomSegments,
-    textOverlays,
-    trackIndices,
-    setSegments,
-    setZoomSegments,
-    setTextOverlays,
-    setTrackIndices,
-  });
-
-  const { setDragTextState } = useTextOverlayDrag({
-    minValue,
-    maxValue,
-    zoomedTimelineWidth,
-    segments,
-    zoomSegments,
-    textOverlays,
-    trackIndices,
-    setSegments,
-    setZoomSegments,
-    setTextOverlays,
-    setTrackIndices,
-  });
+  const { placements, selectedAudioClipId, setSelectedAudioClipId, setDragAudioState } =
+    useAudioClipEditing({ minValue, maxValue, zoomedTimelineWidth, audioClips });
 
   const maxTrackIdx = Object.values(trackIndices || {}).reduce((max, val) => Math.max(max, val), 2);
-  const totalTracks = maxTrackIdx + 2;
+
+  // Subtitles get a lane of their own, immediately below whatever trim / zoom /
+  // text blocks are actually in use — not a lane out of the pool `resolveTracks`
+  // assigns from, since 150 back-to-back cues would fight every other block for
+  // it. With nothing else on the ruler that is lane 0, and the height below is
+  // unchanged from today in every case where a spare lane already existed.
+  const highestUsedTrackIdx = Object.values(trackIndices || {}).reduce(
+    (max, val) => Math.max(max, val),
+    -1
+  );
+  const subtitleTrackIdx = highestUsedTrackIdx + 1;
+  const baseTracks = subtitleTrack.visible
+    ? Math.max(maxTrackIdx + 2, subtitleTrackIdx + 2)
+    : maxTrackIdx + 2;
+  // Audio clips get dedicated lanes below every editable track, subtitles included.
+  const totalTracks = baseTracks + (audioClips?.length ?? 0);
+  // Grow the stream area with the lane count so every lane (incl. audio) is
+  // visible without vertical scrolling; matches the rulerRef height formula.
+  const timelineHeight = TIMELINE_RULER_HEIGHT + totalTracks * 36 + 10;
 
   return (
-    <div className="track-stream-container max-w-[1379px] h-[173px]">
-      <div className=" flex items-center justify-center bg-transparent" style={{ height: "100%" }}>
+    <div className="track-stream-container max-w-[1379px]">
+      <div
+        className=" flex items-center justify-center bg-transparent"
+        style={{ height: timelineHeight }}
+      >
         <SliceHandle
           side="left"
           onMouseDown={() => {
@@ -322,7 +506,7 @@ export function TimelineTrack(props: TimelineTrackProps) {
               style={{
                 width: `${baseTimelineWidth * zoomLevel}px`,
                 minWidth: `${baseTimelineWidth}px`,
-                height: `${38 + totalTracks * 36 + 10}px`,
+                height: `${TIMELINE_RULER_HEIGHT + totalTracks * 36 + 10}px`,
                 boxSizing: "border-box",
               }}
               onMouseDown={(e) => {
@@ -333,6 +517,7 @@ export function TimelineTrack(props: TimelineTrackProps) {
                   updateCurrentTimeFromMouse(e);
 
                   switchToNonTrimMode();
+                  setSelectedAudioClipId(null);
                 }
               }}
               onClick={(e) => {
@@ -340,13 +525,20 @@ export function TimelineTrack(props: TimelineTrackProps) {
                 if (!target.closest('[class*="segment"]')) {
                   switchToNonTrimMode();
                 }
+                if (!target.closest(".subtitle-cue-block, .subtitle-cue-cluster")) {
+                  subtitleTrack.clearSelection();
+                }
               }}
             >
               <RulerLayers
                 {...props}
-                setDragState={setDragState}
-                setDragZoomState={setDragZoomState}
-                setDragTextState={setDragTextState}
+                {...dragSetters}
+                subtitleTrack={subtitleTrack}
+                subtitleTrackIdx={subtitleTrackIdx}
+                setDragAudioState={setDragAudioState}
+                placements={placements}
+                selectedAudioClipId={selectedAudioClipId}
+                onSelectAudioClip={setSelectedAudioClipId}
               />
             </div>
           </div>

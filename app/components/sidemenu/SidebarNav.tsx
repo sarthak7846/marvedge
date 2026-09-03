@@ -1,7 +1,9 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Settings, Share2 } from "lucide-react";
+import { Inbox, Settings, Share2 } from "lucide-react";
+
+import { isOverlaysPanelEnabled } from "@/app/lib/overlays/flags";
 
 interface SidebarNavProps {
   isDark: boolean;
@@ -69,6 +71,19 @@ const SidebarNav = ({ isDark, pathname, onNavigate }: SidebarNavProps) => {
         />
       ),
     },
+    // The lead inbox. Behind the client overlays flag: with the feature off
+    // there are no leads to read, and a nav item advertising a switched-off
+    // feature is worse than no nav item. NEXT_PUBLIC_ is inlined at build time,
+    // so this costs nothing at runtime and leaks no secret.
+    ...(isOverlaysPanelEnabled()
+      ? [
+          {
+            href: "/leads",
+            label: "Leads",
+            icon: <Inbox size={18} />,
+          },
+        ]
+      : []),
     {
       href: "/settings",
       label: "Settings",

@@ -5,9 +5,17 @@ import BackgroundPanel from "./editorSidebar/BackgroundPanel";
 import ToolsPanel from "./editorSidebar/ToolsPanel";
 import CtaPanel from "./editorSidebar/CtaPanel";
 import AvsPanel from "./editorSidebar/AvsPanel";
+import SubtitlePanel from "./editorSidebar/SubtitlePanel";
+import SubtitleGenerateActions from "./editorSidebar/subtitles/SubtitleGenerateActions";
 import BrandingPanel from "./editorSidebar/BrandingPanel";
+import AudioPanel from "./editorSidebar/audio/AudioPanel";
+import OverlaysPanel from "./editorSidebar/OverlaysPanel";
 import { isAvsPanelEnabled } from "@/app/lib/avs/flags";
 import { isWtmPanelEnabled } from "@/app/lib/wtm/flags";
+import { isSubtitleEditorEnabled } from "@/app/lib/subtitles";
+import { useSubtitleStore } from "@/app/store/editor/subtitleStore";
+import { isAudioPanelEnabled } from "@/app/lib/audio/flags";
+import { isOverlaysPanelEnabled } from "@/app/lib/overlays/flags";
 import type { CtaItem } from "@/app/(signed)/editor/apiTypes";
 
 interface EditorSidebarProps {
@@ -44,6 +52,11 @@ interface EditorSidebarProps {
   onClearSubtitles?: () => void;
   subtitlesLoading?: boolean;
   hasSubtitles?: boolean;
+  /** Stop waiting on a running subtitle job (PRD §13). */
+  onCancelSubtitles?: () => void;
+  cancelling?: boolean;
+  /** Seek the player. The subtitle panel uses it to jump to a cue. */
+  onSeek?: (seconds: number) => void;
   className?: string;
   onOpenSaveDemo?: () => void;
   savingDemo?: boolean;
@@ -89,6 +102,9 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   onClearSubtitles,
   subtitlesLoading = false,
   hasSubtitles = false,
+  onCancelSubtitles,
+  cancelling = false,
+  onSeek,
   onOpenSaveDemo,
   savingDemo = false,
   demoSaved = false,
@@ -100,6 +116,18 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   onReorderCta,
 }) => {
   const [activeTab, setActiveTab] = React.useState<MainTab>("background");
+
+  // Picking a cue on the timeline's subtitle track (SUB PR 3) has to bring the
+  // cue list up, or "selecting a block scrolls the list to it" only works when
+  // the user happened to already be on this tab. Driven off the store's focus
+  // nonce rather than the selected index, so re-picking the same block after
+  // switching away still comes back here.
+  const cueFocusNonce = useSubtitleStore((s) => s.cueFocusNonce);
+  React.useEffect(() => {
+    if (isSubtitleEditorEnabled() && useSubtitleStore.getState().selectedCueIndex !== null) {
+      setActiveTab("subtitles");
+    }
+  }, [cueFocusNonce]);
 
   return (
     <aside
@@ -130,27 +158,39 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
       )}
 
       {activeTab === "tools" && (
-        <ToolsPanel
-          aspectRatio={aspectRatio}
-          setAspectRatio={setAspectRatio}
-          browserFrameDrawShadow={browserFrameDrawShadow}
-          setBrowserFrameDrawShadow={setBrowserFrameDrawShadow}
-          browserFrameDrawBorder={browserFrameDrawBorder}
-          setBrowserFrameDrawBorder={setBrowserFrameDrawBorder}
-          textOverlayInput={textOverlayInput}
-          setTextOverlayInput={setTextOverlayInput}
-          textOverlayFontFamily={textOverlayFontFamily}
-          setTextOverlayFontFamily={setTextOverlayFontFamily}
-          textOverlayFontSize={textOverlayFontSize}
-          setTextOverlayFontSize={setTextOverlayFontSize}
-          onAddTextOverlay={onAddTextOverlay}
-          textOverlayColor={textOverlayColor}
-          setTextOverlayColor={setTextOverlayColor}
-          onAddSubtitles={onAddSubtitles}
-          onClearSubtitles={onClearSubtitles}
-          subtitlesLoading={subtitlesLoading}
-          hasSubtitles={hasSubtitles}
-        />
+        <div className="space-y-6">
+          <ToolsPanel
+            aspectRatio={aspectRatio}
+            setAspectRatio={setAspectRatio}
+            browserFrameDrawShadow={browserFrameDrawShadow}
+            setBrowserFrameDrawShadow={setBrowserFrameDrawShadow}
+            browserFrameDrawBorder={browserFrameDrawBorder}
+            setBrowserFrameDrawBorder={setBrowserFrameDrawBorder}
+            textOverlayInput={textOverlayInput}
+            setTextOverlayInput={setTextOverlayInput}
+            textOverlayFontFamily={textOverlayFontFamily}
+            setTextOverlayFontFamily={setTextOverlayFontFamily}
+            textOverlayFontSize={textOverlayFontSize}
+            setTextOverlayFontSize={setTextOverlayFontSize}
+            onAddTextOverlay={onAddTextOverlay}
+            textOverlayColor={textOverlayColor}
+            setTextOverlayColor={setTextOverlayColor}
+          />
+
+          {/* Subtitle generation lives in its own tab now. With the editor flag
+              off that tab does not exist, so the original buttons stay here and
+              the Tools tab looks and behaves exactly as it does today. */}
+          {!isSubtitleEditorEnabled() && (
+            <SubtitleGenerateActions
+              onAddSubtitles={onAddSubtitles}
+              onClearSubtitles={onClearSubtitles}
+              subtitlesLoading={subtitlesLoading}
+              hasSubtitles={hasSubtitles}
+              onCancelSubtitles={onCancelSubtitles}
+              cancelling={cancelling}
+            />
+          )}
+        </div>
       )}
 
       {activeTab === "cta" && (
@@ -165,7 +205,22 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
 
       {activeTab === "avs" && isAvsPanelEnabled() && <AvsPanel />}
 
+      {activeTab === "subtitles" && isSubtitleEditorEnabled() && (
+        <SubtitlePanel
+          onAddSubtitles={onAddSubtitles}
+          onClearSubtitles={onClearSubtitles}
+          subtitlesLoading={subtitlesLoading}
+          hasSubtitles={hasSubtitles}
+          onCancelSubtitles={onCancelSubtitles}
+          cancelling={cancelling}
+          onSeek={onSeek}
+        />
+      )}
+      {activeTab === "audio" && isAudioPanelEnabled() && <AudioPanel />}
+
       {activeTab === "branding" && isWtmPanelEnabled() && <BrandingPanel />}
+
+      {activeTab === "overlays" && isOverlaysPanelEnabled() && <OverlaysPanel />}
     </aside>
   );
 };

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { TimelineRulerProps, TextOverlayItem } from "./types";
 import { ZoomEffect } from "../../types/editor/zoom-effect";
 import {
@@ -10,6 +10,7 @@ import {
 } from "./useTimelineCore";
 import { useHandleDrag } from "./useTimelineDrags";
 import { useTrimActions, useZoomActions } from "./useTimelineActions";
+import { useTimelineDeleteKey } from "./useTimelineDeleteKey";
 
 export interface TimelineBlock {
   id: string;
@@ -110,6 +111,37 @@ export function resolveTracks(
   return resolved;
 }
 
+// Tracks the scroll container's width so the ruler sizes itself to the viewport.
+function useContainerWidth(ref: React.RefObject<HTMLDivElement | null>, fallback: number) {
+  const [width, setWidth] = useState(fallback);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) {
+      return;
+    }
+
+    const updateWidth = () => {
+      if (el.clientWidth > 0) {
+        setWidth(el.clientWidth);
+      }
+    };
+
+    updateWidth();
+
+    const observer = new ResizeObserver(() => {
+      updateWidth();
+    });
+    observer.observe(el);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [ref]);
+
+  return width;
+}
+
 function useTimelineRulerState(props: TimelineRulerProps) {
   const {
     minValue = 0.05,
@@ -148,31 +180,7 @@ function useTimelineRulerState(props: TimelineRulerProps) {
 
   const rulerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [baseTimelineWidth, setBaseTimelineWidth] = useState(956);
-
-  useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (!el) {
-      return;
-    }
-
-    const updateWidth = () => {
-      if (el.clientWidth > 0) {
-        setBaseTimelineWidth(el.clientWidth);
-      }
-    };
-
-    updateWidth();
-
-    const observer = new ResizeObserver(() => {
-      updateWidth();
-    });
-    observer.observe(el);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
+  const baseTimelineWidth = useContainerWidth(scrollContainerRef, 956);
 
   const { zoomLevel, setZoomLevel, scrollLeft, setScrollLeft } = useTimelineZoom({
     rulerRef,
@@ -350,6 +358,13 @@ function useTimelineRulerActions(
     setPlaying,
     updateCurrentTimeFromMouse,
     pushAction,
+  });
+
+  useTimelineDeleteKey({
+    activeZoomIdx: props.activeZoomIdx,
+    removeZoomSegment,
+    activeSegment,
+    removeSegment,
   });
 
   return {

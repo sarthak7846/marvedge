@@ -17,10 +17,6 @@ interface ToolsPanelProps {
   onAddTextOverlay?: () => void;
   textOverlayColor: string;
   setTextOverlayColor?: (value: string) => void;
-  onAddSubtitles?: () => void;
-  onClearSubtitles?: () => void;
-  subtitlesLoading: boolean;
-  hasSubtitles: boolean;
 }
 
 const ToolsPanel: React.FC<ToolsPanelProps> = ({
@@ -39,10 +35,6 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({
   onAddTextOverlay,
   textOverlayColor,
   setTextOverlayColor,
-  onAddSubtitles,
-  onClearSubtitles,
-  subtitlesLoading,
-  hasSubtitles,
 }) => {
   return (
     <div className="space-y-6">
@@ -138,31 +130,6 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({
         setTextOverlayColor={setTextOverlayColor}
         onAddTextOverlay={onAddTextOverlay}
       />
-
-      <div>
-        <h2 className="control-block-label text-lg font-bold text-[#A594F9] mb-4">Subtitles</h2>
-        <button
-          type="button"
-          disabled={subtitlesLoading}
-          onClick={() => onAddSubtitles && onAddSubtitles()}
-          className="w-full rounded-lg bg-[#8A76FC] text-white py-2 text-sm font-semibold hover:bg-[#7C5CFC] transition disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {subtitlesLoading
-            ? "Generating..."
-            : hasSubtitles
-              ? "Regenerate Subtitles"
-              : "Add Subtitles"}
-        </button>
-        {hasSubtitles && (
-          <button
-            type="button"
-            onClick={() => onClearSubtitles && onClearSubtitles()}
-            className="btn-subtitles-block w-full mt-2 rounded-lg border border-[#8A76FC] text-[#8A76FC] py-2 text-sm font-semibold hover:bg-[#F6F3FF] transition"
-          >
-            Skip Subtitles
-          </button>
-        )}
-      </div>
     </div>
   );
 };

@@ -6,8 +6,14 @@ import { ExportSettings } from "@/app/components/ExportSettingsModal";
 import { ZoomEffect } from "@/app/types/editor/zoom-effect";
 import { exportVideo } from "../utils/videoHandlers";
 import { useWebcamComposite } from "./useWebcamComposite";
+import { sanitizeSubtitleStyle } from "@/app/lib/subtitles";
+import type { SubtitleStyle } from "@/app/lib/subtitles";
 import { sanitizeWatermarkConfig } from "@/app/lib/wtm/watermark";
-import { buildExportSpeed, resolveExportBackgroundSelection } from "../utils/exportHelpers";
+import {
+  buildExportSpeed,
+  resolveExportBackgroundSelection,
+  saveExportedVideoRecord,
+} from "../utils/exportHelpers";
 import { SubtitleCue, TextOverlayItem } from "../types";
 import type { EditorState } from "../apiTypes";
 
@@ -17,6 +23,8 @@ interface UseExportFlowProps {
   segments: { start: number; end: number }[];
   zoomSegments: ZoomEffect[];
   subtitleCues: SubtitleCue[];
+  subtitleStyle: SubtitleStyle | null;
+  subtitleLanguage: string;
   textOverlays: TextOverlayItem[];
   playbackSpeed: number;
 }
@@ -37,6 +45,8 @@ export function useExportFlow({
   segments,
   zoomSegments,
   subtitleCues,
+  subtitleStyle,
+  subtitleLanguage,
   textOverlays,
   playbackSpeed,
 }: UseExportFlowProps) {
@@ -63,24 +73,6 @@ export function useExportFlow({
 
   const setProgress = () => {};
 
-  const saveExportedVideoRecord = async (
-    exportedUrl: string,
-    sourceVideoUrl: string,
-    settings: ExportSettings,
-    demoId?: string | null
-  ) => {
-    const res = await axios.post("/api/exported-videos", {
-      title: sidebarTitle?.trim() || "Untitled Export",
-      description: sidebarDescription?.trim() || "",
-      exportedUrl,
-      sourceVideoUrl,
-      settings,
-      demoId: demoId || null,
-      upsertByDemo: Boolean(demoId),
-    });
-    return res.data?.exportedVideo?.id;
-  };
-
   // WTM: the camera-bubble pre-pass, run over the source before the chunked
   // export (see useWebcamComposite). A no-op without a recorded clip.
   const compositeWebcamBubble = useWebcamComposite(wtm);
@@ -102,6 +94,17 @@ export function useExportFlow({
       segments,
       zoomSegments,
       subtitles: subtitleCues,
+      // SUB: the demo's persisted style, re-sanitized server-side by
+      // /api/jobs/create. Undefined for a demo that was never styled → the
+      // recipe carries no style and the worker keeps master's hardcoded one.
+      subtitleStyle: sanitizeSubtitleStyle(subtitleStyle),
+      // SUB PR 5: the active track's language. The worker needs it to decide
+      // right-to-left layout for the burn-in; the route re-normalizes it.
+      subtitleLanguage,
+      // SUB PR 6: the export-settings switch. Only ever false when the user
+      // explicitly turned burn-in off — undefined and true both mean "burn
+      // them in", which is what every export did before the switch existed.
+      burnSubtitles: settings.burnSubtitles,
       textOverlays,
       setProgress,
       aspectRatio,
@@ -173,12 +176,14 @@ export function useExportFlow({
 
     try {
       setResultActionLoading(true);
-      const exportedVideoId = await saveExportedVideoRecord(
-        pendingExport.exportedUrl,
-        pendingExport.sourceVideoUrl,
-        pendingExport.settings,
-        pendingExport.demoId
-      );
+      const exportedVideoId = await saveExportedVideoRecord({
+        title: sidebarTitle,
+        description: sidebarDescription,
+        exportedUrl: pendingExport.exportedUrl,
+        sourceVideoUrl: pendingExport.sourceVideoUrl,
+        settings: pendingExport.settings,
+        demoId: pendingExport.demoId,
+      });
 
       const generatedShareUrl = `${window.location.origin}/share/video/${exportedVideoId}`;
       setPendingExport((prev) => (prev ? { ...prev, shareUrl: generatedShareUrl } : null));

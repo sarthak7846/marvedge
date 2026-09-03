@@ -497,10 +497,211 @@ function escapeAssText(text) {
     .replace(/}/g, ")");
 }
 
-function writeAssSubtitles(tempDir, cues, w, h) {
-  const fontSize = Math.max(20, Math.min(58, Math.round(h * 0.05)));
-  const marginV = Math.max(20, Math.min(96, Math.round(h * 0.06)));
-  const outline = Math.max(1, Math.min(4, Math.round(fontSize / 16)));
+// --- SUB: subtitle styling ---------------------------------------------------
+// The mapping below is a faithful port of app/lib/subtitles/style.ts, which the
+// editor's preview overlay also reads. That module is the source of truth: it
+// cannot be imported here (this worker is a standalone package deployed from
+// cloudrun-worker/ alone), so the two are pinned together by a test instead —
+// app/lib/subtitles/workerParity.test.ts requires THIS FILE and asserts the two
+// produce byte-identical ASS for a matrix of styles and frame heights. Change a
+// rule here and that test fails until style.ts moves with it.
+//
+// Everything is driven off `recipe.subtitleStyle`. When it is absent — a demo
+// that was never styled — writeAssSubtitles takes the untouched legacy branch
+// below and the .ass file is byte-for-byte what it has always been.
+
+const SUBTITLE_FONT_NAMES = {
+  arial: "Arial",
+  roboto: "Roboto",
+  poppins: "Poppins",
+  inter: "Inter",
+};
+
+const SUBTITLE_ASS_ALIGNMENT = { top: 8, middle: 5, bottom: 2 };
+
+// Master's defaults, which are also DEFAULT_SUBTITLE_STYLE in style.ts.
+const SUBTITLE_DEFAULT_FONT_PCT = 5;
+const SUBTITLE_DEFAULT_OUTLINE_RATIO = 1 / 16;
+const SUBTITLE_LEGACY_BACK_COLOUR = "&H64000000";
+const SUBTITLE_LEGACY_SECONDARY_COLOUR = "&H000000FF";
+const SUBTITLE_MARGIN_H_PX = 60;
+// PRD size range, as a percentage of frame height at a 1080p reference.
+const SUBTITLE_FONT_PCT_MIN = (12 / 1080) * 100;
+const SUBTITLE_FONT_PCT_MAX = (72 / 1080) * 100;
+
+function subtitleClamp(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, n));
+}
+
+function subtitleHexPair(n) {
+  return Math.max(0, Math.min(255, Math.round(n)))
+    .toString(16)
+    .toUpperCase()
+    .padStart(2, "0");
+}
+
+// ASS is &HAABBGGRR: the RGB bytes are REVERSED relative to CSS, and the alpha
+// byte is INVERTED (00 = fully opaque).
+function subtitleAssColour(hex, opacity) {
+  const raw = String(hex || "").trim();
+  const clean = /^#[0-9a-fA-F]{6}$/.test(raw) ? raw.slice(1) : "000000";
+  const r = Number.parseInt(clean.slice(0, 2), 16);
+  const g = Number.parseInt(clean.slice(2, 4), 16);
+  const b = Number.parseInt(clean.slice(4, 6), 16);
+  const alpha = 255 - Math.round(subtitleClamp(opacity, 0, 1, 1) * 255);
+  return `&H${subtitleHexPair(alpha)}${subtitleHexPair(b)}${subtitleHexPair(g)}${subtitleHexPair(r)}`;
+}
+
+// The one place a style becomes pixels. The font clamp is master's [20, 58],
+// scaled by the size the user asked for relative to the default — so the default
+// clamps exactly as master does, while a deliberately large choice is not capped
+// away. See the long note on subtitleMetrics() in style.ts.
+function subtitleMetrics(style, h) {
+  const height = Math.max(1, Number(h) || 0);
+  const pct = subtitleClamp(
+    style && style.fontSizePct,
+    SUBTITLE_FONT_PCT_MIN,
+    SUBTITLE_FONT_PCT_MAX,
+    SUBTITLE_DEFAULT_FONT_PCT
+  );
+  const sizeScale = pct / SUBTITLE_DEFAULT_FONT_PCT;
+  const fontPx = Math.max(
+    Math.round(20 * sizeScale),
+    Math.min(Math.round(58 * sizeScale), Math.round(height * (pct / 100)))
+  );
+  const marginVPx = Math.max(20, Math.min(96, Math.round(height * 0.06)));
+  const outlineWidth = subtitleClamp(
+    style && style.outlineWidth,
+    0,
+    0.25,
+    SUBTITLE_DEFAULT_OUTLINE_RATIO
+  );
+  const shadowDepth = subtitleClamp(style && style.shadowDepth, 0, 0.25, 0);
+  return {
+    fontPx,
+    marginVPx,
+    marginHPx: SUBTITLE_MARGIN_H_PX,
+    outlinePx: Math.round(fontPx * outlineWidth),
+    shadowPx: Math.round(fontPx * shadowDepth),
+  };
+}
+
+// A background box is BorderStyle 3 + BackColour, NOT Outline. With master's
+// BorderStyle 1, BackColour is the (unused, Shadow: 0) shadow colour.
+function subtitleAssStyleLine(style, w, h) {
+  const s = style || {};
+  const m = subtitleMetrics(s, h);
+  const font = SUBTITLE_FONT_NAMES[String(s.fontFamily || "arial").toLowerCase()] || "Arial";
+  const hasBox = typeof s.backgroundColor === "string" && s.backgroundColor.length > 0;
+  const backColour = hasBox
+    ? subtitleAssColour(
+        s.backgroundColor,
+        s.backgroundOpacity === undefined ? 0.6 : s.backgroundOpacity
+      )
+    : SUBTITLE_LEGACY_BACK_COLOUR;
+  return [
+    "Style: Default",
+    font,
+    m.fontPx,
+    subtitleAssColour(s.color || "#FFFFFF", 1),
+    SUBTITLE_LEGACY_SECONDARY_COLOUR,
+    subtitleAssColour(s.outlineColor || "#000000", 1),
+    backColour,
+    0,
+    0,
+    0,
+    0,
+    100,
+    100,
+    0,
+    0,
+    hasBox ? 3 : 1,
+    m.outlinePx,
+    m.shadowPx,
+    SUBTITLE_ASS_ALIGNMENT[s.alignment] || 2,
+    m.marginHPx,
+    m.marginHPx,
+    m.marginVPx,
+    1,
+  ].join(",");
+}
+
+// Entrance animations, as ASS override tags prepended to the Dialogue text.
+// \fad, \t and \move are all standard libass tags. \move positions the text
+// absolutely and so overrides the style's margins — the anchor it lands on is
+// therefore recomputed here from the same metrics the Style: line used.
+function subtitleAssOverrideTags(style, w, h) {
+  const animation = style && style.animation;
+  if (animation === "fade") {
+    return "{\\fad(200,200)}";
+  }
+  if (animation === "pop") {
+    return "{\\t(0,150,\\fscx110\\fscy110)\\t(150,300,\\fscx100\\fscy100)}";
+  }
+  if (animation === "slide") {
+    const m = subtitleMetrics(style, h);
+    const x = Math.round(w / 2);
+    const alignment = style && style.alignment;
+    const y =
+      alignment === "top"
+        ? m.marginVPx
+        : alignment === "middle"
+          ? Math.round(h / 2)
+          : h - m.marginVPx;
+    const from = y + Math.round(m.fontPx * 0.8);
+    return `{\\move(${x},${from},${x},${y},0,250)}`;
+  }
+  return "";
+}
+
+// SUB PR 5: right-to-left scripts. Mirrors `isRtlLanguage` in
+// app/lib/subtitles/languages.ts (Arabic is the only RTL language of the seven
+// the product offers; the others are listed so a future addition behaves).
+//
+// libass performs bidirectional reordering and Arabic shaping through FriBidi
+// and HarfBuzz, but ONLY when the ffmpeg build it is linked into includes them.
+// The container's build has not been inspected, so this path is implemented and
+// left unreachable from the UI — RTL_RENDERING_VERIFIED in languages.ts holds
+// every RTL language out of both pickers until someone confirms a real render.
+const RTL_LANGUAGES = new Set(["ar", "he", "fa", "ur"]);
+
+function isRtlSubtitleLanguage(language) {
+  const code = String(language || "")
+    .trim()
+    .toLowerCase()
+    .split("-")[0];
+  return RTL_LANGUAGES.has(code);
+}
+
+// U+202B RIGHT-TO-LEFT EMBEDDING … U+202C POP DIRECTIONAL FORMATTING.
+//
+// Wrapping each line states the paragraph direction explicitly rather than
+// leaving libass to infer it from the first strong character — which gets a
+// caption that opens with a Latin product name or a digit backwards.
+const RLE = "‫";
+const PDF = "‬";
+
+function applyRtlBidi(text) {
+  return `${RLE}${text}${PDF}`;
+}
+
+function writeAssSubtitles(tempDir, cues, w, h, style, language) {
+  // No style config -> master's hardcoded line, verbatim. This branch is what
+  // guarantees a demo that predates the style panel exports byte-identically;
+  // it deliberately does not route through the mapping above.
+  let styleLine;
+  if (style) {
+    styleLine = subtitleAssStyleLine(style, w, h);
+  } else {
+    const fontSize = Math.max(20, Math.min(58, Math.round(h * 0.05)));
+    const marginV = Math.max(20, Math.min(96, Math.round(h * 0.06)));
+    const outline = Math.max(1, Math.min(4, Math.round(fontSize / 16)));
+    styleLine = `Style: Default,Arial,${fontSize},&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,${outline},0,2,60,60,${marginV},1`;
+  }
 
   const header = [
     "[Script Info]",
@@ -512,17 +713,26 @@ function writeAssSubtitles(tempDir, cues, w, h) {
     "",
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-    `Style: Default,Arial,${fontSize},&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,${outline},0,2,60,60,${marginV},1`,
+    styleLine,
     "",
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
   ].join("\n");
 
+  // Empty string when there is no animation, so an unstyled export's Dialogue
+  // lines are unchanged too.
+  const tags = style ? subtitleAssOverrideTags(style, w, h) : "";
+
+  // Absent language → untouched text, so every existing demo's Dialogue lines
+  // are byte-for-byte what they were.
+  const rtl = isRtlSubtitleLanguage(language);
+
   const lines = cues.map((c) => {
     const start = formatAssTime(c.start);
     const end = formatAssTime(c.end);
-    const t = escapeAssText(c.text);
-    return `Dialogue: 0,${start},${end},Default,,0,0,0,,${t}`;
+    const escaped = escapeAssText(c.text);
+    const t = rtl ? applyRtlBidi(escaped) : escaped;
+    return `Dialogue: 0,${start},${end},Default,,0,0,0,,${tags}${t}`;
   });
 
   const assPath = path.join(tempDir, "subtitles.ass");
@@ -1080,9 +1290,31 @@ async function renderChunkFromRecipe({
   }
 
   if (remappedSubtitleCues.length > 0) {
-    const assPath = writeAssSubtitles(tempDir, remappedSubtitleCues, targetWidth, targetHeight);
+    // SUB: recipe.subtitleStyle is already sanitized by /api/jobs/create — the
+    // worker renders what it is handed and validates nothing itself, exactly as
+    // it does for recipe.watermark. Absent -> master's hardcoded style.
+    const subtitleStyle =
+      recipe.subtitleStyle && typeof recipe.subtitleStyle === "object" ? recipe.subtitleStyle : null;
+    const assPath = writeAssSubtitles(
+      tempDir,
+      remappedSubtitleCues,
+      targetWidth,
+      targetHeight,
+      subtitleStyle,
+      typeof recipe.subtitleLanguage === "string" ? recipe.subtitleLanguage : null
+    );
     const safeAss = ffmpegEscapeFilterValue(assPath);
-    filters.push(`${videoOut}subtitles=${safeAss}[subv]`);
+    // Inter and Poppins ship in the image at /app/fonts but are not in a
+    // fontconfig search path, so libass cannot resolve them by family name
+    // without being pointed at the directory. (drawtext takes a file path and so
+    // never needed this — see resolveFontForDrawtext.) Only added when a style
+    // is actually set, so an unstyled export's filter graph is unchanged.
+    const fontsDir = path.join(__dirname, "fonts");
+    const fontsOpt =
+      subtitleStyle && fs.existsSync(fontsDir)
+        ? `:fontsdir=${ffmpegEscapeFilterValue(fontsDir)}`
+        : "";
+    filters.push(`${videoOut}subtitles=${safeAss}${fontsOpt}[subv]`);
     videoOut = "[subv]";
   }
 
@@ -1185,4 +1417,20 @@ async function renderChunkFromRecipe({
 
 module.exports = {
   renderChunkFromRecipe,
+  // Exported for app/lib/subtitles/workerParity.test.ts, which asserts this
+  // file's ASS mapping stays byte-identical to app/lib/subtitles/style.ts.
+  writeAssSubtitles,
+  subtitleAssStyleLine,
+  subtitleAssOverrideTags,
+  subtitleAssColour,
+  isRtlSubtitleLanguage,
+  // Exported for app/lib/subtitles/burnInInvariant.test.ts, which drives the
+  // real chunk-slice -> trim-remap -> ASS path with cue lists an editing session
+  // can actually produce. remapSubtitleCuesToTrimmedTimeline ASSUMES ITS INPUT
+  // IS SORTED AND NON-OVERLAPPING; that test is what stops the assumption from
+  // going unchecked now that a user can drag cues on top of each other.
+  remapSubtitleCuesToTrimmedTimeline,
+  overlapSliceAbsolute,
+  normalizeRemoveSegments,
+  invertToKeepSegments,
 };
