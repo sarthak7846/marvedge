@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth"; // FIX: added auth import
+import { authOptions } from "@/app/lib/auth/options"; // FIX: added authOptions import
 import cloudinary from "@/app/lib/cloudinary";
 import type { UploadApiOptions, UploadApiErrorResponse, UploadApiResponse } from "cloudinary";
 
 export async function POST(req: NextRequest) {
+  // FIX: block unauthenticated requests (was missing)
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
