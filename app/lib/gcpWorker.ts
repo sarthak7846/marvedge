@@ -23,6 +23,11 @@ export type GcpWorkerPayload = {
   position?: string;
   size?: number;
   shape?: string;
+  // HLS packaging (`/package-hls`). `demoId` doubles as the R2 object prefix,
+  // and `sourceHash` is the idempotency key the previous run recorded.
+  demoId?: string;
+  sourceHash?: string;
+  force?: boolean;
 };
 
 export type GcpWorkerResponse = {
@@ -43,6 +48,12 @@ export type GcpWorkerResponse = {
     alignedVideoUrl?: string;
     // WTM webcam-bubble compositing (`/wtm-composite`).
     compositedVideoUrl?: string;
+    // HLS packaging (`/package-hls`).
+    playlistUri?: string;
+    sourceHash?: string;
+    renditions?: Array<{ height: number; bitrateKbps: number }>;
+    /** The source was unchanged, so nothing was re-encoded. */
+    skipped?: boolean;
   };
   error?: string;
 };
@@ -58,9 +69,9 @@ function normalizeWorkerBaseUrl(rawUrl: string) {
   }
   url = url.replace(/\/+$/, "");
   // Accept env values ending with a known endpoint (/process, /subtitles,
-  // /avs-voiceover, /avs-sync, /wtm-composite) so we always POST against the
-  // worker's base URL.
-  url = url.replace(/\/(process|subtitles|avs-voiceover|avs-sync|wtm-composite)$/i, "");
+  // /avs-voiceover, /avs-sync, /wtm-composite, /package-hls) so we always POST
+  // against the worker's base URL.
+  url = url.replace(/\/(process|subtitles|avs-voiceover|avs-sync|wtm-composite|package-hls)$/i, "");
   return url;
 }
 
@@ -310,4 +321,67 @@ export async function invokeGcpComposite(
   }
   const duration = typeof result?.duration === "number" ? result.duration : 0;
   return { compositedVideoUrl, duration };
+}
+
+export type GcpPackageHlsPayload = {
+  demoId: string;
+  videoUrl: string;
+  /** The hash recorded by the last successful run, when there was one. */
+  sourceHash?: string;
+  /** Repackage even when the source is unchanged. */
+  force?: boolean;
+};
+
+export type GcpPackageHlsResult = {
+  /** `r2://<bucket>/hls/<demoId>/master.m3u8`. */
+  playlistUri: string;
+  sourceHash: string;
+  renditions: Array<{ height: number; bitrateKbps: number }>;
+  /** The source was unchanged, so nothing was re-encoded. */
+  skipped: boolean;
+};
+
+// A three-rung ladder decodes the source once and encodes it three times, which
+// on a long demo is by far the heaviest thing this worker does — heavier than
+// the AVS alignment or the WTM composite, which already get 15 minutes. Half an
+// hour is the ceiling before Cloud Run's own request timeout becomes the binding
+// constraint anyway.
+const PACKAGE_HLS_TIMEOUT_MS = 30 * 60 * 1000;
+
+/**
+ * Trigger the Cloud Run worker's `/package-hls` endpoint: one source in, an
+ * adaptive-bitrate HLS ladder on R2 out. Mirrors `invokeGcpComposite`, and like
+ * it reuses invokeGcpWorker's retry-and-backoff rather than doing its own HTTP.
+ *
+ * IDEMPOTENT AT THE WORKER, not here: passing the `sourceHash` from the previous
+ * run lets it answer `skipped: true` after one small object read, without
+ * downloading or re-encoding anything. Callers that have a stored hash should
+ * always pass it.
+ */
+export async function invokeGcpPackageHls(
+  payload: GcpPackageHlsPayload
+): Promise<GcpPackageHlsResult> {
+  const body = await invokeGcpWorker(
+    {
+      recipeId: "package-hls",
+      demoId: payload.demoId,
+      videoUrl: payload.videoUrl,
+      sourceHash: payload.sourceHash,
+      force: payload.force,
+    },
+    "/package-hls",
+    { timeoutMs: PACKAGE_HLS_TIMEOUT_MS }
+  );
+
+  const result = body.result;
+  const playlistUri = typeof result?.playlistUri === "string" ? result.playlistUri : "";
+  if (!playlistUri) {
+    throw new Error("HLS packager returned no playlist URI");
+  }
+  return {
+    playlistUri,
+    sourceHash: typeof result?.sourceHash === "string" ? result.sourceHash : "",
+    renditions: Array.isArray(result?.renditions) ? result.renditions : [],
+    skipped: result?.skipped === true,
+  };
 }

@@ -9,6 +9,8 @@ import {
   readCueList,
 } from "@/app/lib/subtitles";
 import ShareVideoPageClient from "./ShareVideoPageClient";
+import { BRANCH_PLACEMENTS } from "@/app/lib/overlays/branch";
+import { resolveShareOverlays, shareMediaUrl } from "./overlayContext";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -176,6 +178,14 @@ export default async function SharePage({ params }: PageProps) {
       editing: true,
       subtitles: true,
       ctas: {
+        // Branch cards are Cta rows too (decision 6), and they are rendered by
+        // the player's overlay — not as a button under the video. Excluding
+        // them by placement is what stops a demo with branching configured
+        // growing two extra buttons down here. `placement` is null on every CTA
+        // that exists today, so the rendered output is unchanged for all of them
+        // — and the OR is spelled out because SQL's `NOT IN` is NULL, not true,
+        // for a null column.
+        where: { OR: [{ placement: null }, { placement: { notIn: [...BRANCH_PLACEMENTS] } }] },
         select: { id: true, label: true, url: true, order: true },
         orderBy: { order: "asc" },
       },
@@ -186,13 +196,16 @@ export default async function SharePage({ params }: PageProps) {
     notFound();
   }
 
+  // undefined — and no extra query — whenever OVERLAYS_ENABLED is off.
+  const overlayContext = await resolveShareOverlays(demo.id);
+
   const captions = captionsForSource(demo);
 
   return (
     <ShareVideoPageClient
       title={demo.title}
       description={demo.description}
-      videoUrl={demo.exportedUrl || demo.videoUrl}
+      videoUrl={shareMediaUrl(demo.exportedUrl || demo.videoUrl, overlayContext)}
       backgroundStyle={backgroundStyleFromEditing(demo.editing)}
       aspectRatio={
         typeof (demo.editing as Record<string, unknown> | null)?.aspectRatio === "string"
@@ -201,6 +214,11 @@ export default async function SharePage({ params }: PageProps) {
       }
       demoId={demo.id}
       ctas={demo.ctas}
+      overlays={overlayContext?.overlays}
+      ownerName={overlayContext?.ownerName}
+      leadCaptured={overlayContext?.leadCaptured}
+      mediaGated={overlayContext?.mediaGated}
+      branchCards={overlayContext?.branchCards}
       captionsVtt={captions?.vtt}
       captionsLanguage={captions?.language}
     />

@@ -5,7 +5,8 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
-const { randomUUID } = require("node:crypto");
+const { createHash, randomUUID } = require("node:crypto");
+const { createReadStream } = require("node:fs");
 
 const express = require("express");
 const { Storage } = require("@google-cloud/storage");
@@ -57,6 +58,28 @@ const AVS_ALLOWED_VOICES = new Set([
   "aura-2-apollo-en",
   "aura-2-arcas-en",
 ]);
+// --- HLS packaging (OVL PR 8) ----------------------------------------------
+// R2 object prefix for packaged renditions. Mirrors HLS_PREFIX in
+// app/lib/overlays/hls.ts, which builds the same keys on the Next side; the two
+// cannot share a module because this is a standalone CommonJS service.
+const HLS_PREFIX = process.env.HLS_PREFIX || "hls/";
+// The rendition ladder, highest first. 1080p is the top rung because the export
+// pipeline never produces more, and a rung above the source is only ever an
+// upscale that costs bitrate and adds nothing — ladderForSource() drops those.
+const HLS_LADDER = [
+  { height: 1080, videoKbps: 5000, maxrateKbps: 5350, bufsizeKbps: 7500, audioKbps: 192 },
+  { height: 720, videoKbps: 2800, maxrateKbps: 3000, bufsizeKbps: 4200, audioKbps: 128 },
+  { height: 480, videoKbps: 1400, maxrateKbps: 1500, bufsizeKbps: 2100, audioKbps: 96 },
+];
+// Segment length in seconds. Also the GOP length — see the keyframe comment in
+// packageHlsJob(). Four is the usual compromise: shorter means more requests and
+// more playlist, longer means a slower first frame and coarser ABR reactions.
+const HLS_SEGMENT_SECONDS = Number(process.env.HLS_SEGMENT_SECONDS || 4);
+// Frame rate every rendition is normalized to. A CONSTANT frame rate is what
+// makes `-g` a fixed number of SECONDS rather than a fixed number of frames that
+// means something different per rendition.
+const HLS_FPS = Number(process.env.HLS_FPS || 30);
+
 const execFileAsync = promisify(execFile);
 
 function must(name, value) {
@@ -1130,6 +1153,461 @@ async function processCompositeJob({ videoUrl, webcamUrl, position, size, shape 
   }
 }
 
+// --- HLS packaging: R2 ------------------------------------------------------
+//
+// The renditions go to Cloudflare R2, not to the GCS processed bucket the rest
+// of this worker writes to, because R2 is where app/lib/r2.ts's `r2://` scheme
+// and public host live and the player has to be able to fetch segments from a
+// public CDN edge. R2 is S3-compatible, so this is @aws-sdk/client-s3 pointed at
+// the account endpoint — the same client construction as app/lib/r2.ts.
+
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || "";
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "";
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "";
+const R2_HLS_BUCKET = process.env.R2_HLS_BUCKET || process.env.R2_PROCESSED_BUCKET || "";
+
+let r2Client = null;
+
+function getR2Client() {
+  if (r2Client) {
+    return r2Client;
+  }
+  must("R2_ACCOUNT_ID", R2_ACCOUNT_ID);
+  must("R2_ACCESS_KEY_ID", R2_ACCESS_KEY_ID);
+  must("R2_SECRET_ACCESS_KEY", R2_SECRET_ACCESS_KEY);
+  const { S3Client } = require("@aws-sdk/client-s3");
+  r2Client = new S3Client({
+    region: "auto",
+    endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    forcePathStyle: true,
+    credentials: {
+      accessKeyId: R2_ACCESS_KEY_ID,
+      secretAccessKey: R2_SECRET_ACCESS_KEY,
+    },
+  });
+  return r2Client;
+}
+
+/**
+ * Content types for the files a packaging run produces.
+ *
+ * NOT COSMETIC. A playlist served as application/octet-stream is refused by
+ * hls.js's loader and by Safari's native player, and the demo then fails to play
+ * with nothing in the console that points back here. R2 stores whatever it is
+ * told and serves it back verbatim, so the type has to be right at upload time.
+ */
+function hlsContentType(fileName) {
+  if (fileName.endsWith(".m3u8")) {
+    return "application/vnd.apple.mpegurl";
+  }
+  if (fileName.endsWith(".m4s") || fileName.endsWith(".mp4")) {
+    return "video/mp4";
+  }
+  if (fileName.endsWith(".json")) {
+    return "application/json";
+  }
+  return "application/octet-stream";
+}
+
+async function r2PutFile({ bucket, key, sourcePath, contentType }) {
+  const { PutObjectCommand } = require("@aws-sdk/client-s3");
+  const body = await fs.readFile(sourcePath);
+  await getR2Client().send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: body,
+      ContentLength: body.length,
+      ContentType: contentType,
+    }),
+  );
+}
+
+async function r2PutText({ bucket, key, text, contentType }) {
+  const { PutObjectCommand } = require("@aws-sdk/client-s3");
+  const body = Buffer.from(text, "utf8");
+  await getR2Client().send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: body,
+      ContentLength: body.length,
+      ContentType: contentType,
+    }),
+  );
+}
+
+/** Read a small object back as text, or null when it is not there. */
+async function r2GetText({ bucket, key }) {
+  const { GetObjectCommand } = require("@aws-sdk/client-s3");
+  try {
+    const result = await getR2Client().send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    if (!result.Body) {
+      return null;
+    }
+    return await result.Body.transformToString();
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * sha256 of the source file, streamed so a large export is never held in memory.
+ *
+ * THE IDEMPOTENCY KEY, together with the demo id: the packager records this
+ * beside the renditions and skips the whole encode when a later run hashes the
+ * source to the same value. Content-addressed rather than URL- or mtime-based
+ * because the export path reuses object names, so a URL that has not changed is
+ * no evidence that the bytes behind it have not.
+ */
+function hashFile(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = createHash("sha256");
+    const stream = createReadStream(filePath);
+    stream.on("error", reject);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolve(hash.digest("hex")));
+  });
+}
+
+/**
+ * Does the source carry an audio stream?
+ *
+ * LOAD-BEARING FOR -var_stream_map. That option names the output streams for
+ * each variant by index, so a map of `v:0,a:0` against a source with no audio
+ * refers to an output stream that does not exist and ffmpeg fails the whole run.
+ * A silent screen capture is not exotic — a demo recorded with the mic off is
+ * one — so the map is built from what the source actually has.
+ */
+async function probeHasAudio(filePath) {
+  try {
+    const { stdout } = await execFileAsync("/usr/bin/ffprobe", [
+      "-v",
+      "error",
+      "-select_streams",
+      "a:0",
+      "-show_entries",
+      "stream=codec_type",
+      "-of",
+      "default=noprint_wrappers=1:nokey=1",
+      filePath,
+    ]);
+    return String(stdout).trim() === "audio";
+  } catch (e) {
+    // A failed probe is treated as "no audio": packaging a silent ladder is
+    // recoverable, and a var_stream_map naming a stream that is not there is not.
+    return false;
+  }
+}
+
+/**
+ * The rungs worth encoding for a source of this height.
+ *
+ * Never upscales: a 720p source gets 720p and 480p, not a 1080p rendition that
+ * spends 5 Mbps carrying the same detail. A source shorter than the bottom rung
+ * still gets exactly one rendition, because a master playlist with no variants
+ * is not a playable thing.
+ */
+function ladderForSource(sourceHeight) {
+  const height = sourceHeight > 0 ? sourceHeight : 1080;
+  const rungs = HLS_LADDER.filter((rung) => rung.height <= height);
+  return rungs.length > 0 ? rungs : [HLS_LADDER[HLS_LADDER.length - 1]];
+}
+
+/** Every file under `dir`, as paths relative to it. */
+async function listFilesRecursive(dir, base = dir) {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const out = [];
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...(await listFilesRecursive(full, base)));
+    } else {
+      out.push(path.relative(base, full));
+    }
+  }
+  return out;
+}
+
+/**
+ * Package one source into an adaptive-bitrate HLS ladder (#302 section 2.4).
+ *
+ * ============================================================================
+ * ALIGNED KEYFRAMES ARE THE WHOLE GAME
+ * ============================================================================
+ * A player switching rendition can only cut at a segment boundary, and a segment
+ * can only start on a keyframe. If the renditions place their keyframes at
+ * different timestamps their segments cover different spans of the video, and
+ * every quality switch repeats or skips a fraction of a second — the classic
+ * stutter on every switch. Four settings enforce alignment here and all four are
+ * needed:
+ *
+ *   -r HLS_FPS         every rendition runs at the SAME constant frame rate, so
+ *                      a GOP of N frames is the same number of seconds in each.
+ *   -g / -keyint_min   a fixed GOP of exactly HLS_SEGMENT_SECONDS worth of
+ *                      frames, with the minimum equal to the maximum so the
+ *                      encoder cannot decide to shorten one.
+ *   -force_key_frames  an explicit keyframe at every multiple of the segment
+ *                      length, expressed in TIME. Belt to the braces: -g counts
+ *                      frames and a dropped or duplicated frame drifts that
+ *                      count, while the expression is anchored to the timeline.
+ *   -sc_threshold 0    scene-change detection inserts a keyframe wherever a cut
+ *                      happens, which lands in a different place per rendition
+ *                      as soon as the encoders disagree about what a cut is.
+ *                      This is the setting people forget, and it silently undoes
+ *                      the other three.
+ *
+ * ONE ffmpeg INVOCATION, not one per rung: the source is decoded once and split
+ * in the filtergraph, which is faster and is the only way every scaler sees
+ * identical input frames.
+ *
+ * Output is fMP4 (`-hls_segment_type fmp4`) — an init segment plus .m4s media
+ * segments — rather than MPEG-TS. fMP4 is what current players want, shares a
+ * container with the MP4 the rest of the pipeline produces, and avoids the TS
+ * muxer's audio-priming quirks.
+ *
+ * Returns { playlistUri, sourceHash, renditions, duration, skipped }.
+ */
+async function packageHlsJob({ demoId, videoUrl, sourceHash: knownSourceHash, force }) {
+  if (!demoId) throw new Error("demoId is required");
+  if (!videoUrl) throw new Error("videoUrl is required");
+  // The demo id becomes an object-key prefix, so a `..` segment or a slash would
+  // escape it. Mirrors isSafeDemoId() in app/lib/overlays/hls.ts.
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(String(demoId))) {
+    throw new Error("Invalid demoId");
+  }
+
+  const bucket = must("R2_HLS_BUCKET", R2_HLS_BUCKET);
+  const prefix = `${HLS_PREFIX}${demoId}/`;
+  const masterKey = `${prefix}master.m3u8`;
+  const manifestKey = `${prefix}manifest.json`;
+  const playlistUri = `r2://${bucket}/${masterKey}`;
+  const startedAt = Date.now();
+
+  /** The recorded state of the last successful run, or null. */
+  const readManifest = async () => {
+    const raw = await r2GetText({ bucket, key: manifestKey });
+    if (!raw) {
+      return null;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // FAST PATH: the caller already knows the hash it recorded last time, so an
+  // unchanged source costs one small GET and no download at all. This is the
+  // path the export trigger takes when a re-save did not actually re-encode.
+  if (!force && knownSourceHash) {
+    const manifest = await readManifest();
+    if (manifest && manifest.sourceHash === knownSourceHash) {
+      console.log(
+        `[package-hls] demo=${demoId} skipped=manifest total_ms=${Date.now() - startedAt}`,
+      );
+      return {
+        playlistUri,
+        sourceHash: manifest.sourceHash,
+        renditions: manifest.renditions || [],
+        duration: manifest.duration || 0,
+        skipped: true,
+      };
+    }
+  }
+
+  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "marvedge-hls-"));
+  try {
+    const downloadStartedAt = Date.now();
+    const sourcePath = path.join(workDir, "source.mp4");
+    await downloadToPath(videoUrl, sourcePath);
+    const downloadMs = Date.now() - downloadStartedAt;
+
+    const hashStartedAt = Date.now();
+    const sourceHash = await hashFile(sourcePath);
+    const hashMs = Date.now() - hashStartedAt;
+
+    // SLOW-PATH IDEMPOTENCY: we had to download to learn the hash, but the
+    // encode — the expensive part by two orders of magnitude — is still skipped
+    // when the bytes have not changed.
+    if (!force) {
+      const manifest = await readManifest();
+      if (manifest && manifest.sourceHash === sourceHash) {
+        console.log(
+          `[package-hls] demo=${demoId} skipped=hash download_ms=${downloadMs} ` +
+            `hash_ms=${hashMs} total_ms=${Date.now() - startedAt}`,
+        );
+        return {
+          playlistUri,
+          sourceHash,
+          renditions: manifest.renditions || [],
+          duration: manifest.duration || 0,
+          skipped: true,
+        };
+      }
+    }
+
+    const { height: probedHeight } = await probeVideoDimensions(sourcePath);
+    const ladder = ladderForSource(probedHeight);
+    const hasAudio = await probeHasAudio(sourcePath);
+    const gopFrames = Math.max(1, Math.round(HLS_SEGMENT_SECONDS * HLS_FPS));
+
+    // ONE FLAT DIRECTORY, and %v only ever in a FILENAME — never as a directory
+    // component. ffmpeg derives the master playlist's path from the dirname of
+    // the output playlist argument, so an output of `out/%v/index.m3u8` asks it
+    // to write the master into a directory literally called "%v". Flat filenames
+    // (`out/%v.m3u8`) leave the dirname free of %v, which is the shape ffmpeg's
+    // own multi-variant example uses.
+    const outDir = path.join(workDir, "out");
+    await fs.mkdir(outDir, { recursive: true });
+
+    // Split the decoded video once per rung and scale each branch. Width comes
+    // from -2 so the aspect ratio is preserved and the result stays even, which
+    // yuv420p requires.
+    const filterComplex = [
+      `[0:v]split=${ladder.length}${ladder.map((_, i) => `[v${i}in]`).join("")}`,
+      ...ladder.map(
+        (rung, i) =>
+          `[v${i}in]scale=-2:${rung.height}:force_original_aspect_ratio=decrease,setsar=1[v${i}]`,
+      ),
+    ].join(";");
+
+    const args = ["-y", "-i", sourcePath, "-filter_complex", filterComplex];
+
+    ladder.forEach((rung, i) => {
+      args.push("-map", `[v${i}]`);
+      args.push(
+        `-c:v:${i}`,
+        "libx264",
+        `-preset:v:${i}`,
+        "veryfast",
+        `-profile:v:${i}`,
+        "main",
+        `-b:v:${i}`,
+        `${rung.videoKbps}k`,
+        `-maxrate:v:${i}`,
+        `${rung.maxrateKbps}k`,
+        `-bufsize:v:${i}`,
+        `${rung.bufsizeKbps}k`,
+      );
+      // Only when the source HAS audio: -var_stream_map below names output
+      // streams by index, and naming an audio stream that does not exist fails
+      // the whole run rather than degrading to a silent ladder.
+      if (hasAudio) {
+        args.push("-map", "0:a:0", `-c:a:${i}`, "aac", `-b:a:${i}`, `${rung.audioKbps}k`);
+      }
+    });
+
+    args.push(
+      // Constant frame rate, fixed GOP, forced keyframes on the timeline, no
+      // scene-change keyframes. See the comment above this function: drop any
+      // one of these and every quality switch stutters.
+      "-r",
+      String(HLS_FPS),
+      "-g",
+      String(gopFrames),
+      "-keyint_min",
+      String(gopFrames),
+      "-sc_threshold",
+      "0",
+      "-force_key_frames",
+      `expr:gte(t,n_forced*${HLS_SEGMENT_SECONDS})`,
+      "-pix_fmt",
+      "yuv420p",
+      ...(hasAudio ? ["-ar", "48000", "-ac", "2"] : []),
+      "-f",
+      "hls",
+      "-hls_time",
+      String(HLS_SEGMENT_SECONDS),
+      // 0 keeps every segment. A VOD playlist lists the whole video; the default
+      // rolling window would produce a live-style playlist starting partway in.
+      "-hls_list_size",
+      "0",
+      "-hls_playlist_type",
+      "vod",
+      "-hls_segment_type",
+      "fmp4",
+      // Declares that every segment can be decoded independently — true because
+      // of the keyframe settings above, and what lets a player start on any
+      // segment when it switches rendition.
+      "-hls_flags",
+      "independent_segments",
+      // Relative, so ffmpeg resolves it against the variant playlist's own
+      // directory — which is outDir for all three — and %v expands to the
+      // `name:` from var_stream_map below. Gives 1080p_init.mp4 etc.
+      "-hls_fmp4_init_filename",
+      "%v_init.mp4",
+      "-hls_segment_filename",
+      path.join(outDir, "%v_%05d.m4s"),
+      "-master_pl_name",
+      "master.m3u8",
+      "-var_stream_map",
+      ladder
+        .map((rung, i) => (hasAudio ? `v:${i},a:${i}` : `v:${i}`) + `,name:${rung.height}p`)
+        .join(" "),
+      path.join(outDir, "%v.m3u8"),
+    );
+
+    const encodeStartedAt = Date.now();
+    await execFileAsync("/usr/bin/ffmpeg", args, { maxBuffer: 32 * 1024 * 1024 });
+    const encodeMs = Date.now() - encodeStartedAt;
+
+    const duration = round3(await probeDurationSeconds(sourcePath));
+
+    // Upload everything produced, preserving the relative layout the playlists
+    // reference. Every URI inside a playlist — the master's variant references,
+    // a variant's init and segment references — is a bare filename, so all of it
+    // has to land under the one `hls/<demoId>/` prefix and nowhere else.
+    const uploadStartedAt = Date.now();
+    const files = await listFilesRecursive(outDir);
+    for (const relativePath of files) {
+      const key = `${prefix}${relativePath.split(path.sep).join("/")}`;
+      await r2PutFile({
+        bucket,
+        key,
+        sourcePath: path.join(outDir, relativePath),
+        contentType: hlsContentType(relativePath),
+      });
+    }
+    const uploadMs = Date.now() - uploadStartedAt;
+
+    const renditions = ladder.map((rung) => ({
+      height: rung.height,
+      bitrateKbps: rung.videoKbps + rung.audioKbps,
+    }));
+
+    // The marker goes up LAST, deliberately. It is what a later run trusts in
+    // order to skip the encode, so it must never be readable while the segments
+    // it vouches for are still uploading. A crash halfway through leaves no
+    // marker and the next run repackages, which is the recoverable direction.
+    await r2PutText({
+      bucket,
+      key: manifestKey,
+      text: JSON.stringify({
+        demoId,
+        sourceHash,
+        renditions,
+        duration,
+        segmentSeconds: HLS_SEGMENT_SECONDS,
+        packagedAt: new Date().toISOString(),
+      }),
+      contentType: "application/json",
+    });
+
+    console.log(
+      `[package-hls] demo=${demoId} rungs=${ladder.map((r) => r.height).join("/")} ` +
+        `files=${files.length} duration=${duration}s gop=${gopFrames}f ` +
+        `audio=${hasAudio} ` +
+        `download_ms=${downloadMs} hash_ms=${hashMs} encode_ms=${encodeMs} ` +
+        `upload_ms=${uploadMs} total_ms=${Date.now() - startedAt}`,
+    );
+
+    return { playlistUri, sourceHash, renditions, duration, skipped: false };
+  } finally {
+    await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 async function getRecipeById(recipeId) {
   const snap = await firestore
     .collection(RECIPES_COLLECTION)
@@ -1436,6 +1914,29 @@ app.post("/wtm-composite", async (req, res) => {
     });
   } catch (err) {
     console.error("[worker] wtm-composite failed:", err);
+    return res.status(500).json({
+      ok: false,
+      error: err?.message || "unknown_error",
+    });
+  }
+});
+
+app.post("/package-hls", async (req, res) => {
+  const { demoId, videoUrl, sourceHash, force } = req.body || {};
+  if (!demoId || !videoUrl) {
+    return res.status(400).json({ ok: false, error: "demoId and videoUrl are required" });
+  }
+  try {
+    const result = await packageHlsJob({ demoId, videoUrl, sourceHash, force });
+    return res.status(200).json({
+      ok: true,
+      result: {
+        recipeId: "package-hls",
+        ...result,
+      },
+    });
+  } catch (err) {
+    console.error("[worker] package-hls failed:", err);
     return res.status(500).json({
       ok: false,
       error: err?.message || "unknown_error",

@@ -5,6 +5,7 @@ import { isAvsPanelEnabled } from "@/app/lib/avs/flags";
 import { isWtmPanelEnabled } from "@/app/lib/wtm/flags";
 import { isSubtitleEditorEnabled } from "@/app/lib/subtitles";
 import { isAudioPanelEnabled } from "@/app/lib/audio/flags";
+import { isOverlaysPanelEnabled } from "@/app/lib/overlays/flags";
 import SidebarTabs from "./SidebarTabs";
 
 interface SidebarHeaderProps {
@@ -36,6 +37,7 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = ({
     ...(isSubtitleEditorEnabled() ? [{ id: "subtitles" as MainTab, label: "Subtitles" }] : []),
     ...(isAudioPanelEnabled() ? [{ id: "audio" as MainTab, label: "Audio" }] : []),
     ...(isWtmPanelEnabled() ? [{ id: "branding" as MainTab, label: "Branding" }] : []),
+    ...(isOverlaysPanelEnabled() ? [{ id: "overlays" as MainTab, label: "Overlays" }] : []),
   ];
 
   return (
