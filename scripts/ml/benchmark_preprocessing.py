@@ -64,7 +64,7 @@ def gpu_total_mb():
     """Return total GPU VRAM in MB."""
     if not HAS_CUDA:
         return 0.0
-    return torch.cuda.get_device_properties(0).total_mem / (1024 * 1024)
+    return torch.cuda.get_device_properties(0).total_memory / (1024 * 1024)
 
 
 # ── Pipeline stages (same logic as preprocess_faces.py) ───────────────────────
