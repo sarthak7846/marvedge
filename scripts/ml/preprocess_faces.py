@@ -32,7 +32,12 @@ def scene_detect(args):
     return sceneList
 
 def inference_video(args):
-    DET = S3FD(device='cuda')
+    try:
+        import torch
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    except ImportError:
+        device = 'cpu'
+    DET = S3FD(device=device)
     flist = glob.glob(os.path.join(args.pyframesPath, '*.jpg'))
     flist.sort()
     dets = []
